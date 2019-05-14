@@ -7,7 +7,7 @@ import sys
 #import libs
 
 
-env=Environment(ENV={'PATH':os.environ['PATH']},LINK='gfortran',F90='mpiifort')
+env=Environment(ENV={'PATH':os.environ['PATH']},LINK='mpiifort',F90='mpiifort')
 #env.Tool('mpiifort')
 
 sources=['3dtri_lock20_old.f90', 'phy3d_module_non.f90']
