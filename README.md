@@ -5,12 +5,12 @@ Model episodic slow slip events with 3D curved fault geometry
 
 ### Method 1
 ``
-scons
+$ scons
 ``
 
 ### Method 2
 
 ``
-mpiifort src/phy3d_module_non.f90 src/3dtri_cleanup.f90 -o 3dtri_sse
+$ mpiifort src/phy3d_module_non.f90 src/3dtri_cleanup.f90 -o 3dtri_sse
 ``
 
