@@ -1,0 +1,54 @@
+// -*- C++ -*- (syntax highlighting)
+//
+// This spatial database specifies the distribution of slip rate
+// associated with aseismic creep on the interface between the mantle
+// and the subducting oceanic crust.
+// 
+// We specify a uniform creep rate below a depth of 50 km, tapering to
+// 0 at a depth of 30 km.
+//
+#SPATIAL_GRID.ascii 1
+SimpleGridDB {
+  num-x = 1
+  num-y = 1
+  num-z = 4
+  num-values = 3
+  value-names =  density vs vp // names of the material property values
+  value-units =  kg/m**3  km/s  km/s // units
+  space-dim = 3
+  cs-data = geo-projected {
+    to-meters = 1.0e+3 // Specify coordinates in km for convenience.
+    ellipsoid = WGS84
+    datum-horiz = WGS84
+    datum-vert = mean sea level
+    origin-lon = 0
+    origin-lat = 0
+    rotation-angle = 0
+    projector = projector {
+      projection = tmerc
+      units = m
+      proj-options = +lon_0=-128 +lat_0=46.8 +k=0.9996
+    } // projector
+  } // cs-data
+} // SimpleGridDB
+
+// x coordinate
+0.0
+
+// y coordinate
+0.0
+
+// z coordinate
+99.0  -45.0  -60.0  -999.0
+
+// Columns are
+// (1) x coordinate (km)
+// (2) y coordinate (km)
+// (3) z coordinate (km)
+// (4) density (kg/m^3)
+// (5) vs (km/s)
+// (6) vp (km/s)
+0.0  0.0    99.0    2468.0  1.0  4.0
+0.0  0.0   -45.0    3300.0  4.0  8.0
+0.0  0.0   -60.0    3400.0  4.5  9.0
+0.0  0.0  -999.0    3400.0  5.0  10.0
