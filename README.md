@@ -1,5 +1,5 @@
 # SlowSlipSimulation
-Model episodic slow slip events with 3D curved fault geometry
+Tri3DSSE is a Fortran90 parallel (MPI) code to simulation episodic slow slip events with 3D curved fault geometry
 
 
 # Static Green's function (or stiffness) calculation
