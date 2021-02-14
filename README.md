@@ -1,5 +1,5 @@
-# SlowSlipSimulation
-Tri3DSSE is a Fortran90 parallel (MPI) code to simulation episodic slow slip events with 3D curved fault geometry
+# TriCy3D
+TriCy3D is a Fortran90 parallel (MPI) code to simulation slow slip events and earthquake cycles embeding in 3D curved fault geometry.
 
 
 # Static Green's function (or stiffness) calculation
