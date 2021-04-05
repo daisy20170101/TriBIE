@@ -10,13 +10,6 @@ We use pylith to calculate stiffness for triangular elements in 3D curved slab g
 
 ## Compilation
 
-### Method 1
-``
-$ scons
-``
-
-### Method 2
-
 ``
 $ mpiifort src/phy3d_module_non.f90 src/3dtri_cleanup.f90 -o 3dtri_sse
 ``
