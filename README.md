@@ -1,5 +1,5 @@
-# TriCy3D
-TriCy3D is a Fortran90 parallel (MPI) code to simulation slow slip events and earthquake cycles in 3D curved fault geometry.
+# TriBIE_cycle
+TriBIE_cycle is a Fortran90 parallel (MPI) code to simulation slow slip events and earthquake cycles in 3D curved fault geometry.
 
 ## Static Green's function (or stiffness) calculation
 ### Stiffness in homogeneous half-space
