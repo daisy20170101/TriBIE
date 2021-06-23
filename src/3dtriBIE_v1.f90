@@ -1,17 +1,20 @@
 !------------------------------------------------
-! 3D Subduction fault earthquake sequence model
-! MPI 
+! code: TriBIE
+! Purpose: 3D Subduction fault earthquake sequence model
+! Language: Fortran + OpenMPI 
+! Authors:
+! D. Li (liduoduo07@gmail.com)
+! Last modified Jan. 2019
+
 ! Yajing Liu (yajing.liu@mcgill.ca)
 ! Last modified Jul. 4, 2012
 !
-! D. Li (liduoduo07@gmail.com)
-! Last modified Jan. 2019
-!------------------------------------------------
 ! Notes:
 ! using varying plate convergence rate. pay attention to theta !!!!
 !  yt(2*i) should not be negative!!!!
 !  The fault could be set up with two buffer zones both sides of 20 km wide each
 ! cleaned up for higher efficiency
+!------------------------------------------------
 
 program main
   USE mpi
