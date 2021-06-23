@@ -1,16 +1,16 @@
 !------------------------------------------------
 ! 3D Subduction fault earthquake sequence model
 ! MPI 
-! Yajing Liu
+! Yajing Liu (yajing.liu@mcgill.ca)
 ! Last modified Jul. 4, 2012
 !
-! D. Li
+! D. Li (liduoduo07@gmail.com)
 ! Last modified Jan. 2019
 !------------------------------------------------
+! Notes:
 ! using varying plate convergence rate. pay attention to theta !!!!
 !  yt(2*i) should not be negative!!!!
-!!!  with two buffer zones both sides of 20 km wide each
-!!  this is a restart code with locked seismogenic zone where slip==0
+!  The fault could be set up with two buffer zones both sides of 20 km wide each
 ! cleaned up for higher efficiency
 
 program main
@@ -64,7 +64,7 @@ program main
 
   !read in intiliazation parameters
 
-  open(12,file='./parameter1.txt',form='formatted',status='old')
+  open(12,file='./parameter.txt',form='formatted',status='old')
 
   read(12,'(a)')jobname
   read(12,'(a)')foldername
@@ -147,16 +147,6 @@ program main
   do i=1,Nt !! observe
      do j=1,Nt_all !! source
         read(5) stiff(i,j)
-
-        if(stiff(i,j).lt.-0.5d0.or.stiff(i,j).gt.0.99d0)then
-           stiff(i,j) = 0.d0
-           write(*,*) myid,i,'extreme'
-	end if
-        if(isNaN(stiff(i,j)))then
-           stiff(i,j)=0.d0
-           write(*,*) myid,i,'NaN'
-        end if
-        
      end do
   end do
   close(5)
