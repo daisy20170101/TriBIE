@@ -1,10 +1,12 @@
 # TriBIE
-TriBIE is a Fortran90 parallel (MPI) code to simulate episodic slow slip events (SSEs) and earthquake cycles in an arbitrary curved fault buried in the half-space medium. TriBIE has been verified in the SCEC Sequences of Earthquakes and Aseismic Slip Project (https://strike.scec.org/cvws/seas/).
+TriBIE is a Fortran90 parallel (MPI) code to simulate episodic slow slip events (SSEs) and earthquake cycles in an arbitrary curved fault buried in the half-space medium. TriBIE has been verified in the SCEC Sequences of Earthquakes and Aseismic Slip Project (https://strike.scec.org/cvws/seas/). 
+
+TriBIE is developed and currently maintaned by Duo Li (<https://daisy20170101.github.io/duo_li.github.io/>), Yajing Liun(<https://www.mcgill.ca/eps/liu>), Hongyu Yu, Lei Zhang and Andrea Perez. Please feel free to contact us for anything about the code!
 
 ## Static Green's function (or stiffness) calculation
 ### Stiffness in homogeneous half-space medium
 We use analytical solution for stress tensor in polygon elements embeded in homogeneous half-space.
-
+    
 ### Using pylith for heterogeneous half-space medium
 We can use pylith to calculate stiffness for triangular elements in 3D curved slab geometry with either 1D or 3D velocity. 
 
