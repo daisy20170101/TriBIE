@@ -1,7 +1,10 @@
 # TriBIE
-TriBIE is a Fortran90 parallel (MPI) code to simulate episodic slow slip events (SSEs) and earthquake cycles in an arbitrary curved fault buried in the half-space medium. TriBIE has been verified in the SCEC Sequences of Earthquakes and Aseismic Slip Project (https://strike.scec.org/cvws/seas/). 
+TriBIE is a parallelized Fortran90 (OpenMPI) code for simulating episodic slow slip events (SSEs) and earthquake cycles in an arbitrary curved fault buried in half-space medium. The quasi-dynamic formulation of shear traction and fault slip [Rice 1993] is implemented in spatial domain and the 5th-order Runge-Kutta method with adaptive time step integration is used in time domain. TriBIE has been used in many geophysical applications recently. TriBIE has also been verified in the SCEC Sequences of Earthquakes and Aseismic Slip Project (https://strike.scec.org/cvws/seas/). 
 
-TriBIE is developed and currently maintaned by Duo Li (<https://daisy20170101.github.io/duo_li.github.io/>), Yajing Liu(<https://www.mcgill.ca/eps/liu>), Hongyu Yu, Lei Zhang and Andrea Perez. Please feel free to contact us for anything about the code!
+TriBIE is developed and currently maintaned by Duo Li (<https://daisy20170101.github.io/duo_li.github.io/>), Yajing Liu(<https://www.mcgill.ca/eps/liu>), Hongyu Yu, Lei Zhang and Andrea Perez-Silva (). Please feel free to contact us for anything about the code!
+
+![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/SSE_CAS_web.png)
+Figure 1. Numerical model of the curved subduction fault in Cascadia (left) and the simulated SSE slip in two episodes [Li and Liu, 2016; 2017].
 
 ## Static Green's function (or stiffness) calculation
 ### Stiffness in homogeneous half-space medium
@@ -78,5 +81,20 @@ Example:
 
 
 
-## Simulation
+## Publications
+
+Jiang, J., B. Erickson, V. Lambert, J.-P. Ampuero, R. Ando, S. Barbot, C. Cattania, L. D. Zilio, B. Duan, E. M. D. . and et al. "Community-Driven Code Comparisons for Three-Dimensional Dynamic Modeling of Sequences of Earthquakes and Aseismic Slip (SEAS)." JGR: Solid Earth
+
+Perez-Silva, A., D. Li, A.-A. Gabriel and Y. Kaneko (2021). "3D Modeling of Long-Term Slow Slip Events Along the Flat-Slab Segment in the Guerrero Seismic Gap, Mexico." Geophysical Research Letters 48(13).
+
+Perez-Silva, A., Y. Kaneko, M. Savage, L. Wallace, D. Li and C. Williams (2022). "Segmentation of Shallow Slow Slip Events at the Hikurangi Subduction Zone Explained by Along-Strike Changes in Fault Geometry and Plate Convergence Rates." Journal of Geophysical Research: Solid Earth 127(1): e2021JB022913.
+
+Li, H., M. Wei, D. Li, Y. Liu, Y. Kim and S. Zhou "Segmentation of Slow Slip Events in South Central Alaska Possibly Controlled by a Subducted Oceanic Plateau." Journal of Geophysical Research: Solid Earth.
+
+Modeling earthquake sequences along the Manila subduction zone: Effects of three-dimensional fault geometry
+H Yu, Y Liu, H Yang, J Ning - Tectonophysics, 2018
+
+Li, D. and Y. Liu (2016). "Spatiotemporal evolution of slow slip events in a nonplanar fault model for northern Cascadia subduction zone." Journal of Geophysical Research: Solid Earth 121(9): 6828-6845.
+
+Li, D. and Y. Liu (2017). "Modeling slow-slip segmentation in Cascadia subduction zone constrained by tremor locations and gravity anomalies." Journal of Geophysical Research: Solid Earth 122: 3138–3157.
 
