@@ -91,8 +91,7 @@ Perez-Silva, A., Y. Kaneko, M. Savage, L. Wallace, D. Li and C. Williams (2022).
 
 Li, H., M. Wei, D. Li, Y. Liu, Y. Kim and S. Zhou "Segmentation of Slow Slip Events in South Central Alaska Possibly Controlled by a Subducted Oceanic Plateau." Journal of Geophysical Research: Solid Earth.
 
-Modeling earthquake sequences along the Manila subduction zone: Effects of three-dimensional fault geometry
-H Yu, Y Liu, H Yang, J Ning - Tectonophysics, 2018
+H Yu, Y Liu, H Yang, J Ning , Modeling earthquake sequences along the Manila subduction zone: Effects of three-dimensional fault geometry. Tectonophysics, 2018
 
 Li, D. and Y. Liu (2016). "Spatiotemporal evolution of slow slip events in a nonplanar fault model for northern Cascadia subduction zone." Journal of Geophysical Research: Solid Earth 121(9): 6828-6845.
 
