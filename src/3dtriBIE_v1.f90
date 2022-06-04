@@ -12,7 +12,7 @@
 ! Notes:
 ! using varying plate convergence rate. pay attention to theta !!!!
 !  yt(2*i) should not be negative!!!!
-!  The fault could be set up with two buffer zones both sides of 20 km wide each
+!  The fault could be set up with two buffer zones (e.g. 20 km wide each)
 ! cleaned up for higher efficiency
 !------------------------------------------------
 
@@ -53,7 +53,6 @@ program main
 
   real (DP), DIMENSION(:,:), ALLOCATABLE :: slipz1_inter, slipz1_v,slipz1_cos,slipz1_tau,slipz1_sse
 
-
   character(len=40) :: cTemp,filename,ct
 
   !MPI RELATED DEFINITIONS
@@ -88,8 +87,8 @@ program main
   read(12,*) nmv,nas,ncos,nsse
   read(12,*) s1,s2,s3,s4,s5,s6,s7,s8
 
-110 format(A)
-  close(12)
+    110 format(A)
+    close(12)
 
 
   if(mod(Nt_all,nprocs)/=0)then
@@ -99,8 +98,7 @@ program main
      write(*,*)'Each cpu calculates',Nt_all/nprocs,'cells'
   end if
   
-  ! hnucl = hstarfactor*hd            !h* (how about along strike?) 
-
+  ! hnucl = hstarfactor*hd            !h* (how about along strike?)
   if(myid == master)then
      ALLOCATE(x_all(Nt_all),xi_all(Nt_all),&
           cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),&
@@ -116,7 +114,7 @@ program main
      ALLOCATE (slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos), &
           slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse) )
      ALLOCATE( slipz1_v(Nt_all,ncos) )
-  end if
+    end if
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ALLOCATE (x(Nt),z(Nt),z_all(Nt_all),xi(Nt),cca(Nt),ccb(Nt),seff(Nt),&
@@ -156,7 +154,6 @@ program main
   close(55)
   !!-----------------------------------------------------------------------------------------
   !--------------------------------------------------------------------------------------------
-
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
 
   if(myid==master)then
@@ -201,7 +198,7 @@ program main
   imv=0   !counter for maxv, sliptot, slipthresh1, slipthresh2,slipthresh3 output 
   ias=0 !counter for slip at iz3 and s.z. average slip output 
   icos = 0 
-
+!!! accuracy in Adaptive Rudge-Kutta
   accuracy = 1.d-3
   epsv = accuracy
   dtmin = 1.d-6
@@ -332,7 +329,6 @@ program main
 !!!!! checkout point  - not necessary now !!!!!!!!!!!!!!!
 
         !-----Interseismic slip every ? years----
-
         if (t.ge.tslip_ave)then
            ias = ias + 1 
            tas(ias)=t
@@ -352,7 +348,7 @@ program main
            if((maxv(imv)/yrs).le.vcos.and.maxv(imv).ge.vsse1)then
               tslipsse = tslipsse + dt
               if(tslipsse.ge.0.002739726)then   !! output step = 1 day
-		write(*,*)'SSE',t,maxv(imv)
+            write(*,*)'SSE',t,maxv(imv)
                  isse = isse + 1
                  do i=1,Nt_all
                     slipz1_tau(i,isse)= tau_all(i)
@@ -481,7 +477,6 @@ program main
 !     DEALLOCATE (intdepz1,intdepz2,intdepz3,ssetime,slipz1_v)
   end if
 
-
   DEALLOCATE (stiff)
   DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale,tau,tau0,slip,slipinc)
   DEALLOCATE (cca,ccb,xLf,seff)
@@ -511,7 +506,7 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
   h=htry
   allocate (yerr(nmax),ytemp(nmax))
   !        write(*,*)'in rkqs, bf rkck, myid=',myid,y(n-1)
-1 call rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,ytemp,x,derivs,z_all,p)
+    1 call rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,ytemp,x,derivs,z_all,p)
   !        write(*,*)'in rkqs, af rkck, myid=',myid, ytemp(n-1)
   errmax=0.
   do  i=1,nmax
@@ -656,15 +651,14 @@ end subroutine rkqs
        tmelse=tmelse+tm2-tm1
        tm1=tm2
 
-!!!! add the locked zone above 20 km for the seismogenic zone
+    !!!! add the locked zone above 20 km for the seismogenic zone
 
-!       do j=1,Nt_all
-!          if(z_all(j).lt.19.5)then
-!             zz_all(j) = 0
-!          end if
-!       end do
-!!!!!!!!!!!!!!!!!!!!
-
+    !       do j=1,Nt_all
+    !          if(z_all(j).lt.19.5)then
+    !             zz_all(j) = 0
+    !          end if
+    !       end do
+    !!!!!!!!!!!!!!!!!!!!
 
        ! calculate stiffness*(Vkl-Vpl) of one proccessor.
        do i=1,Nt
@@ -673,10 +667,6 @@ end subroutine rkqs
              zzfric(i) = zzfric(i) + stiff(i,j)*zz_all(j)
           end do
        end do
-
- !      do i=1,1
- !      write(*,'(1x,I6,E23.13)') myid*Nt+1,zzfric(1)
- !      end do
 
        call CPU_TIME(tm2)
        if ((tm2-tm1) .lt. 0.03)then
@@ -715,8 +705,6 @@ end subroutine rkqs
              dydt(2*i) = deriv3  
           end if
        end do
-
-!       if(myid==0) write(*,*) t,dydt(1),dydt(2)
 
        RETURN
      END subroutine derivs
@@ -856,9 +844,6 @@ end subroutine rkqs
                      m=l
                      nn=l+1
                   end if
-                  !                cca_all(k)=a(m)+(a(nn)-a(m))*(ptemp(k)-tpr(m))/(tpr(nn)-tpr(m))
-                  !                ccab_all(k)=ab(m)+(ab(nn)-ab(m))*(ptemp(k)-tpr(m))/(tpr(nn)-tpr(m))
-                  !                ccb_all(k)=b(m)+(b(nn)-b(m))*(ptemp(k)-tpr(m))/(tpr(nn)-tpr(m))
                end do
             end if
             cca_all(k)=a(m)+(a(nn)-a(m))*(ptemp(k)-tpr(m))/(tpr(nn)-tpr(m))
@@ -885,33 +870,32 @@ end subroutine rkqs
          end if
       end do
 
-!!!! add perturbation and buffer zone at both ends.
-      
-      if(Iperb.eq.1)then    !apply small perturbations in a,b
-         do k=1,Nt_all
-
-            if(x_all(k).gt.170.0.and.x_all(k).lt.220.0)then
-               factor = factor1
-            else if(x_all(k).gt.-290.0.and.x_all(k).lt.-190.0)then
-               factor = factor1
-            else
-               factor = 1.0
-            end if
-
-            if(factor.eq.factor1)then
-               cca_all(k)=0.01
-               ccab_all(k)=0.0035 ! bufferzone
-               ccb_all(k)=cca_all(k)-ccab_all(k)
-               xLf_all(k)=dabs(ccab_all(k)**2)*sigmadiff*hnucl*(1-xnu)/(gamma*xmu*abs(ccb_all(k))) 
-!            else
-
-!               cca_all(k)=cca_all(k)*factor
-!               ccab_all(k)=ccab_all(k)*factor
-!               ccb_all(k)=cca_all(k)-ccab_all(k) 
-!               xLf_all(k)=dabs(ccab_all(k)**2)*seff_all(k)*hnucl*(1-xnu)/(gamma*xmu*abs(ccb_all(k)))   
-            end if
-         end do
-      end if
+!!!! add perturbation and buffer zone at both sides if necessary
+!      if(Iperb.eq.1)then    !apply small perturbations in a,b
+!         do k=1,Nt_all
+!
+!!            if(x_all(k).gt.170.0.and.x_all(k).lt.220.0)then
+!!               factor = factor1
+!!            else if(x_all(k).gt.-290.0.and.x_all(k).lt.-190.0)then
+!!               factor = factor1
+!!            else
+!!               factor = 1.0
+!!            end if
+!
+!!            if(factor.eq.factor1)then
+!!               cca_all(k)=0.01
+!!               ccab_all(k)=0.0035 ! bufferzone
+!!               ccb_all(k)=cca_all(k)-ccab_all(k)
+!!               xLf_all(k)=dabs(ccab_all(k)**2)*sigmadiff*hnucl*(1-xnu)/(gamma*xmu*abs(ccb_all(k)))
+!!            else
+!
+!!               cca_all(k)=cca_all(k)*factor
+!!               ccab_all(k)=ccab_all(k)*factor
+!!               ccb_all(k)=cca_all(k)-ccab_all(k)
+!!               xLf_all(k)=dabs(ccab_all(k)**2)*seff_all(k)*hnucl*(1-xnu)/(gamma*xmu*abs(ccb_all(k)))
+!            end if
+!         end do
+!      end if
 
 
       !need to address when j=1 and j=Nd_all!! same in the old openmp f90 file!
@@ -937,7 +921,6 @@ end subroutine rkqs
       !close(444)
 
       
-
       !      end do 
 
       !     To save info about some of the quantities
@@ -956,15 +939,15 @@ end subroutine rkqs
 ! restart file
 !------------------------------------------------------------------------------
 
-      subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
-USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
+subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
+    USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
                         tm1,tm2,tmday,tmelse,tmmidn,tmmult
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer :: inout,i,ndt,nrec,Ifileout,Nt,Nt_all
       real (DP) :: t,dt,dt_try
       real (DP) ::  yt(2*Nt_all),slip(Nt_all)
-character(len=40) :: filename
+    character(len=40) :: filename
 
       if(inout.eq.0) then
          open(Ifileout,file=trim(restartname),status='old')
