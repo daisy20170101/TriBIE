@@ -95,7 +95,7 @@ Please contact us or post an issue if anything unclear!
 
 ## Publications
 
-Jiang, J., B. Erickson, V. Lambert, J.-P. Ampuero, R. Ando, S. Barbot, C. Cattania, L. D. Zilio, B. Duan, E. M. D. . and et al. "Community-Driven Code Comparisons for Three-Dimensional Dynamic Modeling of Sequences of Earthquakes and Aseismic Slip (SEAS)." JGR: Solid Earth ([EarthArXiv](doi:10.1002/essoar.10508582.1))
+Jiang, J., B. Erickson, V. Lambert, J.-P. Ampuero, R. Ando, S. Barbot, C. Cattania, L. D. Zilio, B. Duan, E. M. D. . and et al. "Community-Driven Code Comparisons for Three-Dimensional Dynamic Modeling of Sequences of Earthquakes and Aseismic Slip (SEAS)." JGR: Solid Earth ([EarthArXiv](https://doi.org/10.1002/essoar.10508582.1))
 
 Perez-Silva, A., D. Li, A.-A. Gabriel and Y. Kaneko (2021). "3D Modeling of Long-Term Slow Slip Events Along the Flat-Slab Segment in the Guerrero Seismic Gap, Mexico." Geophysical Research Letters 48(13). [https://doi.org/10.1029/2021GL092968](https://doi.org/10.1029/2021GL092968)
 
