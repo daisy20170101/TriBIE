@@ -20,7 +20,7 @@ Please contact us if you need scripts for creating Trelis meshing file.
 We can use [Pylith](https://geodynamics.org/resources/pylith) to calculate stiffness for triangular elements in 3D curved slab geometry with either 1D or 3D velocity. 
 
 ![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/CAS_3d2.png)
-Figure 3. Mesh and 3D velocity model of Cascadia subduction used in PyLith simulation. In Pylith, only traction changes on the slab fault is needed.
+Figure 3. Mesh and [3D velocity model of Cascadia subduction](https://pubs.er.usgs.gov/publication/ofr20171152)  used in PyLith simulation. In Pylith, only traction changes on the slab fault is needed.
 
 Please contact us if you need help with calculating stiffness using PyLith. 
 
