@@ -1,7 +1,7 @@
 # TriBIE
 TriBIE is a parallelized Fortran90 (OpenMPI) code for simulating episodic slow slip events (SSEs) and earthquake cycles in an arbitrary curved fault buried in half-space medium. The quasi-dynamic formulation of shear traction and fault slip [Rice 1993] is implemented in spatial domain and the 5th-order Runge-Kutta method with adaptive time step integration is used in time domain. TriBIE has been used in many geophysical applications recently. TriBIE has also been verified in the SCEC Sequences of Earthquakes and Aseismic Slip Project (https://strike.scec.org/cvws/seas/). 
 
-TriBIE is developed and currently maintaned by Duo Li (<https://daisy20170101.github.io/duo_li.github.io/>), Yajing Liu(<https://www.mcgill.ca/eps/liu>), Hongyu Yu, Lei Zhang and Andrea Perez-Silva (). Please feel free to contact us for anything about the code!
+TriBIE is developed and currently maintaned by [Duo Li](https://daisy20170101.github.io/duo_li.github.io/), [Yajing Liu](https://www.mcgill.ca/eps/liu), [Hongyu Yu](https://scholar.google.com/citations?user=XzF1Ed0AAAAJ&hl=en), [Lei Zhang](https://www.eq-igl.ac.cn/fgzc/info/2019/20831.html) and [Andrea Perez-Silva](https://www.researchgate.net/scientific-contributions/Andrea-Perez-Silva-2190753609). Please feel free to contact us for anything about the code!
 
 ![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/SSE_CAS_web.png)
 Figure 1. Numerical model of the curved subduction fault in Cascadia (left) and the simulated SSE slip in two episodes [Li and Liu, 2016; 2017].
@@ -9,7 +9,7 @@ Figure 1. Numerical model of the curved subduction fault in Cascadia (left) and 
 ## Static Green's function (or stiffness) calculation
 ### Stiffness in homogeneous half-space medium
 We use analytical solution for stress tensor in polygon elements embeded in homogeneous half-space based on Comninou and Dundurs [1975] and Stuart [1997].
-We fix the singularities using the method presented in Nikkhoo and Walter [2015, GJI]. The triangular mesh of fault interface can be created by Trelis or Cubit (https://coreform.com/products/coreform-cubit/). 
+We fix the singularities using the method presented in Nikkhoo and Walter [2015, GJI]. The triangular mesh of fault interface can be created by [Trelis or Cubit](https://coreform.com/products/coreform-cubit/). 
 
 ![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/GuerreroSlabMesh.png)
 Figure 2. Fault geometry and mesh created for SSE model in Guerrero, Mexico.
@@ -17,7 +17,7 @@ Figure 2. Fault geometry and mesh created for SSE model in Guerrero, Mexico.
 Please contact us if you need scripts for creating Trelis meshing file. 
     
 ### Using pylith for heterogeneous half-space medium
-We can use pylith to calculate stiffness for triangular elements in 3D curved slab geometry with either 1D or 3D velocity. 
+We can use [Pylith](https://geodynamics.org/resources/pylith) to calculate stiffness for triangular elements in 3D curved slab geometry with either 1D or 3D velocity. 
 
 ![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/CAS_3d2.png)
 Figure 3. Mesh and 3D velocity model of Cascadia subduction used in PyLith simulation. In Pylith, only traction changes on the slab fault is needed.
