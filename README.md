@@ -4,7 +4,7 @@ TriBIE is a parallelized Fortran90 (OpenMPI) code for simulating episodic slow s
 TriBIE is developed and currently maintaned by [Duo Li](https://daisy20170101.github.io/duo_li.github.io/), [Yajing Liu](https://www.mcgill.ca/eps/liu), [Hongyu Yu](https://scholar.google.com/citations?user=XzF1Ed0AAAAJ&hl=en), [Lei Zhang](https://www.eq-igl.ac.cn/fgzc/info/2019/20831.html) and [Andrea Perez-Silva](https://www.researchgate.net/scientific-contributions/Andrea-Perez-Silva-2190753609). Please feel free to contact us for anything about the code!
 
 ![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/SSE_CAS_web.png)
-Figure 1. Numerical model of the curved subduction fault in Cascadia (left;[Paraview](https://www.paraview.org/)) and the simulated SSE slip in two episodes [Li and Liu, [2016](http://onlinelibrary.wiley.com/doi/10.1002/2016JB012857/full); [2017](http://dx.doi.org/10.1002/2016JB013778)].
+Figure 1. Numerical model of the curved subduction fault in Cascadia (left) and the simulated SSE slip in two episodes [Li and Liu, 2016; 2017].
 
 ## Static Green's function (or stiffness) calculation
 ### Stiffness in homogeneous half-space medium
@@ -95,9 +95,9 @@ Please contact us or post an issue if anything unclear!
 
 ## Publications
 
-Jiang, J., B. Erickson, V. Lambert, J.-P. Ampuero, R. Ando, S. Barbot, C. Cattania, L. D. Zilio, B. Duan, E. M. D. . and et al. "Community-Driven Code Comparisons for Three-Dimensional Dynamic Modeling of Sequences of Earthquakes and Aseismic Slip (SEAS)." JGR: Solid Earth
+Jiang, J., B. Erickson, V. Lambert, J.-P. Ampuero, R. Ando, S. Barbot, C. Cattania, L. D. Zilio, B. Duan, E. M. D. . and et al. "Community-Driven Code Comparisons for Three-Dimensional Dynamic Modeling of Sequences of Earthquakes and Aseismic Slip (SEAS)." JGR: Solid Earth ([EarthArXiv](doi:10.1002/essoar.10508582.1))
 
-Perez-Silva, A., D. Li, A.-A. Gabriel and Y. Kaneko (2021). "3D Modeling of Long-Term Slow Slip Events Along the Flat-Slab Segment in the Guerrero Seismic Gap, Mexico." Geophysical Research Letters 48(13).
+Perez-Silva, A., D. Li, A.-A. Gabriel and Y. Kaneko (2021). "3D Modeling of Long-Term Slow Slip Events Along the Flat-Slab Segment in the Guerrero Seismic Gap, Mexico." Geophysical Research Letters 48(13). [https://doi.org/10.1029/2021GL092968](https://doi.org/10.1029/2021GL092968)
 
 Perez-Silva, A., Y. Kaneko, M. Savage, L. Wallace, D. Li and C. Williams (2022). "Segmentation of Shallow Slow Slip Events at the Hikurangi Subduction Zone Explained by Along-Strike Changes in Fault Geometry and Plate Convergence Rates." Journal of Geophysical Research: Solid Earth 127(1): e2021JB022913.
 
