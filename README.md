@@ -4,7 +4,7 @@ TriBIE is a parallelized Fortran90 (OpenMPI) code for simulating episodic slow s
 TriBIE is developed and currently maintaned by [Duo Li](https://daisy20170101.github.io/duo_li.github.io/), [Yajing Liu](https://www.mcgill.ca/eps/liu), [Hongyu Yu](https://scholar.google.com/citations?user=XzF1Ed0AAAAJ&hl=en), [Lei Zhang](https://www.eq-igl.ac.cn/fgzc/info/2019/20831.html) and [Andrea Perez-Silva](https://www.researchgate.net/scientific-contributions/Andrea-Perez-Silva-2190753609). Please feel free to contact us for anything about the code!
 
 ![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/SSE_CAS_web.png)
-Figure 1. Numerical model of the curved subduction fault in Cascadia (left) and the simulated SSE slip in two episodes [Li and Liu, 2016; 2017].
+Figure 1. Numerical model of the curved subduction fault in Cascadia (left;[Paraview](https://www.paraview.org/)) and the simulated SSE slip in two episodes [Li and Liu, [2016](http://onlinelibrary.wiley.com/doi/10.1002/2016JB012857/full); [2017](http://dx.doi.org/10.1002/2016JB013778)].
 
 ## Static Green's function (or stiffness) calculation
 ### Stiffness in homogeneous half-space medium
