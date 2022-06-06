@@ -8,10 +8,21 @@ Figure 1. Numerical model of the curved subduction fault in Cascadia (left) and 
 
 ## Static Green's function (or stiffness) calculation
 ### Stiffness in homogeneous half-space medium
-We use analytical solution for stress tensor in polygon elements embeded in homogeneous half-space.
+We use analytical solution for stress tensor in polygon elements embeded in homogeneous half-space based on Comninou and Dundurs [1975] and Stuart [1997].
+We fix the singularities using the method presented in Nikkhoo and Walter [2015, GJI]. The triangular mesh of fault interface can be created by Trelis or Cubit (https://coreform.com/products/coreform-cubit/). 
+
+![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/GuerreroSlabMesh.png)
+Figure 2. Fault geometry and mesh created for SSE model in Guerrero, Mexico.
+
+Please contact us if you need scripts for creating Trelis meshing file. 
     
 ### Using pylith for heterogeneous half-space medium
 We can use pylith to calculate stiffness for triangular elements in 3D curved slab geometry with either 1D or 3D velocity. 
+
+![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/CAS_3d2.png)
+Figure 3. Mesh and 3D velocity model of Cascadia subduction used in PyLith simulation. In Pylith, only traction changes on the slab fault is needed.
+
+Please contact us if you need help with calculating stiffness using PyLith. 
 
 ## Compilation
 
@@ -80,6 +91,7 @@ Example:
     72081 15189 5372 4900 3138 65037 18071 20293         ! output element IDs (s1-s8)
 
 
+Please contact us or post an issue if anything unclear!
 
 ## Publications
 
