@@ -645,7 +645,6 @@ do j=1,n_obv
  endif
 
 do i=1,Nt
-  write(*,*) arr_out(i,myid*Nt+i),arr_out2(i,myid*Nt+i)
   write(14) arr_out(i,:)
   write(14) arr_out2(i,:)
 end do

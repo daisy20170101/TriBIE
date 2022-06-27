@@ -280,9 +280,9 @@ end if
   ias=0 !counter for slip at iz3 and s.z. average slip output 
   icos = 0 
 
-  accuracy = 1.d-4
+  accuracy = 1.d-3
   epsv = 1.0d-3
-  dtmin = 1.d-10
+  dtmin = 1.d-11
   dt_try=dtmin
   Vint = Vpl
 
@@ -431,7 +431,7 @@ end if
      do j=1,Nt
 
         yt(2*j-1)=vi(j)
-        if(vi(j).gt.1e-4) yt(2*j-1)=3*vi(j)
+!        if(vi(j).gt.1e-4) yt(2*j-1)=3*vi(j)
 
         phy1(j)=1.0
         phy2(j)=0.0
@@ -549,7 +549,7 @@ end if
         maxv(imv) = 0.d0
         moment(imv) =0.d0
         do i=1,Nt_all      !!!!!!!!!!!!!!!!! find max velocity
-           if(yt_all(2*i-1).ge.maxv(imv))then
+           if(yt_all(2*i-1).ge.maxv(imv).and.cca_all(i)-ccb_all(i).le.0.0)then
               maxv(imv)=yt_all(2*i-1)
               maxnum(imv)=i
            end if
@@ -558,7 +558,9 @@ end if
              Trup(i)=t*yrs
              rup(i)=.true.
           end if
+          if(cca_all(i)-ccb_all(i).le.0.0)then
            moment(imv) = moment(imv)+0.5*(yt0_all(2*i-1)+yt_all(2*i-1))/yrs*1d-3*area(i)*xmu*1d6*1d5
+          end if
         end do
 !!!!!  SEAS output variables
        
@@ -941,6 +943,11 @@ end subroutine rkqs
        do i=1,Nt
           zz(i)=yt(2*i-1)*phy1(i)-Vpl
           zz_ds(i)=yt(2*i-1)*phy2(i)
+         if (abs(x(i)).gt.50.0.or.z_all(myid*Nt+i).gt.40.0) then
+             zz(i) = 0.0
+             yt(2*i-1)=Vpl
+             zz_ds(i)=0.0
+         end if
        end do
 
 
@@ -1481,9 +1488,9 @@ end if
 
 end if 
 
- 110    format(E22.14,7(1X,E15.7))
+ 110    format(E22.15,7(1X,E15.7))
  120    format(E20.13,4X,E20.13,4X,I6)
- 130    format(E22.14,2(1X,E15.7))
+ 130    format(E22.15,2(1X,E15.7))
  140    format(E20.13)
  150    format(E22.14,3(1X,E15.7))
  160    format(E20.13,1x,E20.13)

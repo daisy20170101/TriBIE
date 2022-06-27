@@ -148,7 +148,7 @@ program main
   write(*,*) cTemp
 
 
-  open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
+  open(58, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
 
 if(myid==master)then
   open(51,file=trim(stiffname)//'surfGreen'//'.bin',form='unformatted',access='stream')
@@ -168,15 +168,16 @@ end if
   if(myid==master)then
      do k=1,Nt_all
         read(55) xi_all(k),x_all(k),z_all(k) !xi is along the fault-normal  while x is along the strike
-        xi_all(k)=xi_all(k)/1000
+        xi_all(k)=xi_all(k)/1000 ! meter to km
         x_all(k)=x_all(k)/1000
         z_all(k)=z_all(k)/1000
 
      end do
 
-     do j = 1,n_obv
+     do j = 1,n_obv ! kernel of surface displacement in x, y,z (downward)
       do k=1,Nt_all
         read(51) surf1(j,k)
+        surf1(j,k)=-surf1(j,k)
       end do
       do k=1,Nt_all
         read(51) surf2(j,k)
@@ -184,7 +185,6 @@ end if
       end do
       do k=1,Nt_all
         read(51) surf3(j,k)
-        surf3(j,k)=-surf3(j,k)
       end do
     end do
 
@@ -192,16 +192,15 @@ end if
 
   do i=1,Nt !! observe
      do j=1,Nt_all !! source
-        read(5) stiff(i,j)
-
+        read(58) stiff(i,j) ! kernel of shear traction
+        stiff(i,j) = - stiff(i,j)
      end do
      do j=1,Nt_all !! source
-        read(5) stiff2(i,j)
-        stiff2(i,j)=-stiff2(i,j)
+        read(58) stiff2(i,j) ! kernel of normal traction
 
      end do
   end do
-  close(5)
+  close(58)
 if(myid==0)then
   close(51)
   close(55)
@@ -326,11 +325,11 @@ end if
       open(401,file=trim(foldername)//'srfst_fn-32'//jobname,access='append',status='unknown')
       open(402,file=trim(foldername)//'srfst_fn-16'//jobname,access='append',status='unknown')
       open(403,file=trim(foldername)//'srfst_fn-08'//jobname,access='append',status='unknown')
-      open(404,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
+      open(404,file=trim(foldername)//'srfst_fn-00'//jobname,access='append',status='unknown')
       open(405,file=trim(foldername)//'srfst_fn+08'//jobname,access='append',status='unknown')
       open(406,file=trim(foldername)//'srfst_fn+16'//jobname,access='append',status='unknown')
       open(407,file=trim(foldername)//'srfst_fn+32'//jobname,access='append',status='unknown')
-      open(408,file=trim(foldername)//'srfst_fn-00'//jobname,access='append',status='unknown')
+      open(408,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
 
     do i = 401,408
         write(i,100)'# This is the file header'
@@ -532,9 +531,9 @@ end if
           disp1=disp1+surf1(i,j)*slip_all(j)
           disp2=disp2+surf3(i,j)*slip_all(j)
          end do
-       obvs(imv,3,i) = -vel1/1d3/yrs
+       obvs(imv,3,i) = vel1/1d3/yrs
        obvs(imv,4,i) = vel2/1d3/yrs
-       obvs(imv,1,i) = -disp1/1d3
+       obvs(imv,1,i) = disp1/1d3
        obvs(imv,2,i) = disp2/1d3
      end do
         !-----Interseismic slip every ? years----
@@ -840,7 +839,7 @@ end subroutine rkqs
 !------------------------------------------------------------------------------
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
        USE mpi
-       USE phy3d_module_non, only: phi,phy1,phy2,tau1,tau2, stiff2,stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
+       USE phy3d_module_non, only: phi,phy1,phy2,tau1,tau2, stiff2,stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,pi,&
             tm1,tm2,tmday,tmelse,tmmidn,tmmult
        implicit none
        integer, parameter :: DP = kind(1.0d0)
@@ -860,7 +859,7 @@ end subroutine rkqs
         
        do i=1,Nt
           zz(i)=yt(3*i-2)-Vpl
-         if(z_all(Nt*myid+i).ge.40.0*1.000000)then
+         if(z_all(Nt*myid+i).ge.40.0*dsin(90.0/180.0*pi))then
              zz(i)=0.0
              yt(3*i-2)=Vpl
           end if
@@ -1143,11 +1142,11 @@ if(Ioutput == 0)then    !output during run
       open(401,file=trim(foldername)//'srfst_fn-32'//jobname,access='append',status='unknown')
       open(402,file=trim(foldername)//'srfst_fn-16'//jobname,access='append',status='unknown')
       open(403,file=trim(foldername)//'srfst_fn-08'//jobname,access='append',status='unknown')
-      open(404,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
+      open(404,file=trim(foldername)//'srfst_fn-00'//jobname,access='append',status='unknown')
       open(405,file=trim(foldername)//'srfst_fn+08'//jobname,access='append',status='unknown')
       open(406,file=trim(foldername)//'srfst_fn+16'//jobname,access='append',status='unknown')
       open(407,file=trim(foldername)//'srfst_fn+32'//jobname,access='append',status='unknown')
-      open(408,file=trim(foldername)//'srfst_fn-00'//jobname,access='append',status='unknown')
+      open(408,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
  
    open(501,file=trim(foldername)//'slip'//jobname,access='append',status='unknown')
    open(502,file=trim(foldername)//'shear_stress'//jobname,access='append',status='unknown')
@@ -1280,11 +1279,11 @@ else
      open(401,file=trim(foldername)//'srfst_fn-32'//jobname,access='append',status='unknown')
       open(402,file=trim(foldername)//'srfst_fn-16'//jobname,access='append',status='unknown')
       open(403,file=trim(foldername)//'srfst_fn-08'//jobname,access='append',status='unknown')
-      open(404,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
+      open(404,file=trim(foldername)//'srfst_fn-00'//jobname,access='append',status='unknown')
       open(405,file=trim(foldername)//'srfst_fn+08'//jobname,access='append',status='unknown')
       open(406,file=trim(foldername)//'srfst_fn+16'//jobname,access='append',status='unknown')
       open(407,file=trim(foldername)//'srfst_fn+32'//jobname,access='append',status='unknown')
-      open(408,file=trim(foldername)//'srfst_fn-00'//jobname,access='append',status='unknown')
+      open(408,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
 
    open(501,file=trim(foldername)//'slip'//jobname,access='append',status='unknown')
    open(502,file=trim(foldername)//'shear_stress'//jobname,access='append',status='unknown')
