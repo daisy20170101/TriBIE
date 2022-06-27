@@ -11,15 +11,18 @@ program p_calc_green
     use m_calc_green
     use mpi
    implicit none
-  character(*),parameter        :: fname="triangular_mesh.gts"
+  character(*),parameter        :: fname="fault_bp3_h100_D60.gts"
+  character(*),parameter        :: fobvname='obvs.dat'
   integer ::                   n_vertex,n_edge,n_cell
   real(8),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_edge
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_cell
-  
+  integer :: i, n_obv
+  real*8,dimension(:,:),allocatable:: x
+
    integer :: ierr,size,myid
    integer :: Nt,nproc,Nt_all,master
-   parameter (nproc=64)
+   parameter (nproc=2)
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Load input mesh data
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -27,7 +30,18 @@ program p_calc_green
     call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
     call MPI_COMM_SIZE(MPI_COMM_WORLD,size,ierr)
   master=0
-    
+  
+open(33,file=fobvname,form='formatted')
+read(33,*) n_obv
+
+allocate(x(3,n_obv))
+
+do i=1,n_obv
+ read(33,*)x(1,i),x(2,i),x(3,i)
+end do
+
+close(33)
+  
 !!! load n_vertex,n_vertex,n_cell from fname
      call load_name(fname,n_vertex,n_edge,n_cell)
 
@@ -46,13 +60,12 @@ else
    write(*,*)'Each cpu calculates',n_cell/nproc,'cells'
 end if
 
-  Nt_all=n_cell
-  Nt=Nt_all/nproc
+Nt = n_cell/nproc
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! for all element's center point as op
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
+    call calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_obv)
     
     deallocate(arr_vertex,arr_edge,arr_cell) 
  
@@ -102,11 +115,11 @@ subroutine load_gts(fname,n_vertex,n_edge,n_cell,arr_vertex,arr_edge,arr_cell)
     end do
     
     do i=1, n_edge
-        read(10, *) arr_edge(i, 1), arr_edge(i, 2)
+        read(10,*) arr_edge(i, 1), arr_edge(i, 2)
     end do
     
     do i=1, n_cell
-        read(10, *) arr_cell(i, 1), arr_cell(i, 2), arr_cell(i, 3)
+        read(10,*) arr_cell(i, 1), arr_cell(i, 2), arr_cell(i, 3)
     end do
     
     CLOSE(10)
@@ -477,7 +490,7 @@ end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
+subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_obv)
  use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
  implicit none
     
@@ -504,15 +517,19 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
                           c_local(3, 3),  c_local_v(9), &
                           c_local2(3, 3), c_local_v2(9)
   real(8),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
-  real(8),allocatable :: arr_out(:,:),a_ss(:),a_ds(:),a_op(:)
+  real(8),allocatable :: arr_out2(:,:),arr_out(:,:),a_ss(:),a_ds(:),a_op(:)
   real(8)             :: arr_vertex(n_vertex,3)
   integer             :: arr_cell(n_cell,3)
+
+  integer             :: n_obv
+  real(8) :: x(3,n_obv)
+  real*8              :: surf1(n_obv,n_cell),surf2(n_obv,n_cell),surf3(n_obv,n_cell)
 
   vpl(1:3) = 1.d0
   l_miu = parm_l/parm_miu
 
   ss = 0.d0
-  ds = 1.d0
+  ds = -1.d0
   op = 0.d0
     
   ! global coordinate
@@ -524,7 +541,7 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
   ! output cell, node number
   allocate(arr_co(3,n_cell),arr_trid(9,n_cell),arr_cl_v2(3,3,n_cell))
   allocate(a_ss(n_cell),a_ds(n_cell),a_op(n_cell))
-  allocate(arr_out(Nt,n_cell))  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  allocate(arr_out2(Nt,n_cell),arr_out(Nt,n_cell))  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! save each cell's center point
  
   do j=1, n_cell
@@ -548,15 +565,15 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
 !    a_ds(j) = ds
 !    a_op(j) = op
     arr_out(:,j) = 0.d0
+    arr_out2(:,j)=0.d0
   end do
 
-  write(6,*) "Start parallel loop"
+  write(*,*) "Start parallel loop"
      ! for each triangle element
   do j=(myid)*Nt+1,(myid)*Nt+Nt
-    write(6,*)j
     do i=1, n_cell
       ! calculate strain gradients
-      call dstuart (parm_nu,arr_co(:,j),arr_trid(:,i),ss,ds,op, u, t)
+      call dstuart(parm_nu,arr_co(:,j),arr_trid(:,i),ss,ds,op, u, t)
             
       ! calc stress
       sig33(3,3) = l_miu * ( t(1) + t(5) + t(9) ) 
@@ -572,35 +589,71 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
       sig33(1,3) = sig33(3,1)
       sig33(2,3) = sig33(3,2)
 
-      ! calc local stress  in Bar (0.1Mpa)
+      ! calc local shear traction  in Bar (0.1Mpa) / mm
       arr_out(j-(myid)*Nt,i) = - parm_miu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,2,j)))
+
+      ! calc local normal traction  in Bar (0.1Mpa) / mm
+      arr_out2(j-(myid)*Nt,i) = parm_miu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,3,j)))
 
     end do
   end do
   
+!!!!   calculate Green's at surface observations
+if(myid==0)then
+ do j=1,4
+   do i=1,n_cell
+   call dstuart (parm_nu,x(:,j),arr_trid(:,i),ss,ds,op, u, t)
+   ! calc displacement  
+   surf1(j,i) = u(1)
+   surf2(j,i) = u(2)
+   surf3(j,i) = u(3)
+end do
+end do
+ do j=5,8
+   do i=1,n_cell
+   call dstuart (parm_nu,x(:,j),arr_trid(:,i),ss,-ds,op, u, t)
+   ! calc displacement  
+   surf1(j,i) = u(1)
+   surf2(j,i) = u(2)
+   surf3(j,i) = u(3)
+end do
+end do
+end if
+
  write(cTemp,*) myid
  write(*,*) cTemp
 
-  open(14,file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted',access='stream')
+  open(14,file='ssGreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted',access='stream')
 !  write(14,*) n_cell, n_vertex
 
  if(myid==0)then 
  open(22,file='position.bin',form='unformatted',access='stream')
- 
+  open(15,file='surfGreen.bin',form='unformatted',access='stream')
+
   do j=1,n_cell
     write(22) arr_co(1,j), arr_co(2,j), arr_co(3,j)
   end do
 close(22)
+
+do j=1,n_obv
+  write(15) surf1(j,:)
+  write(15) surf2(j,:)
+  write(15) surf3(j,:)
+ end do
+ close(15)
+
  endif
 
 do i=1,Nt
+  write(*,*) arr_out(i,myid*Nt+i),arr_out2(i,myid*Nt+i)
   write(14) arr_out(i,:)
+  write(14) arr_out2(i,:)
 end do
 close(14)
 
  deallocate (arr_co,arr_trid,arr_cl_v2)
  deallocate (a_ss,a_ds,a_op)
- deallocate (arr_out) 
+ deallocate (arr_out2,arr_out) 
 return 
 end subroutine
 
