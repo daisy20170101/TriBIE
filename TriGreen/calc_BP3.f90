@@ -11,7 +11,7 @@ program p_calc_green
     use m_calc_green
     use mpi
    implicit none
-  character(*),parameter        :: fname="fault_bp3_h100_D60.gts"
+  character(*),parameter        :: fin="parameter.txt"
   character(*),parameter        :: fobvname='obvs.dat'
   integer ::                   n_vertex,n_edge,n_cell
   real(8),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
@@ -22,7 +22,8 @@ program p_calc_green
 
    integer :: ierr,size,myid
    integer :: Nt,nproc,Nt_all,master
-   parameter (nproc=2)
+   integer :: nproc
+   character(*) :: fname
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Load input mesh data
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -31,6 +32,12 @@ program p_calc_green
     call MPI_COMM_SIZE(MPI_COMM_WORLD,size,ierr)
   master=0
   
+open(44,file=fin,form='formatted')
+read(44,*) fname
+read(44,*) nproc
+
+close(44)
+
 open(33,file=fobvname,form='formatted')
 read(33,*) n_obv
 
