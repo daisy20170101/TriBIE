@@ -26,16 +26,16 @@ program p_calc_green
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Load input mesh data
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+open(44,file=fin,form='formatted',status='old')
+read(44,*) fname
+read(44,*) nproc
+
+close(44)
     call MPI_Init(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
     call MPI_COMM_SIZE(MPI_COMM_WORLD,size,ierr)
   master=0
   
-open(44,file=fin,form='formatted')
-read(44,*) fname
-read(44,*) nproc
-
-close(44)
 
 open(33,file=fobvname,form='formatted')
 read(33,*) n_obv
