@@ -22,12 +22,12 @@ program p_calc_green
 
    integer :: ierr,size,myid
    integer :: Nt,nproc,Nt_all,master
-   character :: fname
+   character(len=80) :: fname
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Load input mesh data
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 open(44,file=fin,form='formatted',status='old')
-read(44,*) fname
+read(44,'(a)') fname
 read(44,*) nproc
 
 close(44)
