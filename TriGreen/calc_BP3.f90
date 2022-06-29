@@ -623,12 +623,12 @@ end if
  write(cTemp,*) myid
  write(*,*) cTemp
 
-  open(14,file='ssGreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted',access='stream')
+  open(14,file='stiffness/ssGreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted',access='stream')
 !  write(14,*) n_cell, n_vertex
 
  if(myid==0)then 
- open(22,file='position.bin',form='unformatted',access='stream')
-  open(15,file='surfGreen.bin',form='unformatted',access='stream')
+ open(22,file='stiffness/position.bin',form='unformatted',access='stream')
+  open(15,file='stiffness/surfGreen.bin',form='unformatted',access='stream')
 
   do j=1,n_cell
     write(22) arr_co(1,j), arr_co(2,j), arr_co(3,j)
