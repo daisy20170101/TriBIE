@@ -694,7 +694,7 @@ end if
                 phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
           slip_all,slipinc_all,slipds_all,slipdsinc_all,&
            cca_all,ccb_all,xLf_all,seff_all, &
-          maxnum,maxv,outs1,outs2,outs3,outs4,outs5,outs6,outs7,outs8,&
+          maxnum,maxv,outs1,&
           msse1,msse2,areasse1,areasse2,tmv,tcos,tas,tnul,tsse)
 
      DEALLOCATE (slipz1_inter,slipz1_tau,slipz1_sse, &
