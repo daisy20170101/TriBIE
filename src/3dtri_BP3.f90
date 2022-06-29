@@ -561,7 +561,7 @@ end if
         if((maxv(imv)/yrs).ge.vcos)then
            tslipcos = tslipcos+dt
            if(tslipcos.ge.tint_cos)then    !!!!tint_cos: every 5s output 
-!		write(*,130) t,dlog10(maxv(imv)*1d-3/yrs)
+		write(*,*) t,dlog10(maxv(imv)*1d-3/yrs)
 
 130 format(E20.13,1X,E15.7)
 
