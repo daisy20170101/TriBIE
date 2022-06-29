@@ -22,7 +22,7 @@ program p_calc_green
 
    integer :: ierr,size,myid
    integer :: Nt,nproc,Nt_all,master
-   character(*) :: fname
+   character :: fname
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Load input mesh data
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
