@@ -1,10 +1,10 @@
 % @file
-% This file is part of SeisSol.
+% This file is part of TriBIE.
 %
-% @author Christian Pelties (pelties AT geophysik.uni-muenchen.de, http://www.geophysik.uni-muenchen.de/Members/pelties)
+% @author Duo Li dli@geophysik.uni-muenchen.de 
 %
 % @section LICENSE
-% Copyright (c) 2012, SeisSol Group
+% Copyright (c) 2022, TriBIE Group
 % All rights reserved.
 % 
 % Redistribution and use in source and binary forms, with or without
