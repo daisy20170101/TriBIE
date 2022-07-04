@@ -11,7 +11,7 @@ program p_calc_green
     use m_calc_green
     use mpi
    implicit none
-  character(*),parameter        :: fin="parameter.txt"
+  character(*),parameter        :: fin="input_cal_stiffness.txt"
   character(*),parameter        :: fobvname='obvs.dat'
   integer ::                   n_vertex,n_edge,n_cell
   real(8),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
