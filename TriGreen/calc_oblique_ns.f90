@@ -1,5 +1,4 @@
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!   Calculate mesh's green coef
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!   Calculate mesh's green coef
 !
 !   Version:
 !       2007-09-18  Clean this program
@@ -11,7 +10,7 @@ program p_calc_green
     use m_calc_green
     use mpi
    implicit none
-  character(*),parameter        :: fname="triangular_mesh.gts"
+  character(*),parameter  :: fname="green_para_cell_1km_smooth_flip.gts"
   integer ::                   n_vertex,n_edge,n_cell
   real(8),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_edge
@@ -19,7 +18,7 @@ program p_calc_green
   
    integer :: ierr,size,myid
    integer :: Nt,nproc,Nt_all,master
-   parameter (nproc=64)
+   parameter (nproc= 120)
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Load input mesh data
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -35,7 +34,7 @@ program p_calc_green
 
 !!!!! load arr_vertex,arr_edge,arr_cell from fname
      call load_gts(fname,n_vertex,n_edge,&
-                n_cell,arr_vertex,arr_edge,arr_cell)
+                   n_cell,arr_vertex,arr_edge,arr_cell)
    
 write(*,*) myid
 
@@ -99,6 +98,7 @@ subroutine load_gts(fname,n_vertex,n_edge,n_cell,arr_vertex,arr_edge,arr_cell)
 
     do i=1, n_vertex
         read(10, *) arr_vertex(i, 1), arr_vertex(i, 2), arr_vertex(i, 3)
+        arr_vertex(i, 3)= arr_vertex(i, 3)   
     end do
     
     do i=1, n_edge
@@ -392,10 +392,10 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
   a13 = gamma
 
   ! calc ss, ds
-  ss =(nv(2)*a11-nv(1)*a12)/sqrt(nv(1)**2+nv(2)**2)
-  ds =sqrt(nv(1)**2+nv(2)**2-(nv(2)*a11-nv(1)*a12)**2)
-  ds =ds/sqrt(nv(1)**2+nv(2)**2)
-  op =0.d0
+  ss=(nv(2)*a11-nv(1)*a12)/sqrt(nv(1)**2+nv(2)**2)
+  ds=sqrt(nv(1)**2+nv(2)**2-(nv(2)*a11-nv(1)*a12)**2)
+  ds=ds/sqrt(nv(1)**2+nv(2)**2)
+  op=0.d0
     
 end subroutine calc_ss_ds
 
@@ -441,21 +441,21 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
     a1(2) = ds
     
     a3(1:3) = nv(1:3)
-    a1(3) = -( a3(1)*a1(1) + a3(2)*a1(2) ) / a3(3)
+    
+    a1(3) = - ( a3(1)*a1(1) + a3(2)*a1(2) ) / a3(3)
         
     rl=(vpl1**2+vpl2**2)+(nv(1)*vpl1+nv(2)*vpl2)**2/nv(3)**2
     rl=1.d0/rl
     rl=sqrt(rl)
     gamma=-(nv(1)*vpl1+nv(2)*vpl2)*rl/nv(3)
 
-    a1(1) = vpl1*rl
-    a1(2) = vpl2*rl
-    a1(3) = gamma
- !!!!!!!!!!! modified burger vector only apply to east-north/ normal-parallel coordinates.
+    !a1(1) = vpl1*rl
+    !a1(2) = vpl2*rl
+    !a1(3) = gamma
 
-    a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
-    a1(2) = nv(1)/sqrt(nv(1)**2+nv(2)**2)
-    a1(3) = 0.0
+     a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
+     a1(2) = nv(1)/sqrt(nv(1)**2+nv(2)**2)
+     a1(3) = 0.0
 
     ! calc axis 2
     call vector_product(a1, a3, a2)
@@ -485,7 +485,7 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
   real(8) ::             utmp(3), ttmp(9)
   real(8) ::                tri(3,4)
   real(8) ::               usum(3),tsum(9)
-  real(8) ::                ss, ds, op
+  real(8) ::                ss, ds, op, ks1, ks2
   
   integer             :: myid, i, j, k,Nt,n_cell,n_vertex
   integer             ::  vi(3), vj(3)
@@ -503,8 +503,10 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
   real(8)             ::  c_global(3, 3), &
                           c_local(3, 3),  c_local_v(9), &
                           c_local2(3, 3), c_local_v2(9)
-  real(8),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
-  real(8),allocatable :: arr_out(:,:),a_ss(:),a_ds(:),a_op(:)
+  real(8),allocatable :: arr_co(:,:),arr_trid(:,:), &
+                         arr_cl_v2(:,:,:), slip_vector(:,:)
+  real(8),allocatable :: arr_out(:,:),a_ss(:),a_ds(:),a_op(:), &
+                         c_ss(:),c_ds(:),c_op(:),slip_r(:),arr_out_ns(:,:)
   real(8)             :: arr_vertex(n_vertex,3)
   integer             :: arr_cell(n_cell,3)
 
@@ -512,7 +514,7 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
   l_miu = parm_l/parm_miu
 
   ss = 0.d0
-  ds = 1.d0
+  ds = 0.d0
   op = 0.d0
     
   ! global coordinate
@@ -522,11 +524,15 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
   end do
 
   ! output cell, node number
-  allocate(arr_co(3,n_cell),arr_trid(9,n_cell),arr_cl_v2(3,3,n_cell))
-  allocate(a_ss(n_cell),a_ds(n_cell),a_op(n_cell))
+  allocate(arr_co(3,n_cell),arr_trid(9,n_cell),arr_cl_v2(3,3,n_cell), &
+          slip_vector(3,n_cell))
+  allocate(a_ss(n_cell),a_ds(n_cell),a_op(n_cell),c_ss(n_cell),c_ds(n_cell), &
+          c_op(n_cell),slip_r(n_cell))
   allocate(arr_out(Nt,n_cell))  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  allocate(arr_out_ns(Nt,n_cell))
   ! save each cell's center point
- 
+  open(222,file='local_coordinate.txt',form='formatted',access='stream') 
+  open(333,file='slip_ratio.txt',form='formatted',access='stream')
   do j=1, n_cell
     vj(1:3) = arr_cell(j,1:3)
     p1(1:3) = arr_vertex(vj(1),1:3)
@@ -538,25 +544,57 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
     arr_trid(4:6,j) = p2(1:3)
     arr_trid(7:9,j) = p3(1:3)
     call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
-    ! get Burger vector for each element. c_global is unit matrix, c_local2=c_local_v2
     call calc_coord_cos(c_global, c_local2, c_local_v2)
     arr_cl_v2(1:3,1,j) = c_local_v2(1:3)
     arr_cl_v2(1:3,2,j) = c_local_v2(4:6)
     arr_cl_v2(1:3,3,j) = c_local_v2(7:9)
-!    call calc_ss_ds(arr_trid(1:3,j), arr_trid(4:6,j), arr_trid(7:9,j), vpl, ss, ds, op)
-!    a_ss(j) = ss
-!    a_ds(j) = ds
-!    a_op(j) = op
+
+   ! calculate the slip ratio between strike and dip 
+   !    ks1 = (0.8-0.1)/(-28000+97000)
+   !    ks2 = (1.1-0.8)/(185000-(-28000))
+   ! if (arr_co(2,j) .lt. -47000) then
+   !    slip_r(j) = ks1*arr_co(2,j)+(0.1-ks1*(-97000))
+   ! else if (arr_co(2,j) .gt. 133000) then
+   !    slip_r(j) = 1.1
+   ! else
+   !    slip_r(j) = ks2*arr_co(2,j)+(0.8-ks2*(-28000)) 
+   ! end if
+   !specify a uniform slip_r along strike
+      slip_r(j) = 1.9
+
+    write(333,*) arr_co(2,j), slip_r(j)
+   ! calculate slip vector for each cell according to ss and ds 
+    c_ss(j) = slip_r(j)/sqrt(slip_r(j)**2+1)
+    c_ds(j) = -1/sqrt(slip_r(j)**2+1)  
+! ds <0 is in the updip direction in the Global coordinate
+! slip_vector is defined in the local coordinate and dip axs is updip
+! so the dip component of the slip_vector is positive, -1*c_ds(j)  
+!    slip_vector(1:3,j) = c_ss(j) * c_local_v2(1:3) + (-1.d0)*c_ds(j) * c_local_v2(4:6)    
+
+    slip_vector(1:3,j) = c_ss(j) * c_local_v2(1:3) + c_ds(j) * c_local_v2(4:6)    
+
+    write(222,*)  c_local_v2(1),c_local_v2(2),c_local_v2(3)
+    write(222,*)  c_local_v2(4),c_local_v2(5),c_local_v2(6)
+    write(222,*)  c_local_v2(7),c_local_v2(8),c_local_v2(9)
+                 
+    call calc_ss_ds(arr_trid(1:3,j), arr_trid(4:6,j), arr_trid(7:9,j), vpl, ss, ds, op)
+    a_ss(j) = ss
+    a_ds(j) = ds
+    a_op(j) = op
     arr_out(:,j) = 0.d0
+
   end do
+
+  close(222)
+  close(333)
 
   write(6,*) "Start parallel loop"
      ! for each triangle element
   do j=(myid)*Nt+1,(myid)*Nt+Nt
     write(6,*)j
     do i=1, n_cell
-      ! calculate strain gradients
-      call dstuart (parm_nu,arr_co(:,j),arr_trid(:,i),ss,ds,op, u, t)
+      ! calculate strain gradients, in dstuart the argument is observation point 
+      call dstuart (parm_nu,arr_co(:,j),arr_trid(:,i),c_ss(i),c_ds(i),0.d0, u, t)
             
       ! calc stress
       sig33(3,3) = l_miu * ( t(1) + t(5) + t(9) ) 
@@ -573,7 +611,8 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
       sig33(2,3) = sig33(3,2)
 
       ! calc local stress  in Bar (0.1Mpa)
-      arr_out(j-(myid)*Nt,i) = - parm_miu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,2,j)))
+      arr_out(j-(myid)*Nt,i) =  parm_miu/100 * dot_product(slip_vector(1:3,j),matmul(sig33(:,:),arr_cl_v2(:,3,j)))
+      arr_out_ns(j-(myid)*Nt,i) =  parm_miu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,3,j)))
 
     end do
   end do
@@ -582,25 +621,31 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
  write(*,*) cTemp
 
   open(14,file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted',access='stream')
+  open(15,file='trigreen_ns_'//trim(adjustl(cTemp))//'.bin', form='unformatted',access='stream')
 !  write(14,*) n_cell, n_vertex
 
  if(myid==0)then 
  open(22,file='position.bin',form='unformatted',access='stream')
- 
+! open(33,file='norVec.txt',form='formatted',access='stream') 
   do j=1,n_cell
     write(22) arr_co(1,j), arr_co(2,j), arr_co(3,j)
+ !   write(33,*) arr_cl_v2(3,3,j)
   end do
 close(22)
- endif
+ end if
 
 do i=1,Nt
-  write(14) arr_out(i,:)
+ do j=1,n_cell
+  write(14) arr_out(i,j)
+  write(15) arr_out_ns(i,j)
+end do
 end do
 close(14)
-
- deallocate (arr_co,arr_trid,arr_cl_v2)
- deallocate (a_ss,a_ds,a_op)
+close(15)
+ deallocate (arr_co,arr_trid,arr_cl_v2,slip_vector)
+ deallocate (a_ss,a_ds,a_op,c_ss,c_ds,c_op,slip_r)
  deallocate (arr_out) 
+ deallocate (arr_out_ns)
 return 
 end subroutine
 

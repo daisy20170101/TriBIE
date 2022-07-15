@@ -23,11 +23,9 @@ c       v(b,comp)      - obs. displ
 c       dv(b,comp,dx)  - displ deriv
 
       IMPLICIT REAL*8 (A-H,O-Z)
-      real*8 tol,y3,nu, x1, x2, x3, a, beta, v, dv
+      real*8 nu, x1, x2, x3, a, beta, v, dv
 
       dimension v(3,3),vc(3,3), dv(3,3,3),dvc(3,3,3)
-
-      tol = 1e-4 
 
       cb  = cos(beta)
       sb  = sin(beta)
@@ -42,11 +40,6 @@ c       dv(b,comp,dx)  - displ deriv
       z2  = y2
       z3  = y1*sb + y3*cb
 
-      if(abs(cb).LT.tol.AND.abs(y3).LT.tol)then
-        cb = tol
-        y3 = tol
-      end if
-
       zb1 =  y1*cb + yb3*sb
       zb3 = -y1*sb + yb3*cb
 
@@ -58,6 +51,7 @@ c       dv(b,comp,dx)  - displ deriv
 
       fb  = -atan2 (y2,y1) + atan2 (y2,zb1) +
      .       atan2 (y2*rb*sb , (y1*zb1 + y2**2*cb) )
+
 
 c     derivs f, fb
 
