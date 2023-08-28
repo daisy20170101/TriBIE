@@ -78,7 +78,8 @@ program main
   integer :: imv,ias,icos,isse,Ioutput,inul,i_nul
   real (DP) :: vcos,vsse1,vsse2
   real (DP), DIMENSION(:), ALLOCATABLE :: maxv,maxv_s1,maxv_s2,maxv_s3,maxv_s4,maxv_s5,&
-       maxnum,tmv,tas,tcos,tsse, maxv_s6,maxv_s7,maxv_s8
+       maxnum,tmv,tas,tcos,tsse, maxv_s6,maxv_s7,maxv_s8,tau_s1,tau_s2,tau_s3,tau_s4,tau_s5,tau_s6,&
+       tau_s7,tau_s8
 
   real (DP), DIMENSION(:,:), ALLOCATABLE :: slipz1_inter, slipz1_v,slipz1_cos,slipz1_tau,slipz1_sse
 
@@ -136,7 +137,7 @@ program main
 
      ALLOCATE (maxv_s1(nmv),maxv_s2(nmv),maxv_s3(nmv),maxv_s4(nmv),maxv_s5(nmv),&
           maxv_s6(nmv),maxv_s7(nmv),maxv_s8(nmv),&
-          maxv(nmv),maxnum(nmv), &
+          tau_s1(nmv),tau_s2(nmv),tau_s3(nmv),tau_s4(nmv),tau_s5(nmv),tau_s6(nmv),tau_s7(nmv),tau_s8(nmv),maxv(nmv),maxnum(nmv), &
           tmv(nmv),tas(nas),tcos(ncos),tsse(nsse))
 
 !!! modify output number
@@ -354,7 +355,14 @@ program main
               maxv_s6(imv) = yt_all(2*s6-1)
               maxv_s7(imv) = yt_all(2*s7-1)
               maxv_s8(imv) = yt_all(2*s8-1)
-
+              tau_s1(imv) = tau_all(2*s1-1)
+              tau_s2(imv) = tau_all(2*s2-1)
+              tau_s3(imv) = tau_all(2*s3-1)
+              tau_s4(imv) = tau_all(2*s4-1)
+              tau_s5(imv) = tau_all(2*s5-1)
+              tau_s6(imv) = tau_all(2*s6-1)
+              tau_s7(imv) = tau_all(2*s7-1)
+              tau_s8(imv) = tau_all(2*s8-1)
 !!!!! checkout point  - not necessary now !!!!!!!!!!!!!!!
 
         !-----Interseismic slip every ? years----
@@ -436,7 +444,7 @@ program main
         Ioutput = 0 
         call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
              tmv,tas,tcos,tsse,maxv,maxv_s1,maxv_s2,maxv_s3,maxv_s4,maxv_s5,maxv_s6,&
-             maxv_s7,maxv_s8,maxnum, &
+             maxv_s7,maxv_s8,maxnum, tau_s1,tau_s2,tau_s3,tau_s4,tau_s5,tau_s6,tau_s7,tau_s8, &
              slipz1_inter,slipz1_tau,slipz1_sse,slipz1_cos, xi_all,x_all,slipz1_v)         
 
      end if
@@ -462,7 +470,7 @@ program main
      Ioutput = 1
      call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
           tmv,tas,tcos,tsse,maxv,maxv_s1,maxv_s2,maxv_s3,maxv_s4,maxv_s5,maxv_s6,maxv_s7,maxv_s8, &
-          maxnum, &
+          maxnum,tau_s1,tau_s2,tau_s3,tau_s4,tau_s5,tau_s6,tau_s7,tau_s8, &
           slipz1_inter,slipz1_tau,slipz1_sse, &
           slipz1_cos,&
           xi_all,x_all,slipz1_v) 
@@ -498,7 +506,8 @@ program main
   if(myid==master)then 
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,tau_all, &
           slip_all,slipinc_all,cca_all,ccb_all,xLf_all,seff_all, &
-          maxnum,maxv,maxv_s1,maxv_s2,maxv_s3,maxv_s4,maxv_s5,maxv_s6,maxv_s7,maxv_s8,&
+          maxnum,maxv,tau_s1,tau_s2,tau_s3,tau_s4,tau_s5,tau_s6,tau_s7,tau_s8,&
+          maxv_s1,maxv_s2,maxv_s3,maxv_s4,maxv_s5,maxv_s6,maxv_s7,maxv_s8,&
           tmv,tcos,tas,tsse)
 
      DEALLOCATE (slipz1_inter,slipz1_tau,slipz1_sse, &
@@ -1010,7 +1019,7 @@ subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
 !--------------------------------------------------------
 subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
     tmv,tas,tcos,tsse,maxv,maxv_s1,maxv_s2,maxv_s3,maxv_s4,maxv_s5,maxv_s6,&
-    maxv_s7,maxv_s8,maxnum, &
+    maxv_s7,maxv_s8,maxnum,tau_s1,tau_s2,tau_s3,tau_s4,tau_s5,tau_s6,tau_s7,tau_s8, &
      slipz1_inter,slipz1_tau,slipz1_sse,&
      slipz1_cos,&
      xi_all,x_all,slipz1_v) 
@@ -1023,7 +1032,7 @@ implicit none
 integer, parameter :: DP = kind(1.0d0)
 integer :: Nt,Nt_all,i,j,k,l,kk,inul,imv,ias,icos,isse,Ioutput,Isnapshot
 real (DP) :: x(Nt),maxnum(nmv),maxv(nmv),maxv_s1(nmv),maxv_s2(nmv),maxv_s3(nmv),maxv_s4(nmv),maxv_s5(nmv),&
-        maxv_s6(nmv),maxv_s7(nmv),maxv_s8(nmv), &
+        maxv_s6(nmv),maxv_s7(nmv),maxv_s8(nmv), tau_s1(nmv),tau_s2(nmv),tau_s3(nmv),tau_s4(nmv),tau_s5(nmv),tau_s6(nmv),tau_s7(nmv),tau_s8(nmv),&
 	tmv(nmv),tas(nas),tcos(ncos),tsse(nsse)
 
 real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),&
@@ -1049,14 +1058,14 @@ if(Ioutput == 0)then    !output during run
 
       do i=1,nmv
          write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs)
-         write(311,130) dlog10(maxv_s1(i)*1d-3/yrs)
-         write(312,130) dlog10(maxv_s2(i)*1d-3/yrs)
-         write(313,130) dlog10(maxv_s3(i)*1d-3/yrs)
-         write(314,130) dlog10(maxv_s4(i)*1d-3/yrs)
-         write(315,130) dlog10(maxv_s5(i)*1d-3/yrs)
-         write(316,130) dlog10(maxv_s6(i)*1d-3/yrs)
-         write(317,130) dlog10(maxv_s7(i)*1d-3/yrs)
-         write(318,130) dlog10(maxv_s8(i)*1d-3/yrs)
+         write(311,130) dlog10(maxv_s1(i)*1d-3/yrs),tau_s1(i)
+         write(312,130) dlog10(maxv_s2(i)*1d-3/yrs),tau_s2(i)
+         write(313,130) dlog10(maxv_s3(i)*1d-3/yrs),tau_s3(i)
+         write(314,130) dlog10(maxv_s4(i)*1d-3/yrs),tau_s4(i)
+         write(315,130) dlog10(maxv_s5(i)*1d-3/yrs),tau_s5(i)
+         write(316,130) dlog10(maxv_s6(i)*1d-3/yrs),tau_s6(i)
+         write(317,130) dlog10(maxv_s7(i)*1d-3/yrs),tau_s7(i)
+         write(318,130) dlog10(maxv_s8(i)*1d-3/yrs),tau_s8(i)
       end do
       close(30)
       do i=311,318
@@ -1141,14 +1150,14 @@ else
       open(318,file=trim(foldername)//'maxv_s8'//jobname,access='append',status='unknown')
      do i=1,imv
          write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs)
-         write(311,130) dlog10(maxv_s1(i)*1d-3/yrs)
-         write(312,130) dlog10(maxv_s2(i)*1d-3/yrs)
-         write(313,130) dlog10(maxv_s3(i)*1d-3/yrs)
-         write(314,130) dlog10(maxv_s4(i)*1d-3/yrs)
-         write(315,130) dlog10(maxv_s5(i)*1d-3/yrs)
-         write(316,130) dlog10(maxv_s6(i)*1d-3/yrs)
-         write(317,130) dlog10(maxv_s7(i)*1d-3/yrs)
-         write(318,130) dlog10(maxv_s8(i)*1d-3/yrs)
+         write(311,130) dlog10(maxv_s1(i)*1d-3/yrs),tau_s1(i)
+         write(312,130) dlog10(maxv_s2(i)*1d-3/yrs),tau_s2(i)
+         write(313,130) dlog10(maxv_s3(i)*1d-3/yrs),tau_s3(i)
+         write(314,130) dlog10(maxv_s4(i)*1d-3/yrs),tau_s4(i)
+         write(315,130) dlog10(maxv_s5(i)*1d-3/yrs),tau_s5(i)
+         write(316,130) dlog10(maxv_s6(i)*1d-3/yrs),tau_s6(i)
+         write(317,130) dlog10(maxv_s7(i)*1d-3/yrs),tau_s7(i)
+         write(318,130) dlog10(maxv_s8(i)*1d-3/yrs),tau_s8(i)
       end do
       close(30)
       do i=311,315
