@@ -16,8 +16,22 @@ $ mpiifort src/phy3d_module_non.f90 src/3dtri_cleanup.f90 -o 3dtri_sse
 
 ## Parameter files
 
+file list:
+parameters.txt: key initial configuration of simulation
+on-fault parameters: var-BP5_h500_140_60.dat
+observation files: profdp-BP5_h500_140_60.dat, profstrk-BP5_h500_140_60.dat
+mesh element area: area-BP5_h500_140_60.dat
+mesh file: fault_h500_140_60.gts
+
+
 ## Simulation
 
 ![varBP5](https://github.com/daisy20170101/TriBIE/assets/33549997/c0b43d1b-777a-48e0-bda4-72c7a9b0e95e)
 Figure: Mapview of on-fault distribution of fault key parameters in BP5 example.
+
+## Results
+![bp5_slip_h1000_140_60](https://github.com/daisy20170101/TriBIE/assets/33549997/b5e8804c-297d-4bbd-b8cf-c75a64f6bea9)
+Figure: Cumulative slip along strike (left) and along downdip (right) in the first 800 modeling years. Coseismic slip in red while interseismic in blue. 
+
+
 
