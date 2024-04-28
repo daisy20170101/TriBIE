@@ -1,4 +1,10 @@
 #input files for TriBIE SEAS BP5 model
 # D. Li (d.li@gns.cri.nz)
-list:
-parameters.txt
+
+file list:
+parameters.txt: key initial configuration of simulation
+on-fault parameters: var-BP5_h500_140_60.dat
+observation files: profdp-BP5_h500_140_60.dat, profstk-BP5_h500_140_60.dat
+mesh element area: area-BP5_h500_140_60.dat
+
+
