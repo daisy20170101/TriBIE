@@ -1,0 +1,4 @@
+#input files for TriBIE SEAS BP5 model
+# D. Li (d.li@gns.cri.nz)
+list:
+parameters.txt
