@@ -2,9 +2,8 @@
 # D. Li (d.li@gns.cri.nz)
 
 file list:
-parameters.txt: key initial configuration of simulation
+parameter1.txt: key initial configuration of the simulation
 on-fault parameters: var-BP5_h500_140_60.dat
-observation files: profdp-BP5_h500_140_60.dat, profstk-BP5_h500_140_60.dat
+observation files: profdp-BP5_h500_140_60.dat, profstrk-BP5_h500_140_60.dat
 mesh element area: area-BP5_h500_140_60.dat
-
-
+mesh file: fault_h500_140_60.gts
