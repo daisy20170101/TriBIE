@@ -18,3 +18,6 @@ $ mpiifort src/phy3d_module_non.f90 src/3dtri_cleanup.f90 -o 3dtri_sse
 
 ## Simulation
 
+![varBP5](https://github.com/daisy20170101/TriBIE/assets/33549997/c0b43d1b-777a-48e0-bda4-72c7a9b0e95e)
+Figure: Mapview of on-fault distribution of fault key parameters in BP5 example.
+
