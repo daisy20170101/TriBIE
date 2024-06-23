@@ -1,13 +1,13 @@
--BP3_h100_D60_L60.dat  ! job output appendix.
-BP3_D60/ ! output direction.
-/import/freenas-m-05-seissol/dli/SEAS/stiff_bp3_h100_D60/ ! direction to stiffness.
-BP3_D60/out300-BP3_h150.dat ! restart file containing fault output of the previous run.
-5 1200 300 1 4 7 81 60 ! Num_of_parameter_a_minus_b, Num_of_total_elements, Num_of_each_processor, geometry_ratio, num_of_procssors, num_of_surface_receivers, num_of_fault_receivers, dip_angle
-0 1 3 1 0      ! Idin: 0-new, 1-restart; Id_restart_out:0-no, 1-yes; Id_temp_profile: profile id, 3-wet gabbro; Id_spatial_perturbation: 1-yes; I_snapshot: 0-no, 1-yes. 
+-BP3_h100_D60_L60.dat 
+BP3_D60/
+stiffness/
+BP3_D60/out300-BP3_h150.dat
+5 1200 300 1 4 7 81 60 !Num_of_parameter_a_minus_b, Num_of_total_elements, Num_of_each_processor, geometry_ratio, num_of_procssors, num_of_surface_receivers, num_of_fault_receivers, dip_angle
+0 1 3 1 0      !Idin: 0-new, 1-restart; Id_restart_out:0-no, 1-yes; Id_temp_profile: profile id, 3-wet gabbro; Id_spatial_perturbation: 1-yes; I_snapshot: 0-no, 1-yes. 
 31.50  !plate_convergent_rate in mm/yr
-500.0  ! time_of_simulation (t_max, year)
+500.0  !time_of_simulation (t_max, year)
 0.0 1000.0 5.0  !time_output_ave_slip, time_of_interseismic_slip, time_of_slip_output
 100.0 1.0 1.585d-7 0.002739726   !time_step_inseismic_out time_step_min_out time_step_cos time_step_SSE
 1.0  183.0 305.0         !slip_rate_cos (mm/s), slip_rate_sse(3Vpl), slip_rate_sse (5Vpl, mm/yr)
-500 500 500 500 500 500 ! time stepping in output: peack_slip_rate,interseismic,coseismic,nucleation,SSE, nucleation_average
-331 323 411 457 503 549 595 641 687 779 275 229 ! cell index for fault receivers. 
+500 500 500 500 500 500 !time stepping in output: peack_slip_rate,interseismic,coseismic,nucleation,SSE, nucleation_average
+331 323 411 457 503 549 595 641 687 779 275 229 !cell index for fault receivers. 
