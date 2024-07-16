@@ -1,9 +1,24 @@
 #input files for TriBIE SEAS BP5 model
 # D. Li (d.li@gns.cri.nz)
+# update July 2024 
 
-file list:
+### file list:
 parameter1.txt: key initial configuration of the simulation
+  line 1: job appendix
+  line 2: output folder
+  line 3: folder to pre-calculated stiffness
+  line 4: restart file if it's a restart job
 on-fault parameters: var-BP5_h500_140_60.dat
+  colume 1: effective normal stress 
+  colume 2: dc
+  colume 3: a-b
+  colume 4: initial slip rate
+  colume 5: initial state
 observation files: profdp-BP5_h500_140_60.dat, profstrk-BP5_h500_140_60.dat
-mesh element area: area-BP5_h500_140_60.dat
+  fault receivers: x, y,z 
+mesh element area: area-BP5_h500_140_60.dat 
+  element of each triangular cell for total moment calculation
 mesh file: fault_h500_140_60.gts
+  line 1: number_of_vertex, number_of_edge (not used), number_of_cell
+  line 2 - number_of_vertex+1: 
+  line rest: topology of triangular cells
