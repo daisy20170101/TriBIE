@@ -1,0 +1,14 @@
+-BP5_h500_140_60.dat  
+BP5_new/
+stiff_h500_140_60/
+restart/out0-lk20_h90_N25_T2.dat
+5 77376 1209 1 64 9 79 46 !Nab Nt_all,Nt_all,Nt,Lratio,nprocs
+0 1 3 1 0         !Idin, Idout Iprofile, Iperb,Isnapshot
+31.50  !Vpl in mm/yr
+1800.0         ! tmax
+0.0 1000.0 5.0  !tslip_ave tslipend tslip_aveint
+1000.0 1.0 1.585d-8 0.002739726   !tint_out tmin_out tint_cos tint_sse (3.17d-8 is 1sec)
+1.0  183.0 305.0         !vcos (mm/s), vsse1(3Vpl) vsse2 (5Vpl, mm/yr)
+500 500 500 500 500 500 ! nmv,nas,ncos,nnul,nsse, n_nul_int  ! 30050 31823 47220 46501 45948 53543 18071 20293
+2227 2147 2083 2019 1940 32349 32317 32253 32189 62926
+
