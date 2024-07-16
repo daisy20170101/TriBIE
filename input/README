@@ -9,11 +9,11 @@ parameter1.txt: key initial configuration of the simulation
   line 3: folder to pre-calculated stiffness
   line 4: restart file if it's a restart job
 on-fault parameters: var-BP5_h500_140_60.dat
-  colume 1: effective normal stress 
-  colume 2: dc
-  colume 3: a-b
-  colume 4: initial slip rate
-  colume 5: initial state
+  column 1: effective normal stress 
+  column 2: dc
+  column 3: a-b
+  column 4: initial slip rate
+  column 5: initial state
 observation files: profdp-BP5_h500_140_60.dat, profstrk-BP5_h500_140_60.dat
   fault receivers: x, y,z 
 mesh element area: area-BP5_h500_140_60.dat 
