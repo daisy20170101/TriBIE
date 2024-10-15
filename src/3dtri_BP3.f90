@@ -11,64 +11,59 @@
 !------------------------------------------------
 
 program main
-  USE mpi
+  USE mpi 
+ 
   USE phy3d_module_non
   implicit none
   integer, parameter :: DP=kind(1.d0)
 
   logical cyclecont
-  integer ::Nt_all,Nt, ndt,ndtnext,kk,ii,n,l,ndt_v,ndt_inter,Itout,&  
-       ndtmax,i,j,k,nm,nrec,ihrestart,Ifileout, &
-       Iperb,record,Isnapshot,ix1,ix2,ix3,ix4,iz1,iz2,iz3,&
-       record_cor,s2,s3,s4,s5,s6,s7,s8,s9,s10
+  integer ::Nt_all,Nt,ndt,ndtnext,kk,ii,n,l,ndt_v,ndt_inter,Itout,&  
+       i,j,k,nrec,ihrestart,Ifileout, &
+       Iperb,Isnapshot,&
+       record_cor
   integer,dimension(:) :: s1(12)
-  real (DP) :: Vint,tmp,accuracy,areatot, epsv,dt_try, dt,dtmin,dt_did,dt_next,dip, &
-       hnucl, hstarfactor, &
-       sigmadiff,sefffix,Lffix,xdepth,xlength,&
+  real (8) :: Vint,accuracy, epsv,dt_try, dt,dtmin,dt_did,dt_next, &
        t,tprint_inter, tint_out,tout,&
        tmin_out,tint_cos,tint_sse,&   
        tslip_ave,tslipend,tslip_aveint, tmax, &
-       tslipsse,tslipcos,tstart1,tend1,tstart2,tend2,tstart3,tend3, &
+       tslipsse,tslipcos, &
        tssestart,tsseend, &
-       factor1,factor2,factor3,factor4,vtmp,fr_dummy,&
-       xilock1,xilock2,x1,x2,x3,x4,z1,z2,z3,&
-       xi_dummy,x_dummy,z_dummy,stiff_dummy,help
+       help
 
-  real (DP) ::  tmbegin,tmrun,tautmp
+  real (8) ::  tmbegin,tmrun
 
-  integer, DIMENSION(:), ALLOCATABLE :: itran1,itran2,islip1,islip2
 
-  real (DP), DIMENSION(:), ALLOCATABLE :: x,z,xi,yt,yt0,dydt,yt_scale, &
-       slip,slipinc,slipds,slipdsinc,sr,vi,zzfric,zzfric2
+  real (8), DIMENSION(:), ALLOCATABLE :: x,z,xi,yt,yt0,dydt,yt_scale, &
+       slip,slipinc,slipds,sr,zzfric,zzfric2
 
   !Arrays only defined at master cpu
-  real (DP), DIMENSION(:), ALLOCATABLE :: x_all,xi_all,z_all,&
+  real (8), DIMENSION(:), ALLOCATABLE :: x_all,xi_all,z_all,&
        yt_all,yt0_all,dydt_all,yt_scale_all,tau1_all,tau2_all, &
-       slip_all,slipinc_all,slipds_all,slipdsinc_all,cca_all,ccb_all,xLf_all,seff_all,&
-       vi_all,phy1_all,phy2_all
+       slip_all,slipinc_all,slipds_all
+  real(8), dimension(:),allocatable :: cca_all,ccb_all,xLf_all,seff_all,vi_all,&
+        phy1_all,phy2_all
+
   !output related parameters
   integer :: imv,ias,icos,isse,Ioutput,inul,i_nul,n_nul_int
-  real (DP) :: vcos,vsse1,vsse2
-  real (DP), DIMENSION(:), ALLOCATABLE :: maxv,moment,&
-       maxnum,msse1,msse2,areasse1,areasse2,tmv,tas,tcos,tnul,tsse
-  real (DP),dimension(:,:,:),allocatable :: outs1
-  real (DP),dimension(:,:),allocatable :: outs2,outs3,outs4,outs5,outs9,outs10,outs6,outs7,outs8
-  real (DP), DIMENSION(:,:), ALLOCATABLE :: slipz1_inter, &
-       slipz1_cos,slipave_inter,slipave_cos, &
-       v_cos,slip_cos,v_nul,slip_nul,slipz1_tau,slipz1_sse
+  real (8) :: vcos,vsse1,vsse2
+  real (8), DIMENSION(:), ALLOCATABLE :: maxv,tmv,tas,tcos,tsse
+  real (8),dimension(:,:,:),allocatable :: outs1
+  real (8), DIMENSION(:,:), ALLOCATABLE :: slipz1_inter, &
+       slipz1_cos, &
+       slipz1_tau,slipz1_sse
 
-  integer,DIMENSION(:),ALLOCATABLE :: intdepz1,intdepz2,intdepz3,ssetime
-  real(DP),DIMENSION(:,:),ALLOCATABLE :: slipz1_v
-  integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
+  integer,DIMENSION(:),ALLOCATABLE :: ssetime
+  real(8),DIMENSION(:,:),ALLOCATABLE :: slipz1_v
 
   character(len=40) :: cTemp,filename,ct
 
   integer:: n_obv, ndp
-  real(DP) :: dipangle
+  real(8) :: dipangle
   integer,dimension(:),allocatable :: pdp
-  real(DP),dimension(:,:,:),allocatable :: obvs,obvdp
-  real(DP),dimension(:,:),allocatable :: surf1,surf2,surf3
-  real(DP) :: vel1,vel2,vel3,disp1,disp2,disp3
+  real(8),dimension(:,:,:),allocatable :: obvs,obvdp
+  real(8),dimension(:,:),allocatable :: surf1,surf2,surf3
+  real(8) :: vel1,vel2,disp1,disp2
 
   !MPI RELATED DEFINITIONS
   integer :: ierr,size,myid,master
@@ -101,7 +96,6 @@ program main
   close(12)
 
   !num. of rows each proc. 
-  Nt_all = Nt_all
 
   if(mod(Nt_all,nprocs)/=0)then
      write(*,*)'Nd_all must be integer*nprocs. Change nprocs!'
@@ -112,35 +106,36 @@ program main
 
 
   if(myid == master)then
-     ALLOCATE(x_all(Nt_all),xi_all(Nt_all),&
-          cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),vi_all(Nt_all),&
-          tau1_all(Nt_all),tau2_all(Nt_all),slip_all(Nt_all),slipinc_all(Nt_all),slipds_all(Nt_all),slipdsinc_all(Nt_all),&
-         yt0_all(3*Nt_all),yt_all(3*Nt_all),dydt_all(3*Nt_all),yt_scale_all(3*Nt_all))
-
+     ALLOCATE(xi_all(Nt_all),&
+          tau2_all(Nt_all),&
+         slipds_all(Nt_all),&
+        dydt_all(3*Nt_all),yt_scale_all(3*Nt_all))
      allocate(phy1_all(Nt_all),phy2_all(Nt_all))
 
-     ALLOCATE (outs1(nmv,5,12),&
-          maxv(nmv),maxnum(nmv),msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
-          tmv(nmv),tas(nas),tcos(ncos),tnul(nnul),tsse(nsse))
+
+     ALLOCATE (outs1(nmv,5,12),maxv(nmv), &
+          tmv(nmv),tas(nas),tcos(ncos),tsse(nsse))
 
 !!! modify output number
      ALLOCATE (slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos), &
-          slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos), &
-          v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse) )
-     ALLOCATE(intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all),slipz1_v(Nt_all,ncos),ssetime(nsse)  )
+          slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse) )
+     ALLOCATE(slipz1_v(Nt_all,ncos),ssetime(nsse)  )
     
-     allocate(moment(nmv))
+!     allocate(seff_all(Nt_all),slipinc_all(Nt_all),tau1_all(Nt_all),yt0_all(3*Nt_all),yt_all(3*Nt_all),slip_all(Nt_all))
      allocate(obvs(nmv,4,n_obv),obvdp(nmv,3,ndp),pdp(ndp),surf1(n_obv,Nt_all),surf2(n_obv,Nt_all),surf3(n_obv,Nt_all))
 
-  end if
+ end if
+
+
+     allocate(slipinc_all(Nt_all),tau1_all(Nt_all),yt0_all(3*Nt_all),yt_all(3*Nt_all),slip_all(Nt_all))
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ALLOCATE (phy1(Nt),phy2(Nt),islip1(Nl),islip2(Nl),itran1(Nl),itran2(Nl),zzfric(Nt),zzfric2(Nt),&
-       x(Nt),z(Nt),z_all(Nt_all),xi(Nt),cca(Nt),ccb(Nt),seff(Nt),&
-       xLf(Nt),tau1(Nt),tau2(Nt),tau0(Nt),slipds(Nt),slipdsinc(Nt),slip(Nt),slipinc(Nt), &
-       yt(3*Nt),dydt(3*Nt),yt_scale(3*Nt),yt0(3*Nt),sr(Nt),vi(Nt))
+  ALLOCATE(phy1(Nt),phy2(Nt),zzfric(Nt),zzfric2(Nt),&
+       x(Nt),z(Nt),z_all(Nt_all),xi(Nt),&
+       tau1(Nt),tau2(Nt),tau0(Nt),slipds(Nt),slip(Nt),slipinc(Nt), &
+       yt(3*Nt),dydt(3*Nt),yt_scale(3*Nt),yt0(3*Nt),sr(Nt))
 
-  ALLOCATE (stiff(Nt,Nt_all),stiff2(Nt,Nt_all))   !!! stiffness of Stuart green calculation
+  ALLOCATE (x_all(Nt_all),stiff(Nt,Nt_all),stiff2(Nt,Nt_all))   !!! stiffness of Stuart green calculation
 
   !Read in stiffness matrix, in nprocs segments
 
@@ -208,24 +203,37 @@ end if
   !!-----------------------------------------------------------------------------------------
   !--------------------------------------------------------------------------------------------
 
+ call MPI_Barrier(MPI_COMM_WORLD,ierr)
+
+!  if(myid == master)then
+      
+     allocate(ccb_all(Nt_all),cca_all(Nt_all),xLf_all(Nt_all),seff_all(Nt_all),vi_all(Nt_all))
+
+     CALL resdep(cca_all,ccb_all,xLf_all,seff_all,vi_all,Nt_all,jobname,foldername)
+     write(*,*) ccb_all(Nt_all)
+ ! end if
+
+
+  allocate(ccb(Nt),cca(Nt),xLf(Nt),seff(Nt),vi(Nt))
+
+  call MPI_Barrier(MPI_COMM_WORLD,ierr)
+  call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+
+  if(allocated(ccb_all)) print *, 'cca_all allocated' 
+  if(allocated(ccb)) print *, 'cca allocated'
+
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
 
-  if(myid==master)then
-     CALL resdep(Nt_all,dip,hnucl,sigmadiff,sefffix,Lffix, &
-          itran1,itran2,islip1,islip2,Iperb,factor1,factor2,factor3,factor4,&
-          xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all)
-  end if
-
-
-  call MPI_Barrier(MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(cca_all,Nt,MPI_Real8,cca,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
   call MPI_Scatter(ccb_all,Nt,MPI_Real8,ccb,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+
+
+  call MPI_Scatter(cca_all,Nt,MPI_Real8,cca,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
   call MPI_Scatter(xLf_all,Nt,MPI_Real8,xLf,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
   call MPI_Scatter(seff_all,Nt,MPI_Real8,seff,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
   call MPI_Scatter(vi_all,Nt,MPI_Real8,vi,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  call MPI_Bcast(x_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr) 
   call MPI_Scatter(x_all,Nt,MPI_Real8,x,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
-  call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
   call CPU_TIME(tmbegin)
 
@@ -281,7 +289,7 @@ end if
    		write(i,100)'# This is the file header'
 		write(i,100)'# problem=SEAS Benchmark No.3; dip=30'
 		write(i,100)'# author=D.Li'
-        write(i,100)'# code=TriBIE'
+                write(i,100)'# code=TriBIE'
 		write(i,100)'# date=2021/5/11'
 		write(i,100)'# element_size = 100 m'
 		write(i,100)'# minimum_time_step = 1e-3'
@@ -329,9 +337,9 @@ end if
       open(405,file=trim(foldername)//'srfst_fn+08'//jobname,access='append',status='unknown')
       open(406,file=trim(foldername)//'srfst_fn+16'//jobname,access='append',status='unknown')
       open(407,file=trim(foldername)//'srfst_fn+32'//jobname,access='append',status='unknown')
-      open(408,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
+      !open(408,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
 
-    do i = 401,408
+    do i = 401,407
         write(i,100)'# This is the file header'
         write(i,100)'# problem=SEAS Benchmark No.3'
         write(i,100)'# author=D.Li'
@@ -351,7 +359,7 @@ end if
         write(i,100)'# Below is the time-series data.'
     end do
 
-    do i = 401,408
+    do i = 401,407
       close(i)
     end do
 
@@ -479,9 +487,14 @@ end if
 
      ndt = ndt + 1
 
+
+
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
-     call MPI_Gather(yt,3*Nt,MPI_Real8,yt_all,3*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(yt0,3*Nt,MPI_Real8,yt0_all,3*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+
+
+     if(allocated(yt_all)) print *, "allocate yt"
+     call MPI_Gather(yt0, 3*Nt,MPI_real8,yt0_all,3*Nt,MPI_real8,0,MPI_COMM_WORLD,ierr)
+     call MPI_Gather(yt,3*Nt,MPI_real8,yt_all,3*Nt,MPI_real8,0,MPI_COMM_WORLD,ierr)
 
      call MPI_Gather(slipinc,Nt,MPI_Real8,slipinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Gather(slip,Nt,MPI_Real8,slip_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -497,11 +510,10 @@ end if
         imv=imv+1
         tmv(imv)=t*yrs
         maxv(imv) = 0.d0
-        moment(imv) =0.d0
         do i=1,Nt_all      !!!!!!!!!!!!!!!!! find max velocity
            if(yt_all(3*i-2).ge.maxv(imv))then
               maxv(imv)=yt_all(3*i-2)
-              maxnum(imv)=i
+              ! maxnum(imv)=i
            end if
         end do
 !!!!!  SEAS output variables
@@ -604,11 +616,10 @@ end if
      if(myid==master)then 
         Ioutput = 0 
         call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
-             tmv,tas,tcos,tnul,tsse,maxv,moment,outs1,maxnum,msse1,msse2, areasse1,areasse2,&
+             tmv,tas,tcos,tsse,maxv,outs1, &
              slipz1_inter,slipz1_tau,slipz1_sse, &
-             slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
-             xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-             n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvdp,ndp)         
+             slipz1_cos,&
+             slipz1_v,obvs,n_obv,obvdp,ndp)         
 
      end if
 
@@ -632,12 +643,10 @@ end if
      call restart(1,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
      Ioutput = 1
      call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
-          tmv,tas,tcos,tnul,tsse,maxv,moment,outs1, &
-          maxnum,msse1,msse2, areasse1,areasse2, &
+          tmv,tas,tcos,tsse,maxv,outs1,&
           slipz1_inter,slipz1_tau,slipz1_sse, &
-          slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
-          xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-          n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvdp,ndp) 
+          slipz1_cos,&
+         slipz1_v,obvs,n_obv,obvdp,ndp) 
 
   end if
 
@@ -691,25 +700,49 @@ end if
 
   if(myid==master)then 
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
-                phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
-          slip_all,slipinc_all,slipds_all,slipdsinc_all,&
-           cca_all,ccb_all,xLf_all,seff_all, &
-          maxnum,maxv,outs1,&
-          msse1,msse2,areasse1,areasse2,tmv,tcos,tas,tnul,tsse)
+                phy1_all,phy2_all,tau1_all,tau2_all, &
+          slip_all,slipinc_all,slipds_all,&
+          cca_all,ccb_all,vi_all,xLf_all,seff_all, &
+          maxv,outs1,tmv,tcos,tas,tsse)
 
-     DEALLOCATE (slipz1_inter,slipz1_tau,slipz1_sse, &
-          slipz1_cos,slipave_inter,slipave_cos, &
-          v_cos,slip_cos,v_nul,slip_nul)
-     DEALLOCATE (intdepz1,intdepz2,intdepz3,ssetime,slipz1_v)
+     DEALLOCATE (slipz1_inter,slipz1_tau,slipz1_sse,slipz1_cos)
+     DEALLOCATE (ssetime,slipz1_v)
      deallocate (pdp,obvs,obvdp,surf1,surf2,surf3)
   end if
 
 
   DEALLOCATE (stiff2,stiff)
-  DEALLOCATE (islip1,islip2,itran1,itran2,x,z_all,xi,yt,dydt,yt_scale)
-  deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
+  DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale)
+  deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,yt0,zzfric,zzfric2)
   DEALLOCATE (cca,ccb,xLf,seff,vi,sr)
   call MPI_finalize(ierr)
+
+contains
+
+!-----------------------------------------------------------------------------
+!    read parameters: sigma_effective, a,b,D_c
+!----------------------------------------------------------------------------
+
+    subroutine resdep(cca_all,ccb_all,xLf_all,seff_all,vi_all,Nt_all,jobname,foldername)
+      
+      real(8),intent(inout) :: cca_all(:),ccb_all(:),xLf_all(:),vi_all(:),seff_all(:)
+      character(len=80),intent(in) :: jobname, foldername
+      integer,intent(in) :: Nt_all
+      integer :: i
+
+      ! allocate(ccb_all(Nt_all),cca_all(Nt_all),xLf_all(Nt_all),seff_all(Nt_all),vi_all(Nt_all))
+
+      open(444,file='var'//jobname,status='old', action='read',form='formatted')
+       do i=1,Nt_all
+        read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
+        vi_all(i) = vi_all(i)*yrs*1d3
+       end do
+      close(444)
+
+      RETURN
+    END subroutine resdep
+
+
 END program main
 
 !------------------------------------------------------------------------------
@@ -720,12 +753,12 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
   implicit none
   integer, parameter :: DP = kind(1.0d0)   
   integer :: n,i,j,k,NMAX,Nt,Nt_all
-  real (DP) :: eps,hdid,hnext,htry,x
-  real (DP) :: dydx(n),y(n),yscal(n),z_all(Nt_all),p(Nt) !p is position
+  real (8) :: eps,hdid,hnext,htry,x
+  real (8) :: dydx(n),y(n),yscal(n),z_all(Nt_all),p(Nt) !p is position
   external derivs
-  real (DP) :: errmax,errmax1,h,htemp,xnew,errmax_all(nprocs)
-  real (DP), dimension(:), allocatable :: yerr,ytemp
-  real (DP), parameter :: SAFETY=0.9, PGROW=-.2,PSHRNK=-.25,ERRCON=1.89e-4
+  real (8) :: errmax,errmax1,h,htemp,xnew,errmax_all(nprocs)
+  real (8), dimension(:), allocatable :: yerr,ytemp
+  real (8), parameter :: SAFETY=0.9, PGROW=-.2,PSHRNK=-.25,ERRCON=1.89e-4
 
   !MPI RELATED DEFINITIONS
   integer :: ierr,myid,master
@@ -759,7 +792,7 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
      htemp = SAFETY*h*(errmax1**PSHRNK)
      h = dsign(max(dabs(htemp),0.1*dabs(h)),h)
      xnew = x+h
-     if(xnew.eq.x)pause 'stepsize underflow in rkqs'
+     if(xnew.eq.x) stop !pause 'stepsize underflow in rkqs'
      goto 1
   else
      if(errmax1.gt.ERRCON)then
@@ -786,9 +819,9 @@ end subroutine rkqs
        integer, parameter :: DP = kind(1.0d0)   
        integer :: n,i,NMAX,myid,Nt_all,Nt
        external derivs
-       real (DP) :: h,x,dydx(n),y(n),yerr(n),yout(n),z_all(Nt_all),p(Nt)
-       real (DP), dimension(:), ALLOCATABLE :: ak2,ak3,ak4,ak5,ak6,ytemp
-       REAL (DP),  parameter :: A2=.2,A3=.3,A4=.6,A5=1.,A6=.875, &
+       real (8) :: h,x,dydx(n),y(n),yerr(n),yout(n),z_all(Nt_all),p(Nt)
+       real (8), dimension(:), ALLOCATABLE :: ak2,ak3,ak4,ak5,ak6,ytemp
+       REAL (8),  parameter :: A2=.2,A3=.3,A4=.6,A5=1.,A6=.875, &
             B21=.2,B31=3./40.,B32=9./40.,B41=.3,&
             B42=-.9,B43=1.2,B51=-11./54.,B52=2.5, &
             B53=-70./27.,B54=35./27., B61=1631./55296., &
@@ -844,11 +877,11 @@ end subroutine rkqs
        implicit none
        integer, parameter :: DP = kind(1.0d0)
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
-       real (DP) :: t,yt(nv),dydt(nv),frc 
-       real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
-       real (DP) :: psi,help1,help2,help
-       real (DP) :: SECNDS
-       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
+       real (8) :: t,yt(nv),dydt(nv),frc 
+       real (8) :: deriv3,deriv2,deriv1,small
+       real (8) :: psi,help1,help2,help
+       real (8) :: SECNDS
+       real (8) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
        intrinsic imag,real
 
        !MPI RELATED DEFINITIONS
@@ -931,31 +964,18 @@ end subroutine rkqs
 !    read parameters: sigma_effective, a,b,D_c
 !----------------------------------------------------------------------------
 
-    subroutine resdep(Nt_all,dip,hnucl,sigmadiff,sefffix,Lffix, &
-         itran1,itran2,islip1,islip2,Iperb,&
-         factor1,factor2,factor3,factor4, &
-         xilock1,xilock2,cca_all,ccb_all,xLf_all, &
-         seff_all,x_all,z_all,vi_all)
+    subroutine resdep_back(cca_all,ccb_all,xLf_all,seff_all,vi_all,Nt_all)
       USE mpi
-      USE phy3d_module_non, only: yrs,p18,Nl,Nd,Nab,xmu,xnu,gamma, &
-           Iprofile,foldername,jobname,profile
+      USE phy3d_module_non, only: yrs,jobname,foldername
       implicit none
-      integer, parameter :: DP = kind(1.0d0)
-      integer, parameter :: DN=9
-      integer :: k,i,j,kk,Iperb,record,l,m,nn,itran1(Nl),itran2(Nl), &
-           islip1(Nl),islip2(Nl),Nt,Nt_all
+      real(8),allocatable :: cca_all(:),ccb_all(:),xLf_all(:),vi_all(:),seff_all(:)
+ 
+      integer, intent(in) :: Nt_all
+      integer :: i
+ 
+      allocate(ccb_all(Nt_all),cca_all(Nt_all),xLf_all(Nt_all),seff_all(Nt_all),vi_all(Nt_all))
 
-      real (DP) :: temp(DN),dep(DN),dist(DN),ptemp(Nt_all), &
-           ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, & 
-           hnucl,sigmadiff,sefffix,Lffix,dip, &
-           factor,factor1,factor2,factor3,factor4
-      real (DP) :: cca_all(Nt_all),ccb_all(Nt_all),ccab_all(Nt_all), &
-           xLf_all(Nt_all),seff_all(Nt_all),x_all(Nt_all),z_all(Nt_all),vi_all(Nt_all)
-
-      real (DP) ::a(Nab),tpr(Nab),zp(Nab),b(nab),ab(nab)
-
-      factor = 1.0  !initial value of perturbation 
-
+      !allocate(cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),vi_all(Nt_all))
       !----------------------------------------------------------------------------
       !     iseff defines what eff. normal stress down-dip profiles
       !     1:     linearly increase to sigmadiff and keep constant
@@ -966,62 +986,6 @@ end subroutine rkqs
       !     4:     other profiles to be defined (?)
       !-----------------------------------------------------------------------------
 
-      !     PIVITOL TEMPERATURE POINTS AT WHICH A-B VALUES CHANGE
-      if(Iprofile.eq.1)then   !web granite  used in Liu&Rice(2009)
-         tpr(1)=0
-         tpr(2)=100
-         tpr(3)=350
-         tpr(4)=450
-         tpr(5)=500
-         a(1) = 0.015
-         a(2) = 0.015
-         a(3) = 0.015
-         a(4) = 0.015
-         a(5) = 0.025
-         ab(1)=0.004
-         ab(2)=-0.004
-         ab(3)=-0.004
-         ab(4)=0.004
-         ab(5)=0.005
-      end if
-
-      if(Iprofile.eq.2)then   !LSB dry granite 
-         tpr(1) = 0.0
-         tpr(2) = 100.0
-         tpr(3) = 200.0
-         tpr(4) = 270.0
-         tpr(5) = 565.0
-         a(1) = 0.0101
-         a(2) = 0.0138
-         a(3) = 0.0175
-         a(4) = 0.0201
-         a(5) = 0.0310
-         ab(1) = 0.0025
-         ab(2) = 0.0
-         ab(3) = -0.0025
-         ab(4) = -0.0025
-         ab(5) = 0.004
-      end if
-
-      if(Iprofile.eq.3)then      !Modified gabbro, a increases with temp.
-         tpr(1) = 0.0
-         tpr(2) = 100.0
-         tpr(3) = 300.0
-         tpr(4) = 416.0
-         tpr(5) = 520.0
-         a(1) = 0.01
-         a(2) = 0.01
-         a(3) = 0.01
-         a(4) = 0.01    
-         a(5) = 0.01
-         ab(1) = 0.0035
-         ab(2) = -0.0035
-         ab(3) = -0.0035
-         ab(4) = -0.0035
-         ab(5) = 0.001
-      end if
-
-!!! check for minimum Dc
 !!! set SSE depth effective normal stress and Dc
 !!!! add perturbation and buffer zone at both ends.
 
@@ -1030,23 +994,13 @@ end subroutine rkqs
       open(444,file='var'//jobname,status='old')
        do i=1,Nt_all
         read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
-        ccab_all(i) = cca_all(i) - ccb_all(i)
         vi_all(i) = vi_all(i)*yrs*1d3
        end do
       close(444)
 
-
       !     To save info about some of the quantities
-      open(2,file=trim(foldername)//'vardep'//jobname,status='unknown')
-      !	write(2,300)'z','seff','Lf','ccab','cca'
-      do i=1,Nt_all
-         write(2,'(6(1x,e20.13))')z_all(i),seff_all(i),xLf_all(i), &
-              ccab_all(i),cca_all(i),vi_all(i)
-      end do
-      close(2)
-300   format(5(1x,A20))
       RETURN
-    END subroutine resdep
+    END subroutine resdep_back
 !       
 !------------------------------------------------------------------------------
 ! restart file
@@ -1058,8 +1012,8 @@ USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer :: inout,i,ndt,nrec,Ifileout,Nt,Nt_all
-      real (DP) :: t,dt,dt_try
-      real (DP) ::  yt(3*Nt_all),slip(Nt_all)
+      real (8) :: t,dt,dt_try
+      real (8) ::  yt(3*Nt_all),slip(Nt_all)
 character(len=40) :: filename
 
       if(inout.eq.0) then
@@ -1093,12 +1047,10 @@ character(len=40) :: filename
 !------Output -------------------------------------------
 !--------------------------------------------------------
 subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
-    tmv,tas,tcos,tnul,tsse,maxv,moment,outs1,&
-    maxnum,msse1,msse2,areasse1,areasse2, &
+    tmv,tas,tcos,tsse,maxv,outs1,&
      slipz1_inter,slipz1_tau,slipz1_sse,&
-     slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
-     xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-    n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvdp,ndp) 
+     slipz1_cos,&
+    slipz1_v,obvs,n_obv,obvdp,ndp) 
 
 
 USE mpi
@@ -1106,19 +1058,15 @@ USE phy3d_module_non, only: xmu,nmv,nas,ncos,nnul,nsse,yrs,Vpl,Nl, &
 		foldername,jobname
 implicit none
 integer, parameter :: DP = kind(1.0d0)
-integer :: Nt,Nt_all,i,j,k,l,kk,inul,imv,ias,icos,isse,Ioutput,Isnapshot,ix1,ix2,ix3,ix4
+integer :: Nt,Nt_all,i,j,k,l,kk,inul,imv,ias,icos,isse,Ioutput,Isnapshot
 
-real (DP) :: x(Nt),maxnum(nmv),moment(nmv),maxv(nmv),outs1(nmv,5,12),&
-        msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
-	tmv(nmv),tas(nas),tcos(ncos),tnul(nnul),tsse(nsse)
+real (8) :: x(Nt),maxv(nmv),outs1(nmv,5,12),&
+	tmv(nmv),tas(nas),tcos(ncos),tsse(nsse)
 
-real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),&
-        v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse), &
-     v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),xi_all(Nt_all),x_all(Nt_all),&
+real (8) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),&
+        slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse), &
       slipz1_v(Nt_all,ncos)
-integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
-integer :: intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all)
-real(DP):: obvs(nmv,4,n_obv),obvdp(nmv,3,ndp)
+real(8):: obvs(nmv,4,n_obv),obvdp(nmv,3,ndp)
 integer :: n_obv, ndp
 
 if(Ioutput == 0)then    !output during run 
@@ -1146,7 +1094,7 @@ if(Ioutput == 0)then    !output during run
       open(405,file=trim(foldername)//'srfst_fn+08'//jobname,access='append',status='unknown')
       open(406,file=trim(foldername)//'srfst_fn+16'//jobname,access='append',status='unknown')
       open(407,file=trim(foldername)//'srfst_fn+32'//jobname,access='append',status='unknown')
-      open(408,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
+      !open(408,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
  
    open(501,file=trim(foldername)//'slip'//jobname,access='append',status='unknown')
    open(502,file=trim(foldername)//'shear_stress'//jobname,access='append',status='unknown')
@@ -1159,7 +1107,7 @@ if(Ioutput == 0)then    !output during run
            outs1(i,5,j-310)
         end do
 
-        do j=401,408
+        do j=401,407
          write(j,110) tmv(i),obvs(i,1,j-400),obvs(i,2,j-400),obvs(i,3,j-400),obvs(i,4,j-400)
         end do
         write(501,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvdp(i,1,:)
@@ -1173,7 +1121,7 @@ if(Ioutput == 0)then    !output during run
          close(j)
       end do
       
-      do j=401,408
+      do j=401,407
         close(j)
       end do
       close(501)
@@ -1283,7 +1231,7 @@ else
       open(405,file=trim(foldername)//'srfst_fn+08'//jobname,access='append',status='unknown')
       open(406,file=trim(foldername)//'srfst_fn+16'//jobname,access='append',status='unknown')
       open(407,file=trim(foldername)//'srfst_fn+32'//jobname,access='append',status='unknown')
-      open(408,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
+      !open(408,file=trim(foldername)//'srfst_fn+00'//jobname,access='append',status='unknown')
 
    open(501,file=trim(foldername)//'slip'//jobname,access='append',status='unknown')
    open(502,file=trim(foldername)//'shear_stress'//jobname,access='append',status='unknown')
@@ -1296,7 +1244,7 @@ else
            outs1(i,5,j-310)
         end do
 
-       do j=401,408
+       do j=401,407
          write(j,110) tmv(i),obvs(i,1,j-400),obvs(i,2,j-400),obvs(i,3,j-400),obvs(i,4,j-400)
         end do
         write(501,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvdp(i,1,:)
@@ -1308,7 +1256,7 @@ else
        do j=311,322
          close(j)
        end do 
-      do j=401,408
+      do j=401,407
         close(j)
       end do
       close(501)
@@ -1412,3 +1360,5 @@ end if
 
 RETURN
 END subroutine output
+
+
