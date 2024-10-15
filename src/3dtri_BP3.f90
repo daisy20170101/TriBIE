@@ -491,8 +491,6 @@ end if
 
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
 
-
-     if(allocated(yt_all)) print *, "allocate yt"
      call MPI_Gather(yt0, 3*Nt,MPI_real8,yt0_all,3*Nt,MPI_real8,0,MPI_COMM_WORLD,ierr)
      call MPI_Gather(yt,3*Nt,MPI_real8,yt_all,3*Nt,MPI_real8,0,MPI_COMM_WORLD,ierr)
 
@@ -712,6 +710,7 @@ end if
 
 
   DEALLOCATE (stiff2,stiff)
+  deallocate (slipinc_all, yt_all, yt0_all, tau1_all, slip_all)
   DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,yt0,zzfric,zzfric2)
   DEALLOCATE (cca,ccb,xLf,seff,vi,sr)
