@@ -697,9 +697,9 @@ end if
 
 
   if(myid==master)then 
-     DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
+     DEALLOCATE (x_all,xi_all,dydt_all,yt_scale_all,yt0_all,&
                 phy1_all,phy2_all,tau1_all,tau2_all, &
-          slip_all,slipinc_all,slipds_all,&
+          slipds_all,&
           cca_all,ccb_all,vi_all,xLf_all,seff_all, &
           maxv,outs1,tmv,tcos,tas,tsse)
 
@@ -964,7 +964,6 @@ end subroutine rkqs
 !----------------------------------------------------------------------------
 
     subroutine resdep_back(cca_all,ccb_all,xLf_all,seff_all,vi_all,Nt_all)
-      USE mpi
       USE phy3d_module_non, only: yrs,jobname,foldername
       implicit none
       real(8),allocatable :: cca_all(:),ccb_all(:),xLf_all(:),vi_all(:),seff_all(:)
@@ -1052,7 +1051,6 @@ subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
     slipz1_v,obvs,n_obv,obvdp,ndp) 
 
 
-USE mpi
 USE phy3d_module_non, only: xmu,nmv,nas,ncos,nnul,nsse,yrs,Vpl,Nl, &
 		foldername,jobname
 implicit none
