@@ -219,8 +219,6 @@ end if
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
   call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
-  if(allocated(ccb_all)) print *, 'cca_all allocated' 
-  if(allocated(ccb)) print *, 'cca allocated'
 
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
 
@@ -697,8 +695,8 @@ end if
 
 
   if(myid==master)then 
-     DEALLOCATE (x_all,xi_all,dydt_all,yt_scale_all,yt0_all,&
-                phy1_all,phy2_all,tau1_all,tau2_all, &
+     DEALLOCATE (x_all,xi_all,dydt_all,yt_scale_all,&
+                phy1_all,phy2_all,tau2_all, &
           slipds_all,&
           cca_all,ccb_all,vi_all,xLf_all,seff_all, &
           maxv,outs1,tmv,tcos,tas,tsse)
