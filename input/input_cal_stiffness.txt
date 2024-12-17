@@ -1,0 +1,2 @@
+fault_h500_140_60.gts ! mesh file
+64  ! num_of_cores

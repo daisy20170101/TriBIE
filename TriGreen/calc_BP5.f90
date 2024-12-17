@@ -11,23 +11,43 @@ program p_calc_green
     use m_calc_green
     use mpi
    implicit none
-  character(*),parameter        :: fname="fault_h500_140_60.gts"
+  character(*),parameter        :: fin="input_cal_stiffness.txt"
+  character(*),parameter        :: fobvname='obvs.dat'
   integer ::                   n_vertex,n_edge,n_cell
   real(8),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_edge
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_cell
-  
+  integer :: i, n_obv
+  real*8,dimension(:,:),allocatable:: x
+
    integer :: ierr,size,myid
    integer :: Nt,nproc,Nt_all,master
-   parameter (nproc=64)
+   character(len=80) :: fname
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Load input mesh data
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+open(44,file=fin,form='formatted',status='old')
+read(44,'(a)') fname
+read(44,*) nproc
+close(44)
+
     call MPI_Init(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
     call MPI_COMM_SIZE(MPI_COMM_WORLD,size,ierr)
   master=0
-    
+
+open(33,file=fobvname,form='formatted')
+read(33,*) n_obv
+
+allocate(x(3,n_obv))
+
+do i=1,n_obv
+ read(33,*)x(1,i),x(2,i),x(3,i)
+end do
+
+close(33)
+ 
 !!! load n_vertex,n_vertex,n_cell from fname
      call load_name(fname,n_vertex,n_edge,n_cell)
 
@@ -52,7 +72,7 @@ end if
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! for all element's center point as op
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
+    call calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_obv)
     
     deallocate(arr_vertex,arr_edge,arr_cell) 
  
@@ -60,6 +80,26 @@ end if
    call MPI_finalize(ierr)
 end program
 
+subroutine load_obvfile(fobvname,x,y,z)
+implicit none
+
+character(*) :: fobvname
+integer :: i, n_obv
+real*8,dimension(:),allocatable:: x,y,z
+
+open(33,file=fobvname,form='formatted')
+read(33,*) n_obv
+write(*,*)'n_obv',n_obv
+
+allocate(x(n_obv),y(n_obv),z(n_obv))
+
+do i=1,n_obv
+ read(33,*)x(i),y(i),z(i)
+end do
+
+close(33)
+return
+end subroutine load_obvfile
 
 subroutine load_name(fname,n_vertex,n_edge,n_cell)
     implicit none
@@ -477,7 +517,7 @@ end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
+subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_obv)
  use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
  implicit none
     
@@ -503,16 +543,21 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
   real(8)             ::  c_global(3, 3), &
                           c_local(3, 3),  c_local_v(9), &
                           c_local2(3, 3), c_local_v2(9)
-  real(8),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
+  real(8),allocatable :: arr_co(:,:)
+  real(8), allocatable :: arr_trid(:,:),arr_cl_v2(:,:,:)
   real(8),allocatable :: arr_out(:,:),a_ss(:),a_ds(:),a_op(:)
   real(8)             :: arr_vertex(n_vertex,3)
   integer             :: arr_cell(n_cell,3)
+!!! for surface deformation
+  integer             :: n_obv
+  real*8              :: x(3,n_obv)
+  real*8              :: surf1(n_obv,n_cell),surf2(n_obv,n_cell),surf3(n_obv,n_cell)
 
   vpl(1:3) = 1.d0
   l_miu = parm_l/parm_miu
 
-  ss = 0.d0
-  ds = 1.d0
+  ss = 1.d0
+  ds = 0.d0
   op = 0.d0
     
   ! global coordinate
@@ -572,26 +617,47 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
       sig33(1,3) = sig33(3,1)
       sig33(2,3) = sig33(3,2)
 
-      ! calc local stress  in Bar (0.1Mpa)
-      arr_out(j-(myid)*Nt,i) = - parm_miu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,2,j)))
+      ! calc local stress  in Bar (0.1Mpa) / mm
+      arr_out(j-(myid)*Nt,i) = - parm_miu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,1,j)))
 
     end do
   end do
   
+!!!!   calculate Green's at surface observations
+if(myid==0)then
+ do j=1,n_obv
+   write(*,*)'obv',j,x(:,j)
+   do i=1,n_cell
+   call dstuart (parm_nu,x(:,j),arr_trid(:,i),ss,ds,op, u, t)
+   ! calc displacement  
+   surf1(j,i) = u(1)
+   surf2(j,i) = u(2)
+   surf3(j,i) = u(3)
+end do
+end do
+end if
+
  write(cTemp,*) myid
  write(*,*) cTemp
 
-  open(14,file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted',access='stream')
-!  write(14,*) n_cell, n_vertex
+  open(14,file='ssGreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted',access='stream')
 
  if(myid==0)then 
  open(22,file='position.bin',form='unformatted',access='stream')
+ open(15,file='surfGreen.bin',form='unformatted',access='stream') 
  
   do j=1,n_cell
     write(22) arr_co(1,j), arr_co(2,j), arr_co(3,j)
   end do
-close(22)
- endif
+ close(22)
+
+ do j=1,n_obv
+  write(15) surf1(j,:)
+  write(15) surf2(j,:)
+  write(15) surf3(j,:)
+ end do 
+ close(15)
+end if
 
 do i=1,Nt
   write(14) arr_out(i,:)
