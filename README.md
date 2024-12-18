@@ -6,6 +6,29 @@ TriBIE is developed and currently maintaned by [Duo Li](https://daisy20170101.gi
 ![image](https://github.com/daisy20170101/TriBIE/blob/master/post_precessing/SSE_CAS_web.png)
 Figure 1. Numerical model of the curved subduction fault in Cascadia (left) and the simulated SSE slip in two episodes [Li and Liu, [2016](http://onlinelibrary.wiley.com/doi/10.1002/2016JB012857/full); [2017](http://dx.doi.org/10.1002/2016JB013778)].
 
+# Features
+- quasi-dynamic deformation (replacing inertia with damping) associated with fault elastic dislocation
+  
+- rate-and-state friction, with either aging or slip laws
+- 
+- heterogeneous frictional properties
+
+- slow and fast, aseismic and seismic slip transients
+
+- non-planar faults (triangular elements)
+
+- 3D or 2D plane-strain
+
+- tectonic and transient loads
+
+- normal stress coupling
+
+- MATLAB and Python wrappers, and graphic output display utilities
+
+- parallelized for shared memory systems (OpenMP)
+
+- parallelized for distributed memory systems (MPI)
+
 ## Static Green's function (or stiffness) calculation
 ### Stiffness in homogeneous half-space medium
 We use analytical solution for stress tensor in polygon elements embeded in homogeneous half-space based on Comninou and Dundurs [1975] and Stuart [1997].
