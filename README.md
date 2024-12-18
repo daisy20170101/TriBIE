@@ -10,7 +10,7 @@ Figure 1. Numerical model of the curved subduction fault in Cascadia (left) and 
 - quasi-dynamic deformation (replacing inertia with damping) associated with fault elastic dislocation
   
 - rate-and-state friction, with either aging or slip laws
-- 
+
 - heterogeneous frictional properties
 
 - slow and fast, aseismic and seismic slip transients
@@ -117,6 +117,9 @@ Example:
 Please contact us or post an issue if anything unclear!
 
 ## Publications
+
+
+B. A. Erickson, J. Jiang, V. Lambert, S. D. Barbot, M. Abdelmeguid, M. Almquist, et al. Incorporating Full Elastodynamic Effects and Dipping Fault Geometries in Community Code Verification Exercises for Simulations of Earthquake Sequences and Aseismic Slip (SEAS). Bulletin of the Seismological Society of America (2023)  [BSSA](https://doi.org/10.1785/0120220066)
 
 Jiang, J., B. Erickson, V. Lambert, J.-P. Ampuero, R. Ando, S. Barbot, C. Cattania, L. D. Zilio, B. Duan, E. M. D. . and et al. "Community-Driven Code Comparisons for Three-Dimensional Dynamic Modeling of Sequences of Earthquakes and Aseismic Slip (SEAS)." JGR: Solid Earth ([EarthArXiv](https://doi.org/10.1002/essoar.10508582.1))
 
