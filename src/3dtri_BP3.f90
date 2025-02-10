@@ -1350,7 +1350,7 @@ end if
  600    format(E15.4,1X,E13.6,1X,E15.8)
  700    format(E13.6)
  900    format(E15.8)
-144 format(E22.14,84(1X,E15.7))
+144 format(E22.14,166(1X,E15.7))
 
 RETURN
 END subroutine output
