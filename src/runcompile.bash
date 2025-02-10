@@ -1,2 +1,2 @@
-mpif90 phy3d_module_non.f90 3dtri_BP3.f90 -o tri3_BP3 -g -Wall  -fcheck=all
+mpif90 phy3d_module_non.f90 3dtri_BP3.f90 -o tri3_BP3 -ggdb -O3  -Wunused-dummy-argument  -fcheck=all
 

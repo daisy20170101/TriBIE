@@ -192,7 +192,6 @@ end if
      end do
      do j=1,Nt_all !! source
         read(58) stiff2(i,j) ! kernel of normal traction
-
      end do
   end do
   close(58)
@@ -708,7 +707,7 @@ end if
 
 
   DEALLOCATE (stiff2,stiff)
-  deallocate (slipinc_all, yt_all, yt0_all, tau1_all, slip_all)
+  deallocate (slipinc_all, yt_all,  tau1_all, slip_all)
   DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,yt0,zzfric,zzfric2)
   DEALLOCATE (cca,ccb,xLf,seff,vi,sr)
