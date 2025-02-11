@@ -470,7 +470,7 @@ end if
      dt_try = dt_next
 
      do i=1,Nt
-       if(z_all(Nt*myid+i).ge.40.0*dsin(dipangle/180*PI))then
+       if(z_all(Nt*myid+i).ge.15.0*dsin(dipangle/180*PI))then
          yt0(3*i-2)=Vpl
          yt(3*i-2)=Vpl
         end if
@@ -884,11 +884,11 @@ end subroutine rkqs
        integer :: ierr,myid,master
        master = 0 
 
-       small=1.d-6
+       small=1.d-14
         
        do i=1,Nt
           zz(i)=yt(3*i-2)-Vpl
-         if(z_all(Nt*myid+i).ge.40.0*dsin(90.0/180.0*pi))then
+         if(z_all(Nt*myid+i).ge.15.0*dsin(10.0/180.0*pi))then
              zz(i)=0.0
              yt(3*i-2)=Vpl
           end if
@@ -939,7 +939,7 @@ end subroutine rkqs
           deriv1 = (yt(3*i-1)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
           deriv2 = (yt(3*i-1)*cca(i)/(2*V0))*dexp(help2)/help
 !aging        
-	      deriv3 = 1-yt(3*i-2)*yt(3*i)/xLf(i)
+	  deriv3 = 1-yt(3*i-2)*yt(3*i)/xLf(i)
           dydt(3*i-1) = zzfric2(i)
 !slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
           dydt(3*i-2) = -(zzfric(i)+deriv1*deriv3+frc*dydt(3*i-1))/(eta+deriv2) ! total shear traction
