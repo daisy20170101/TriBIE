@@ -470,7 +470,7 @@ end if
      dt_try = dt_next
 
      do i=1,Nt
-       if(z_all(Nt*myid+i).ge.85.0*dsin(dipangle/180*PI).or.z_all(Nt*myid+i).lt.2.0*dsin(dipangle/180*PI))then
+       if(z_all(Nt*myid+i).ge.60.0*dsin(dipangle/180*PI))then
          yt0(3*i-2)=Vpl
          yt(3*i-2)=Vpl
         end if
@@ -884,11 +884,11 @@ end subroutine rkqs
        integer :: ierr,myid,master
        master = 0 
 
-       small=1.d-16
+       small=1.d-6
         
        do i=1,Nt
           zz(i)=yt(3*i-2)-Vpl
-         if(z_all(Nt*myid+i).ge.85.0*dsin(10.0/180.0*pi).or.z_all(Nt*myid+i).lt.2.0*dsin(10.0/180*PI))then
+         if(z_all(Nt*myid+i).ge.60.0*dsin(10.0/180.0*pi))then
              zz(i)=0.0
              yt(3*i-2)=Vpl
           end if
@@ -930,6 +930,7 @@ end subroutine rkqs
        tm1=tm2
 
        do i=1,Nt
+          if(yt(3*i).lt.small) yt(3*i)=small
           frc = f0+cca(i)*dlog(yt(3*i-2)/V0)+ccb(i)*dlog(V0*yt(3*i)/xLf(i))
           psi = dlog(V0*yt(3*i)/xLf(i))
           help1 = yt(3*i-2)/(2*V0)
