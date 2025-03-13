@@ -5,7 +5,7 @@ public
     real(8), parameter          ::  ZERO = 1d-6
 
     ! gts data
-    integer, parameter          ::  n_max_vertex_number    = 480000, &
+    integer, parameter          ::  dp=kind(1.d0), n_max_vertex_number    = 480000, &
                                     n_max_edge_number      = 240000, &
                                     n_max_cell_number      = 240000
 

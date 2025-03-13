@@ -71,10 +71,11 @@ Nt = n_cell/nproc
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! for all element's center point as op
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_obv)
+
     
-    deallocate(arr_vertex,arr_edge,arr_cell) 
- 
+    call calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_obv)
+
+
    call MPI_barrier(MPI_COMM_WORLD,ierr)
    call MPI_finalize(ierr)
 end program
@@ -494,14 +495,45 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
 end subroutine
 
 
+  ! This function performs linear interpolation on y-data given x-data.
+subroutine linear_interpolate(x, x_data, y_data, n_points,y_interp) 
+    implicit none
+    integer,parameter :: dp=kind(1.d0)
+    integer :: n_points
+    real(dp) :: x
+    real(dp), dimension(n_points) :: x_data, y_data
+    real(dp) :: y_interp
+    integer :: i
+
+    ! If the requested x is below or above the data range, return the boundary
+    ! value.
+    if (x <= x_data(1)) then
+       y_interp = y_data(1)
+       return
+    else if (x >= x_data(n_points)) then
+       y_interp = y_data(n_points)
+       return
+    end if
+
+    ! Find the interval [x_data(i), x_data(i+1)] where x lies.
+    do i = 1, n_points - 1
+       if (x >= x_data(i) .and. x <= x_data(i+1)) then
+          y_interp = y_data(i) + (y_data(i+1) - y_data(i))/(x_data(i+1)-x_data(i)) * (x - x_data(i))
+          return
+       end if
+    end do
+
+    ! Fallback (should not be reached)
+    y_interp = 0.0d0
+  end subroutine linear_interpolate
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_obv)
- use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
+ use m_calc_green,only: dp,parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
  implicit none
     
-  real(8) ::       xo(3), tridlc(9), burg(3), u(3), t(9)
-  real(8) ::             utmp(3), ttmp(9)
+  real(dp) ::       xo(3), tridlc(9), burg(3), u(3), t(9)
+  real(dp) ::             utmp(3), ttmp(9)
   real(8) ::                tri(3,4)
   real(8) ::               usum(3),tsum(9)
   real(8) ::                ss, ds, op
@@ -522,14 +554,43 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_ob
   real(8)             ::  c_global(3, 3), &
                           c_local(3, 3),  c_local_v(9), &
                           c_local2(3, 3), c_local_v2(9)
-  real(8),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
-  real(8),allocatable :: arr_out2(:,:),arr_out(:,:),a_ss(:),a_ds(:),a_op(:)
-  real(8)             :: arr_vertex(n_vertex,3)
+  real(dp),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
+  real(dp),allocatable :: arr_out2(:,:),arr_out(:,:),a_ss(:),a_ds(:),a_op(:)
+  real(dp)             :: arr_vertex(n_vertex,3)
   integer             :: arr_cell(n_cell,3)
 
   integer             :: n_obv
-  real(8) :: x(3,n_obv)
-  real*8              :: surf1(n_obv,n_cell),surf2(n_obv,n_cell),surf3(n_obv,n_cell)
+  real(dp) :: x(3,n_obv)
+  real(dp)             :: surf1(n_obv,n_cell),surf2(n_obv,n_cell),surf3(n_obv,n_cell)
+
+  integer, parameter :: max_points = 1000
+  real(dp), dimension(max_points) :: depth, mu
+  integer :: ndepth, ios
+  real(dp) :: input_depth, interp_mu
+  character(len=100) :: filename
+
+  ! Set the input filename (change as needed)
+  filename = 'mu_data.txt'
+
+  ! Open the file and read the data.
+  open(unit=10, file=filename, status='old', action='read', iostat=ios)
+  if (ios /= 0) then
+      print *, 'Error opening file: ', trim(filename)
+      stop
+  end if
+
+  ndepth = 0
+  do
+      read(10, *, iostat=ios) depth(ndepth+1), mu(ndepth+1)
+      if (ios /= 0) exit
+      ndepth = ndepth + 1
+      if (ndepth >= max_points) exit  ! Prevent overflow if file is too long
+  end do
+  close(10)
+
+  print *, 'Read ', ndepth, ' data points from file: ', trim(filename)
+
+
 
   vpl(1:3) = 1.d0
   l_miu = parm_l/parm_miu
@@ -580,7 +641,11 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_ob
     do i=1, n_cell
       ! calculate strain gradients
       call dstuart(parm_nu,arr_co(:,j),arr_trid(:,i),ss,ds,op, u, t)
-            
+      
+       ! Call the linear interpolation function.
+       call  linear_interpolate(arr_co(3,j), depth, mu, ndepth,interp_mu)
+       print *, 'Interpolated mu value at depth ', arr_co(3,j), ' is: ', interp_mu
+           
       ! calc stress
       sig33(3,3) = l_miu * ( t(1) + t(5) + t(9) ) 
       sig33(1,1) = sig33(3,3) + 2.d0 * t(1)
@@ -596,10 +661,10 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell,x,n_ob
       sig33(2,3) = sig33(3,2)
 
       ! calc local shear traction  in Bar (0.1Mpa) / mm
-      arr_out(j-(myid)*Nt,i) = - parm_miu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,2,j)))
+      arr_out(j-(myid)*Nt,i) = - interp_mu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,2,j)))
 
       ! calc local normal traction  in Bar (0.1Mpa) / mm
-      arr_out2(j-(myid)*Nt,i) = parm_miu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,3,j)))
+      arr_out2(j-(myid)*Nt,i) = interp_mu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,3,j)))
 
     end do
   end do
