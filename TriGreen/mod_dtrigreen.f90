@@ -397,12 +397,15 @@ integer function inside (x0,y0, px,py,n)
 !     Return value = 0 if point is outside
 !                  = +/-1 if point is inside
 !                  = 2 if point is on an edge or vertex.
-  integer :: i
-  integer :: n
-  real(8) :: x0,y0,px(n), py(n)
+  implicit none
+  integer :: i, isicr
+  integer, intent(in) :: n
+  real(8), intent(in) :: x0, y0
+  real(8), intent(in) :: px(n), py(n)
+  
   inside = 0
   do i=1,n-1
-    isicr=ksicr(px(i)-x0,py(i)-y0,px(i+1)-x0,py(i+1)-y0)
+    isicr = ksicr(px(i)-x0,py(i)-y0,px(i+1)-x0,py(i+1)-y0)
     if (isicr.eq.4) then
       inside = 2
       return
@@ -410,14 +413,14 @@ integer function inside (x0,y0, px,py,n)
     inside = inside + isicr
   end do
 
-  isicr=ksicr(px(n)-x0,py(n)-y0,px(1)-x0,py(1)-y0)
+  isicr = ksicr(px(n)-x0,py(n)-y0,px(1)-x0,py(1)-y0)
 
   if(isicr.eq.4) then
     inside = 2
     return
   endif
 
-  inside = (inside + isicr)/2.
+  inside = (inside + isicr)/2
   return
 end function inside
 
@@ -425,42 +428,57 @@ end function inside
 function ksicr (x1,y1,x2,y2)
   implicit none
   integer :: ksicr
-  real(8) :: x1,x2,y1,y2
-  if (y1*y2 .gt. 0.0) goto 600
+  real(8), intent(in) :: x1,x2,y1,y2
+  
+  ! Convert goto-based logic to proper Fortran 90
+  if (y1*y2 .gt. 0.0d0) then
+    ksicr = 0
+    return
+  endif
 
-  if (x1*y2 .ne. x2*y1 .or. x1*x2 .gt. 0.0) goto 100
-
-  ksicr = 4
+  if (x1*y2 .ne. x2*y1 .or. x1*x2 .gt. 0.0d0) then
+    if (y1*y2 .lt. 0.0d0) then
+      if (y1.gt.0.0d0) then
+        if (x1*y2 .ge. y1*x2) then
+          ksicr = 0
+        else
+          ksicr = 2
+        endif
+      else
+        if (x1*y2 .ge. y1*x2) then
+          ksicr = 0
+        else
+          ksicr = 2
+        endif
+      endif
+    else
+      if (y2.eq.0.0d0) then
+        if (y1.eq.0.0d0 .or. x2.gt.0.0d0) then
+          ksicr = 0
+        else
+          if (y1.gt.0.0d0) then
+            ksicr = -1
+          else
+            ksicr = 1
+          endif
+        endif
+      else
+        if (x1.gt.0.0d0) then
+          ksicr = 0
+        else
+          if (y2.gt.0.0d0) then
+            ksicr = 1
+          else
+            ksicr = -1
+          endif
+        endif
+      endif
+    endif
+  else
+    ksicr = 4
+  endif
+  
   return
-
-100 if (y1*y2 .lt. 0.0) goto 300
-  if (y2.eq.0.0) goto 200
-  if (x1.gt.0.0) goto 600
-  if (y2.gt.0.0) goto 700
-  goto 800
-
-200 if (y1.eq.0.0 .or. x2.gt.0.0) goto 600
-  if (y1.gt.0.0) goto 800
-  goto 700
-
-300 if (y1.gt.0.0) goto 400
-  if (x1*y2 .ge. y1*x2) goto 600
-  ksicr = 2
-  return
-
-400 if (y1*x2.ge.x1*y2) goto 600
-  ksicr = -2
-  return
-
-600 ksicr = 0
-  return
-
-700 ksicr = 1
-  return
-
-800 ksicr = -1
-  return
-
 end function ksicr
 
 subroutine vector_rot3 (u,phi)
