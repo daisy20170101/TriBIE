@@ -14,16 +14,19 @@ OPTIMIZATION_FLAGS="-O3 -fopenmp -march=native -mtune=native -ffast-math -funrol
 # Floating-point exception handling flags
 FP_FLAGS="-fno-trapping-math -fno-signaling-nans -fno-unsafe-math-optimizations"
 
+# Line length and formatting flags
+FORMAT_FLAGS="-ffree-line-length-none -ffree-form"
+
 # Choose compilation mode
 if [ "$1" = "debug" ]; then
     echo "Compiling in DEBUG mode with error checking..."
-    FFLAGS="$DEBUG_FLAGS $FP_FLAGS"
+    FFLAGS="$DEBUG_FLAGS $FP_FLAGS $FORMAT_FLAGS"
 elif [ "$1" = "optimize" ]; then
     echo "Compiling in OPTIMIZED mode..."
-    FFLAGS="$OPTIMIZATION_FLAGS $FP_FLAGS"
+    FFLAGS="$OPTIMIZATION_FLAGS $FP_FLAGS $FORMAT_FLAGS"
 else
     echo "Compiling in STANDARD mode with error handling..."
-    FFLAGS="-O2 -fopenmp $FP_FLAGS"
+    FFLAGS="-O2 -fopenmp $FP_FLAGS $FORMAT_FLAGS"
 fi
 
 # Compile the module first
@@ -66,3 +69,5 @@ echo "For Slurm submission, use the provided submit_job.slurm script"
 echo ""
 echo "Note: This version includes improved error handling and floating-point exception handling"
 echo "to prevent crashes due to numerical issues."
+echo ""
+echo "Line length issues have been resolved with -ffree-line-length-none flag."

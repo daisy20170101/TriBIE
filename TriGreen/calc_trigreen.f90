@@ -1,3 +1,4 @@
+!$FREEFORM
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   Calculate mesh's green coef
 !
@@ -97,7 +98,8 @@ program p_calc_green
      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      ! for all element's center point as op
      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     call calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,n_vertex,n_cell,cells_processed, error_occurred, error_message)
+     call calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,
+     &     n_vertex,n_cell,cells_processed, error_occurred, error_message)
    end if
    
    ! Clean up arrays
@@ -167,7 +169,8 @@ end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine load_gts(fname,n_vertex,n_edge,n_cell,arr_vertex,arr_edge,arr_cell, error_occurred, error_message)
+subroutine load_gts(fname,n_vertex,n_edge,n_cell,arr_vertex,arr_edge,
+     &     arr_cell, error_occurred, error_message)
     implicit none
     
     character(*), intent(in) ::  fname
@@ -602,7 +605,8 @@ end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,n_vertex,n_cell,cells_processed, error_occurred, error_message)
+subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,
+     &     n_vertex,n_cell,cells_processed, error_occurred, error_message)
  use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
  use mpi
  implicit none
@@ -792,8 +796,8 @@ subroutine performance_monitoring(myid, start_time, end_time, cells_processed)
   local_time = end_time - start_time
   
   ! Gather timing information from all processes
-  call MPI_Reduce(local_time, total_time, 1, MPI_DOUBLE_PRECISION, &
-                  MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+  call MPI_Reduce(local_time, total_time, 1, MPI_DOUBLE_PRECISION,
+     &     MPI_SUM, 0, MPI_COMM_WORLD, ierr)
   
   if (myid == 0) then
     avg_time = total_time / size
@@ -809,6 +813,4 @@ end subroutine
 
 
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! main procedure
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
