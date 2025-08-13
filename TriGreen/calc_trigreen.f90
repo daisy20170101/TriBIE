@@ -158,7 +158,7 @@ subroutine load_name(fname,n_vertex,n_edge,n_cell, error_occurred, error_message
     close(33)
     
     ! Validate dimensions
-    if (n_vertex <= 0 .or. n_edge <= 0 .or. n_cell <= 0) then
+    if (n_vertex <= 0 .or. n_edge < 0 .or. n_cell <= 0) then
       error_occurred = .true.
       error_message = "Invalid mesh dimensions"
       return
@@ -215,16 +215,6 @@ subroutine load_gts(fname,n_vertex,n_edge,n_cell,arr_vertex,arr_edge,&
         end if
     end do
     
-    ! Read edge definitions
-    do i=1, n_edge
-        read(10, *, iostat=iostat) arr_edge(i, 1), arr_edge(i, 2)
-        if (iostat /= 0) then
-          error_occurred = .true.
-          error_message = "Failed to read edge data"
-          close(10)
-          return
-        end if
-    end do
     
     ! Read cell definitions
     do i=1, n_cell
