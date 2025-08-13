@@ -508,42 +508,32 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,n_vertex
  use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
  use mpi
  implicit none
+ 
+ integer, intent(out) :: cells_processed
+ integer, intent(in) :: myid, size, Nt, n_cell, n_vertex
+ real(8), intent(in) :: arr_vertex(n_vertex,3)
+ integer, intent(in) :: arr_cell(n_cell,3)
     
-  real(8) ::       xo(3), tridlc(9), burg(3), u(3), t(9)
-  real(8) ::             utmp(3), ttmp(9)
-  real(8) ::                tri(3,4)
-  real(8) ::               usum(3),tsum(9)
+  real(8) ::       u(3), t(9)
   real(8) ::                ss, ds, op
   
-  integer             :: myid, i, j, k,Nt,n_cell,n_vertex,size
-  integer             ::  vi(3), vj(3)
-  real(8)             ::  p1(3), p2(3), p3(3), c(3), co(3)
-  real(8)             ::  e(9), sig(9), sig_local(9), sig_local2(9)
+  integer             :: i, j, k
+  integer             ::  vj(3)
+  real(8)             ::  p1(3), p2(3), p3(3), co(3)
   real(8)             ::  sig33(3,3)
-  real(8)             ::  tt(9)
   real(8)             ::  vpl(3)
-  real(8)             ::  ss_, ds_, op_
-  character(20)       ::  fname_index
   character(20) ::        cTemp
-  real(8)             ::  d, r
-  real(8)             ::  l_miu, s_out
+  real(8)             ::  l_miu
   
-  real(8)             ::  c_global(3, 3), &
-                          c_local(3, 3),  c_local_v(9), &
-                          c_local2(3, 3), c_local_v2(9)
+  real(8)             ::  c_local2(3, 3)
   real(8),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
-  real(8),allocatable :: arr_out(:,:),a_ss(:),a_ds(:),a_op(:)
-  real(8)             :: arr_vertex(n_vertex,3)
-  integer             :: arr_cell(n_cell,3)
+  real(8),allocatable :: arr_out(:,:)
   
   ! Dynamic load balancing variables
-  integer :: chunk_size, work_remaining, next_work, local_cells
-  integer :: status(MPI_STATUS_SIZE), ierr
-  logical :: work_available
-  real(8), allocatable :: work_weights(:)
+  integer :: local_cells
+  integer :: ierr
   
-  ! OpenMP variables
-  integer :: num_threads, thread_id
+
 
   ! Initialize variables
   vpl(1:3) = 1.d0
@@ -553,18 +543,13 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,n_vertex
   op = 0.d0
   cells_processed = 0
     
-  ! Global coordinate system
-  c_global(:,:) = 0.d0
-  do i=1,3
-    c_global(i,i) = 1.d0
-  end do
+
 
   ! Calculate local cell count for this process
   local_cells = (n_cell + size - 1) / size  ! Ceiling division
   
   ! Allocate only local arrays (memory efficient)
   allocate(arr_co(3,local_cells), arr_trid(9,local_cells), arr_cl_v2(3,3,local_cells))
-  allocate(a_ss(local_cells), a_ds(local_cells), a_op(local_cells))
   allocate(arr_out(local_cells, n_cell))
  
   ! Pre-compute cell properties for local cells
@@ -585,10 +570,10 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,n_vertex
     arr_trid(7:9,j) = p3(1:3)
     
     call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
-    call calc_coord_cos(c_global, c_local2, c_local_v2)
-    arr_cl_v2(1:3,1,j) = c_local_v2(1:3)
-    arr_cl_v2(1:3,2,j) = c_local_v2(4:6)
-    arr_cl_v2(1:3,3,j) = c_local_v2(7:9)
+    ! For now, use identity matrix for coordinate transformation
+    arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
+    arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
+    arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
     
     arr_out(j,:) = 0.d0
   end do
@@ -649,9 +634,8 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,n_vertex
   end do
   close(14)
 
- deallocate (arr_co,arr_trid,arr_cl_v2)
- deallocate (a_ss,a_ds,a_op)
- deallocate (arr_out, work_weights)
+   deallocate (arr_co,arr_trid,arr_cl_v2)
+  deallocate (arr_out)
  
 return 
 end subroutine
@@ -687,24 +671,7 @@ subroutine performance_monitoring(myid, start_time, end_time, cells_processed)
   endif
 end subroutine
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Estimate work complexity for load balancing
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine estimate_work_complexity(arr_cell, n_cell, work_weights)
-  implicit none
-  
-  integer, intent(in) :: n_cell, arr_cell(n_cell, 3)
-  real(8), intent(out) :: work_weights(n_cell)
-  
-  integer :: i
-  real(8) :: area, depth
-  
-  do i = 1, n_cell
-    ! Estimate complexity based on triangle area and depth
-    ! For now, use simple uniform weighting - can be enhanced later
-    work_weights(i) = 1.0d0
-  end do
-end subroutine
+
 
 
 
