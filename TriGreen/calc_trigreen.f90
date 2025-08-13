@@ -506,6 +506,7 @@ end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,n_vertex,n_cell,cells_processed)
  use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
+ use mpi
  implicit none
     
   real(8) ::       xo(3), tridlc(9), burg(3), u(3), t(9)
@@ -595,7 +596,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,n_vertex
   write(6,*) "Process", myid, "starting hybrid parallel computation"
   
   ! Hybrid MPI+OpenMP parallel computation
-  !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) SHARED(arr_co, arr_trid, arr_out, arr_cl_v2) REDUCTION(+:cells_processed)
+  !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) SHARED(arr_co, arr_trid, arr_out, arr_cl_v2)
   do j = 1, local_cells
     k = myid * local_cells + j
     if (k > n_cell) cycle
@@ -621,10 +622,11 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,n_vertex
       ! Calculate local stress in Bar (0.1MPa)
       arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,j), matmul(sig33(:,:), arr_cl_v2(:,2,j)))
     end do
-    
-    cells_processed = cells_processed + 1
   end do
   !$OMP END PARALLEL DO
+  
+  ! Count processed cells after OpenMP loop
+  cells_processed = local_cells
   
  write(cTemp,*) myid
  write(*,*) "Process", myid, "completed", cells_processed, "cells"
@@ -665,6 +667,10 @@ subroutine performance_monitoring(myid, start_time, end_time, cells_processed)
   real(8), intent(in) :: start_time, end_time
   
   real(8) :: local_time, total_time, avg_time
+  integer :: size, ierr
+  
+  ! Get the size of MPI communicator
+  call MPI_COMM_SIZE(MPI_COMM_WORLD, size, ierr)
   
   local_time = end_time - start_time
   
