@@ -4,8 +4,8 @@ stiff_bp6_h10_2/
 BP3/out300-BP3_h150.dat
 5 14400 225 1 64 0 7 50 !Nab Nt_all,Nt_all,Nt,Lratio,nprocs ,n_obv,ndp
 0 1 3 1 0         !Idin, Idout Iprofile, Iperb,Isnapshot
-1d-12  !Vpl in mm/yr
-63072000         ! tmax
+1d-12  !Vpl in m/s
+63072000         ! tmax in s
 0.0 1000.0 5.0  !tslip_ave tslipend tslip_aveint
 100.0 1.0 1.585d-7 0.002739726   !tint_out tmin_out tint_cos tint_sse (3.17d-8 is 1sec)
 1.0  183.0 305.0         !vcos (mm/s), vsse1(3Vpl) vsse2 (5Vpl, mm/yr)

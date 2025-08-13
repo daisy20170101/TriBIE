@@ -180,7 +180,7 @@ end if
      end do
      do j=1,Nt_all !! source
         read(5) stiff2(i,j) ! kernel of shear traction
-        stiff2(i,j) = 1d5*1d3*stiff(i,j)
+        stiff2(i,j) = 1d5*1d3*stiff(i,j) ! unit change: bar/mm to Pa/m
      end do
  end do
   close(5)
@@ -240,7 +240,7 @@ end if
 
   accuracy = 1.d-4
   epsv = 1.0d-4
-  dtmin = 1.d-3
+  dtmin = 1.d-3 ! unit in second
   dt_try= dtmin
   Vint = Vpl
   dt_pf1 = 1d12
