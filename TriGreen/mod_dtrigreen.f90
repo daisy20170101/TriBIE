@@ -1,5 +1,13 @@
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+module mod_dtrigreen
+  implicit none
+  
+  ! Module variables (replacing common blocks)
+  integer :: nwarn = 0
+  
+  contains
+  
 subroutine dstuart (nu, xo, tridlc, ss,ds,op, u,t)
 
 !     Calls Stuart's angle subroutine to get triangle dislocation results.
@@ -13,8 +21,7 @@ subroutine dstuart (nu, xo, tridlc, ss,ds,op, u,t)
   real(8) :: xo(3), tridlc(9), burg(3), u(3), t(9)
   real(8) :: utmp(3), ttmp(9)
   real(8) :: tri(3,4)
-  integer :: nwarn
-  common/warn0/ nwarn
+  ! nwarn is now a module variable, no need for common block
 
 !      nu         = poissons ratio
 !      xo(3)      = observation point in global NED=123 coordinate system
@@ -287,7 +294,7 @@ subroutine comdun2 ( nu, x1, x2, x3, a, beta, v, dv, iret )
   real(8) :: tol = 1.d-4
   real(8) :: x2p,x2m,tan2angle
 
-  common/nwarn00/ nwarn
+  ! nwarn is now a module variable
 
 !.....Check for angle beta - if close to zero, return zero result.
   if (beta .lt. betatol) then
@@ -572,3 +579,4 @@ subroutine unit(x)
   return
 end subroutine unit
 
+end module mod_dtrigreen
