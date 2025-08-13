@@ -41,17 +41,19 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Compile the dstuart module
-echo "Compiling mod_dtrigreen.f90..."
-$MPIF90 $FFLAGS -c mod_dtrigreen.f90 -o mod_dtrigreen.o
-
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to compile mod_dtrigreen.f90"
-    exit 1
-fi
-
-# Compile the sub_comdun.f file (if it exists)
-if [ -f "sub_comdun.f" ]; then
+# Compile the comdun module FIRST (converted from F77 to F90)
+# This must come before mod_dtrigreen.f90 since it depends on it
+if [ -f "sub_comdun.f90" ]; then
+    echo "Compiling sub_comdun.f90..."
+    $MPIF90 $FFLAGS -c sub_comdun.f90 -o sub_comdun.o
+    
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to compile sub_comdun.f90"
+        exit 1
+    fi
+    SUB_COMDUN_OBJ="sub_comdun.o"
+elif [ -f "sub_comdun.f" ]; then
+    echo "Warning: sub_comdun.f90 not found, using old F77 version..."
     echo "Compiling sub_comdun.f..."
     $MPIF90 $FFLAGS -c sub_comdun.f -o sub_comdun.o
     
@@ -61,8 +63,17 @@ if [ -f "sub_comdun.f" ]; then
     fi
     SUB_COMDUN_OBJ="sub_comdun.o"
 else
-    echo "Warning: sub_comdun.f not found, skipping..."
+    echo "Warning: Neither sub_comdun.f90 nor sub_comdun.f found, skipping..."
     SUB_COMDUN_OBJ=""
+fi
+
+# Compile the dstuart module AFTER comdun (since it depends on it)
+echo "Compiling mod_dtrigreen.f90..."
+$MPIF90 $FFLAGS -c mod_dtrigreen.f90 -o mod_dtrigreen.o
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to compile mod_dtrigreen.f90"
+    exit 1
 fi
 
 # Compile the main program
@@ -106,5 +117,8 @@ echo ""
 echo "All necessary source files are now included:"
 echo "  - m_calc_green.f90 (module with constants)"
 echo "  - mod_dtrigreen.f90 (dstuart subroutine)"
-echo "  - sub_comdun.f (if available)"
+echo "  - sub_comdun.f90 (comdun subroutine - converted from F77)"
 echo "  - calc_trigreen.f90 (main program)"
+echo ""
+echo "Note: sub_comdun.f90 is a simplified F90 conversion. The full vc and dvc"
+echo "calculations may need to be implemented if required for your application."
