@@ -29,6 +29,9 @@ else
     FFLAGS="-O2 -fopenmp $FP_FLAGS $FORMAT_FLAGS"
 fi
 
+# Compile all source files
+echo "Compiling all source files..."
+
 # Compile the module first
 echo "Compiling m_calc_green.f90..."
 $MPIF90 $FFLAGS -c m_calc_green.f90 -o m_calc_green.o
@@ -36,6 +39,30 @@ $MPIF90 $FFLAGS -c m_calc_green.f90 -o m_calc_green.o
 if [ $? -ne 0 ]; then
     echo "Error: Failed to compile m_calc_green.f90"
     exit 1
+fi
+
+# Compile the dstuart module
+echo "Compiling mod_dtrigreen.f90..."
+$MPIF90 $FFLAGS -c mod_dtrigreen.f90 -o mod_dtrigreen.o
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to compile mod_dtrigreen.f90"
+    exit 1
+fi
+
+# Compile the sub_comdun.f file (if it exists)
+if [ -f "sub_comdun.f" ]; then
+    echo "Compiling sub_comdun.f..."
+    $MPIF90 $FFLAGS -c sub_comdun.f -o sub_comdun.o
+    
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to compile sub_comdun.f"
+        exit 1
+    fi
+    SUB_COMDUN_OBJ="sub_comdun.o"
+else
+    echo "Warning: sub_comdun.f not found, skipping..."
+    SUB_COMDUN_OBJ=""
 fi
 
 # Compile the main program
@@ -47,9 +74,13 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Link the executable
+# Link the executable with all object files
 echo "Linking executable..."
-$MPIF90 $FFLAGS -o calc_trigreen m_calc_green.o calc_trigreen.o
+if [ -n "$SUB_COMDUN_OBJ" ]; then
+    $MPIF90 $FFLAGS -o calc_trigreen m_calc_green.o mod_dtrigreen.o $SUB_COMDUN_OBJ calc_trigreen.o
+else
+    $MPIF90 $FFLAGS -o calc_trigreen m_calc_green.o mod_dtrigreen.o calc_trigreen.o
+fi
 
 if [ $? -ne 0 ]; then
     echo "Error: Failed to link executable"
@@ -71,3 +102,9 @@ echo "Note: This version includes improved error handling and floating-point exc
 echo "to prevent crashes due to numerical issues."
 echo ""
 echo "Line length issues have been resolved with -ffree-line-length-none flag."
+echo ""
+echo "All necessary source files are now included:"
+echo "  - m_calc_green.f90 (module with constants)"
+echo "  - mod_dtrigreen.f90 (dstuart subroutine)"
+echo "  - sub_comdun.f (if available)"
+echo "  - calc_trigreen.f90 (main program)"
