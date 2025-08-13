@@ -2,7 +2,7 @@
 Module phy3d_module_non
 public
 
-integer, parameter :: DP0=kind(1.d0)
+integer, parameter :: DP0=kind(1.d0), DP=kind(1.d0)
 integer :: IDin, IDout,Iprofile,Lratio,Nab,nprocs,Nl,Nd,hd
 integer :: nmv,nas,ncos,nnul,nsse
 real (DP0), parameter :: pi = 3.14159265358979323

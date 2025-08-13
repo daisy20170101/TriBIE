@@ -94,7 +94,6 @@ program main
   ! OpenMP and performance monitoring
   integer :: num_threads, omp_max_threads
   real(DP) :: omp_start_time, omp_end_time
-  integer :: work_chunks(2)  ! [start, end] indices for dynamic load balancing
 
   call MPI_Init(ierr)
   CALL MPI_COMM_RANK( MPI_COMM_WORLD, myid, ierr )
@@ -139,13 +138,14 @@ program main
     110 format(A)
     close(12)
 
-  ! Dynamic load balancing: distribute work more evenly
-  call distribute_work_dynamic(myid, size, Nt_all, work_chunks)
-  Nt = work_chunks(2) - work_chunks(1) + 1
+  ! Use standard MPI distribution
+  Nt = Nt_all / size
   
-  if(myid == master)then
-     write(*,*)'Dynamic load balancing enabled'
-     write(*,*)'Each process handles variable number of cells based on workload'
+  if(mod(Nt_all,size)/=0)then
+     write(*,*)'Warning: Nt_all (',Nt_all,') is not evenly divisible by MPI processes (',size,')'
+     write(*,*)'This may cause load imbalance. Consider adjusting the number of processes.'
+  else
+     write(*,*)'Each process calculates',Nt,'cells'
   end if
   
   ! hnucl = hstarfactor*hd            !h* (how about along strike?)
@@ -312,8 +312,8 @@ program main
 
   do while(cyclecont) 
 
-     ! Use improved OpenMP parallelized derivatives computation
-     call derivs_improved(myid,dydt,Nt,Nt_all,t,yt,z_all,x) 
+     ! Use original derivatives computation (will add OpenMP to it)
+     call derivs(myid,dydt,Nt*2,Nt_all,Nt,t,yt,z_all,x) 
 
      !$OMP PARALLEL DO PRIVATE(j) SHARED(yt_scale, yt, dydt, dt_try)
      do j=1,Nt
@@ -322,7 +322,7 @@ program main
      end do
      !$OMP END PARALLEL DO
      
-     CALL rkqs(myid,yt,dydt,Nt,Nt_all,Nt,t,dt_try,accuracy,yt_scale, &
+     CALL rkqs(myid,yt,dydt,Nt*2,Nt_all,Nt,t,dt_try,accuracy,yt_scale, &
           dt_did,dt_next,z_all,x)
 
      dt = dt_did
@@ -723,12 +723,14 @@ end subroutine rkqs
     !!!!!!!!!!!!!!!!!!!!
 
        ! calculate stiffness*(Vkl-Vpl) of one proccessor.
+       !$OMP PARALLEL DO PRIVATE(i, j) SHARED(zzfric, stiff, zz_all)
        do i=1,Nt
           do j=1, Nt_all
              ! number in all element, total Nt_all
              zzfric(i) = zzfric(i) + stiff(i,j)*zz_all(j)
           end do
        end do
+       !$OMP END PARALLEL DO
 
        call CPU_TIME(tm2)
        if ((tm2-tm1) .lt. 0.03)then
@@ -739,6 +741,7 @@ end subroutine rkqs
        end if
        tm1=tm2
 
+       !$OMP PARALLEL DO PRIVATE(i, psi, help1, help2, help, deriv1, deriv2, deriv3) SHARED(yt, dydt, zzfric, seff, cca, ccb, xLf, small)
        do i=1,Nt
           if(yt(i,2).lt.0.00001)then
              yt(i,2) = yt(i,2)+0.00001
@@ -767,6 +770,7 @@ end subroutine rkqs
              dydt(i,2) = deriv3  
           end if
        end do
+       !$OMP END PARALLEL DO
 
        RETURN
      END subroutine derivs
@@ -1267,103 +1271,9 @@ end if
 RETURN
 END subroutine output
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Dynamic load balancing subroutine
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine distribute_work_dynamic(myid, size, Nt_all, work_chunks)
-  implicit none
-  
-  integer, intent(in) :: myid, size, Nt_all
-  integer, intent(out) :: work_chunks(2)
-  
-  integer :: chunk_size, remainder, start_idx, end_idx
-  
-  chunk_size = Nt_all / size
-  remainder = mod(Nt_all, size)
-  
-  if (myid < remainder) then
-    start_idx = myid * (chunk_size + 1) + 1
-    end_idx = (myid + 1) * (chunk_size + 1)
-  else
-    start_idx = remainder * (chunk_size + 1) + (myid - remainder) * chunk_size + 1
-    end_idx = start_idx + chunk_size - 1
-  end if
-  
-  work_chunks(1) = start_idx
-  work_chunks(2) = end_idx
-end subroutine
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Improved OpenMP parallelized derivatives computation
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine derivs_improved(myid, dydt, Nt, Nt_all, t, yt, z_all, x)
-  use m_calc_green
-  use omp_lib
-  implicit none
-  
-  integer, intent(in) :: myid, Nt, Nt_all
-  real(DP), intent(in) :: t, yt(Nt, 2), z_all(Nt_all), x(Nt)
-  real(DP), intent(out) :: dydt(Nt, 2)
-  
-  integer :: i, j, k
-  real(DP) :: stiff_sum, v_local, theta_local
-  real(DP) :: zzfric(Nt), zz(Nt)
-  real(DP) :: deriv1, deriv2, deriv3, psi, help1, help2, help
-  real(DP) :: small
-  
-  small = 1.d-10
-  
-  !$OMP PARALLEL DO PRIVATE(i, j, stiff_sum, v_local, theta_local, zzfric, zz, deriv1, deriv2, deriv3, psi, help1, help2, help) SHARED(yt, dydt, stiff, seff, cca, ccb, xLf, z_all, x)
-  do i = 1, Nt
-    ! Initialize friction arrays
-    zzfric(i) = 0.0d0
-    zz(i) = yt(i, 1) - Vpl
-    
-    ! Apply depth-dependent locking
-    if (z_all(myid * Nt + i) < 19.5d0) then
-      zz(i) = 0.0d0
-    end if
-    
-    ! Ensure state variable is positive
-    if (yt(i, 2) < 0.00001d0) then
-      yt(i, 2) = yt(i, 2) + 0.00001d0
-    end if
-    
-    ! Compute stress transfer from other elements
-    stiff_sum = 0.0d0
-    do j = 1, Nt_all
-      stiff_sum = stiff_sum + stiff(i, j) * yt(j, 1)
-    end do
-    
-    ! Rate-and-state friction calculations
-    v_local = yt(i, 1)
-    theta_local = yt(i, 2)
-    
-    if (v_local <= small) then
-      ! Quasi-static regime
-      psi = dlog(V0 * theta_local / xLf(i))
-      help1 = v_local / (2.0d0 * V0)
-      help2 = (f0 + ccb(i) * psi) / cca(i)
-      help = dsqrt(1.0d0 + (help1 * dexp(help2))**2)
-      
-      deriv1 = (seff(i) * ccb(i) / theta_local) * help1 * dexp(help2) / help
-      deriv2 = (seff(i) * cca(i) / (2.0d0 * V0)) * dexp(help2) / help
-      deriv3 = 1.0d0 - v_local * theta_local / xLf(i)
-      
-      dydt(i, 1) = -(zzfric(i) + deriv1 * deriv3) / (eta + deriv2)
-      dydt(i, 2) = deriv3
-    else
-      ! Dynamic regime
-      deriv1 = seff(i) * ccb(i) / theta_local
-      deriv2 = seff(i) * cca(i) / v_local
-      deriv3 = 1.0d0 - v_local * theta_local / xLf(i)
-      
-      dydt(i, 1) = -(zzfric(i) + deriv1 * deriv3) / (eta + deriv2)
-      dydt(i, 2) = deriv3
-    end if
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
+
+
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Performance monitoring subroutine
@@ -1373,9 +1283,9 @@ subroutine performance_monitoring(myid, size, Nt, start_time, end_time, ndt)
   implicit none
   
   integer, intent(in) :: myid, size, Nt, ndt
-  real(DP), intent(in) :: start_time, end_time
+  real(DP0), intent(in) :: start_time, end_time
   
-  real(DP) :: local_time, max_time, min_time, avg_time
+  real(DP0) :: local_time, max_time, min_time, avg_time
   integer :: ierr
   
   local_time = end_time - start_time
@@ -1399,92 +1309,6 @@ subroutine performance_monitoring(myid, size, Nt, start_time, end_time, ndt)
   end if
 end subroutine
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Work stealing for dynamic load balancing
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine work_stealing(myid, size, Nt_all, local_work, global_work)
-  use mpi
-  implicit none
-  
-  integer, intent(in) :: myid, size, Nt_all
-  integer, intent(inout) :: local_work(2)
-  integer, intent(inout) :: global_work(2, size)
-  
-  integer :: ierr, status(MPI_STATUS_SIZE)
-  integer :: i, work_available, work_requested, work_to_steal
-  
-  ! Share work status across all processes
-  call MPI_Allgather(local_work, 2, MPI_INTEGER, global_work, 2, MPI_INTEGER, MPI_COMM_WORLD, ierr)
-  
-  ! Check if any process needs work
-  do i = 1, size
-    if (i-1 /= myid) then
-      work_available = global_work(2, myid) - global_work(1, myid) + 1
-      work_requested = global_work(2, i) - global_work(1, i) + 1
-      
-      if (work_available > 10 .and. work_requested < 5) then
-        ! Steal some work
-        work_to_steal = min(work_available / 4, 10)
-        call steal_work(myid, i-1, work_to_steal, global_work, local_work)
-      end if
-    end if
-  end do
-end subroutine
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Helper subroutine for work stealing
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine steal_work(thief_id, victim_id, work_amount, global_work, local_work)
-  implicit none
-  
-  integer, intent(in) :: thief_id, victim_id, work_amount
-  integer, intent(in) :: global_work(2, *)
-  integer, intent(inout) :: local_work(2)
-  
-  integer :: victim_start, victim_end, thief_end
-  
-  victim_start = global_work(1, victim_id + 1)
-  victim_end = global_work(2, victim_id + 1)
-  thief_end = local_work(2)
-  
-  ! Transfer work from victim to thief
-  local_work(2) = thief_end + work_amount
-  global_work(2, victim_id + 1) = victim_end - work_amount
-  
-  write(*,*) "Process", thief_id, "stole", work_amount, "work units from process", victim_id
-end subroutine
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Cache-optimized stiffness matrix computation
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine compute_stiffness_blocks(myid, Nt, Nt_all, stiff, yt, dydt)
-  use omp_lib
-  implicit none
-  
-  integer, intent(in) :: myid, Nt, Nt_all
-  real(DP), intent(in) :: stiff(Nt, Nt_all), yt(Nt, 2)
-  real(DP), intent(out) :: dydt(Nt, 2)
-  
-  integer :: block_size, i, j, k, start_block, end_block
-  real(DP) :: block_sum
-  
-  block_size = 64  ! Cache line size / sizeof(double)
-  
-  !$OMP PARALLEL DO PRIVATE(i, j, k, start_block, end_block, block_sum) SHARED(stiff, yt, dydt)
-  do i = 1, Nt
-    dydt(i, 1) = 0.0d0
-    dydt(i, 2) = 0.0d0
-    
-    do start_block = 1, Nt_all, block_size
-      end_block = min(start_block + block_size - 1, Nt_all)
-      block_sum = 0.0d0
-      
-      do j = start_block, end_block
-        block_sum = block_sum + stiff(i, j) * yt(j, 1)
-      end do
-      
-      dydt(i, 1) = dydt(i, 1) + block_sum
-    end do
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
+
