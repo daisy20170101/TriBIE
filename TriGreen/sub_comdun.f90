@@ -11,7 +11,7 @@ module comdun_module
   implicit none
   
   ! Common block replacement
-  integer :: nwarn
+!  integer :: nwarn
   
   contains
   

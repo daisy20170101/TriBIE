@@ -284,6 +284,7 @@ end subroutine twoangles
 
 subroutine comdun2 ( nu, x1, x2, x3, a, beta, v, dv, iret )
 !     Performs some checks before calling comdun
+use comdun_module
   implicit none
   real(8) :: nu,x1,x2,x3,a,beta
   integer :: iret,nwarn
@@ -307,13 +308,13 @@ subroutine comdun2 ( nu, x1, x2, x3, a, beta, v, dv, iret )
   if (abs(x2).lt. tol) then
     x2p = abs(x2) + tol
     x2m = -x2p
-    call comdun ( nu, x1, x2p, x3, a, beta, vp, dvp, iret )
-    call comdun ( nu, x1, x2m, x3, a, beta, vm, dvm, iret )
+    call comdun ( nu, x1, x2p, x3, a, beta, vp, dvp  )
+    call comdun ( nu, x1, x2m, x3, a, beta, vm, dvm )
     v(:,:) = 0.5d0*(vp(:,:)+vm(:,:))
     dv(:,:,:) = 0.5d0*(dvp(:,:,:)+dvm(:,:,:))
   else
 !        Normal call to comdun
-    call comdun ( nu, x1, x2, x3, a, beta, v, dv, iret )
+    call comdun ( nu, x1, x2, x3, a, beta, v, dv )
   endif
 
 !c.....Check to see if point is inside angle.
@@ -332,6 +333,42 @@ subroutine comdun2 ( nu, x1, x2, x3, a, beta, v, dv, iret )
   return
 end subroutine comdun2
 
+function inside (x0,y0, px,py,n)
+
+!     From J.Berger, et al. BSSA v. 74, p. 1849-1862, October 1984.
+
+!     x0,y0 = point to test
+!     px,py,n = corners of polygon of n sides.
+!     Return value = 0 if point is outside
+!                  = +/-1 if point is inside
+!                  = 2 if point is on an edge or vertex.
+  implicit none
+  integer :: inside,i, isicr
+  integer, intent(in) :: n
+  real(8), intent(in) :: x0, y0
+  real(8), intent(in) :: px(n), py(n)
+
+  inside = 0
+  do i=1,n-1
+    isicr = ksicr(px(i)-x0,py(i)-y0,px(i+1)-x0,py(i+1)-y0)
+    if (isicr.eq.4) then
+      inside = 2
+      return
+    endif
+    inside = inside + isicr
+  end do
+
+  isicr = ksicr(px(n)-x0,py(n)-y0,px(1)-x0,py(1)-y0)
+
+  if(isicr.eq.4) then
+    inside = 2
+    return
+  endif
+
+  inside = (inside + isicr)/2
+  return
+end function inside
+
 subroutine undertriangle (xo, tri, iflag)
 
 !     Returns a flag = 1 if the point xo lies under the triangle interior.
@@ -345,7 +382,7 @@ subroutine undertriangle (xo, tri, iflag)
   real(8) :: side12(3), side13(3), perp(3)
   real(8) :: tol = 1.d-6
   real(8) :: xpt,ypt,zpt,zontri,ht
-  integer :: inside
+ !  integer :: inside
 
   iflag=0
 !     Make arrays of x,y coords of triangle corners.
@@ -388,41 +425,6 @@ subroutine undertriangle (xo, tri, iflag)
   return
 end subroutine undertriangle
 
-integer function inside (x0,y0, px,py,n)
-
-!     From J.Berger, et al. BSSA v. 74, p. 1849-1862, October 1984.
-
-!     x0,y0 = point to test
-!     px,py,n = corners of polygon of n sides.
-!     Return value = 0 if point is outside
-!                  = +/-1 if point is inside
-!                  = 2 if point is on an edge or vertex.
-  implicit none
-  integer :: i, isicr
-  integer, intent(in) :: n
-  real(8), intent(in) :: x0, y0
-  real(8), intent(in) :: px(n), py(n)
-  
-  inside = 0
-  do i=1,n-1
-    isicr = ksicr(px(i)-x0,py(i)-y0,px(i+1)-x0,py(i+1)-y0)
-    if (isicr.eq.4) then
-      inside = 2
-      return
-    endif
-    inside = inside + isicr
-  end do
-
-  isicr = ksicr(px(n)-x0,py(n)-y0,px(1)-x0,py(1)-y0)
-
-  if(isicr.eq.4) then
-    inside = 2
-    return
-  endif
-
-  inside = (inside + isicr)/2
-  return
-end function inside
 
 
 function ksicr (x1,y1,x2,y2)
@@ -516,8 +518,11 @@ subroutine tensor_rot3 (t,phi)
 
 !     Rotates a general tensor t by the angle phi around the
 !       x3 axis (within the x1-x2 plane).
-  real(8) :: phi
-  real(8) :: t(9), ttmp(9)
+  implicit none
+  
+  real(8), intent(inout) :: phi
+  real(8), intent(inout) :: t(9)
+  real(8) :: ttmp(9)
   real(8), parameter :: pi=3.14159265358979323846d0
   real(8), parameter :: deg2rad=pi/180.d0
   real(8), parameter :: rad2deg=180.d0/pi
