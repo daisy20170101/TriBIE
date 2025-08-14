@@ -1,5 +1,13 @@
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+module mod_dtrigreen
+  implicit none
+  
+  ! Module variables (replacing common blocks)
+  integer :: nwarn = 0
+  
+  contains
+  
 subroutine dstuart (nu, xo, tridlc, ss,ds,op, u,t)
 
 !     Calls Stuart's angle subroutine to get triangle dislocation results.
@@ -13,8 +21,7 @@ subroutine dstuart (nu, xo, tridlc, ss,ds,op, u,t)
   real(8) :: xo(3), tridlc(9), burg(3), u(3), t(9)
   real(8) :: utmp(3), ttmp(9)
   real(8) :: tri(3,4)
-  integer :: nwarn
-  common/warn0/ nwarn
+  ! nwarn is now a module variable, no need for common block
 
 !      nu         = poissons ratio
 !      xo(3)      = observation point in global NED=123 coordinate system
@@ -277,6 +284,7 @@ end subroutine twoangles
 
 subroutine comdun2 ( nu, x1, x2, x3, a, beta, v, dv, iret )
 !     Performs some checks before calling comdun
+use comdun_module
   implicit none
   real(8) :: nu,x1,x2,x3,a,beta
   integer :: iret,nwarn
@@ -287,7 +295,7 @@ subroutine comdun2 ( nu, x1, x2, x3, a, beta, v, dv, iret )
   real(8) :: tol = 1.d-4
   real(8) :: x2p,x2m,tan2angle
 
-  common/nwarn00/ nwarn
+  ! nwarn is now a module variable
 
 !.....Check for angle beta - if close to zero, return zero result.
   if (beta .lt. betatol) then
@@ -300,13 +308,13 @@ subroutine comdun2 ( nu, x1, x2, x3, a, beta, v, dv, iret )
   if (abs(x2).lt. tol) then
     x2p = abs(x2) + tol
     x2m = -x2p
-    call comdun ( nu, x1, x2p, x3, a, beta, vp, dvp, iret )
-    call comdun ( nu, x1, x2m, x3, a, beta, vm, dvm, iret )
+    call comdun ( nu, x1, x2p, x3, a, beta, vp, dvp  )
+    call comdun ( nu, x1, x2m, x3, a, beta, vm, dvm )
     v(:,:) = 0.5d0*(vp(:,:)+vm(:,:))
     dv(:,:,:) = 0.5d0*(dvp(:,:,:)+dvm(:,:,:))
   else
 !        Normal call to comdun
-    call comdun ( nu, x1, x2, x3, a, beta, v, dv, iret )
+    call comdun ( nu, x1, x2, x3, a, beta, v, dv )
   endif
 
 !c.....Check to see if point is inside angle.
@@ -325,6 +333,42 @@ subroutine comdun2 ( nu, x1, x2, x3, a, beta, v, dv, iret )
   return
 end subroutine comdun2
 
+function inside (x0,y0, px,py,n)
+
+!     From J.Berger, et al. BSSA v. 74, p. 1849-1862, October 1984.
+
+!     x0,y0 = point to test
+!     px,py,n = corners of polygon of n sides.
+!     Return value = 0 if point is outside
+!                  = +/-1 if point is inside
+!                  = 2 if point is on an edge or vertex.
+  implicit none
+  integer :: inside,i, isicr
+  integer, intent(in) :: n
+  real(8), intent(in) :: x0, y0
+  real(8), intent(in) :: px(n), py(n)
+
+  inside = 0
+  do i=1,n-1
+    isicr = ksicr(px(i)-x0,py(i)-y0,px(i+1)-x0,py(i+1)-y0)
+    if (isicr.eq.4) then
+      inside = 2
+      return
+    endif
+    inside = inside + isicr
+  end do
+
+  isicr = ksicr(px(n)-x0,py(n)-y0,px(1)-x0,py(1)-y0)
+
+  if(isicr.eq.4) then
+    inside = 2
+    return
+  endif
+
+  inside = (inside + isicr)/2
+  return
+end function inside
+
 subroutine undertriangle (xo, tri, iflag)
 
 !     Returns a flag = 1 if the point xo lies under the triangle interior.
@@ -338,7 +382,7 @@ subroutine undertriangle (xo, tri, iflag)
   real(8) :: side12(3), side13(3), perp(3)
   real(8) :: tol = 1.d-6
   real(8) :: xpt,ypt,zpt,zontri,ht
-  integer :: inside
+ !  integer :: inside
 
   iflag=0
 !     Make arrays of x,y coords of triangle corners.
@@ -381,79 +425,62 @@ subroutine undertriangle (xo, tri, iflag)
   return
 end subroutine undertriangle
 
-integer function inside (x0,y0, px,py,n)
-
-!     From J.Berger, et al. BSSA v. 74, p. 1849-1862, October 1984.
-
-!     x0,y0 = point to test
-!     px,py,n = corners of polygon of n sides.
-!     Return value = 0 if point is outside
-!                  = +/-1 if point is inside
-!                  = 2 if point is on an edge or vertex.
-  integer :: i
-  integer :: n
-  real(8) :: x0,y0,px(n), py(n)
-  inside = 0
-  do i=1,n-1
-    isicr=ksicr(px(i)-x0,py(i)-y0,px(i+1)-x0,py(i+1)-y0)
-    if (isicr.eq.4) then
-      inside = 2
-      return
-    endif
-    inside = inside + isicr
-  end do
-
-  isicr=ksicr(px(n)-x0,py(n)-y0,px(1)-x0,py(1)-y0)
-
-  if(isicr.eq.4) then
-    inside = 2
-    return
-  endif
-
-  inside = (inside + isicr)/2.
-  return
-end function inside
 
 
 function ksicr (x1,y1,x2,y2)
   implicit none
   integer :: ksicr
-  real(8) :: x1,x2,y1,y2
-  if (y1*y2 .gt. 0.0) goto 600
+  real(8), intent(in) :: x1,x2,y1,y2
+  
+  ! Convert goto-based logic to proper Fortran 90
+  if (y1*y2 .gt. 0.0d0) then
+    ksicr = 0
+    return
+  endif
 
-  if (x1*y2 .ne. x2*y1 .or. x1*x2 .gt. 0.0) goto 100
-
-  ksicr = 4
+  if (x1*y2 .ne. x2*y1 .or. x1*x2 .gt. 0.0d0) then
+    if (y1*y2 .lt. 0.0d0) then
+      if (y1.gt.0.0d0) then
+        if (x1*y2 .ge. y1*x2) then
+          ksicr = 0
+        else
+          ksicr = 2
+        endif
+      else
+        if (x1*y2 .ge. y1*x2) then
+          ksicr = 0
+        else
+          ksicr = 2
+        endif
+      endif
+    else
+      if (y2.eq.0.0d0) then
+        if (y1.eq.0.0d0 .or. x2.gt.0.0d0) then
+          ksicr = 0
+        else
+          if (y1.gt.0.0d0) then
+            ksicr = -1
+          else
+            ksicr = 1
+          endif
+        endif
+      else
+        if (x1.gt.0.0d0) then
+          ksicr = 0
+        else
+          if (y2.gt.0.0d0) then
+            ksicr = 1
+          else
+            ksicr = -1
+          endif
+        endif
+      endif
+    endif
+  else
+    ksicr = 4
+  endif
+  
   return
-
-100 if (y1*y2 .lt. 0.0) goto 300
-  if (y2.eq.0.0) goto 200
-  if (x1.gt.0.0) goto 600
-  if (y2.gt.0.0) goto 700
-  goto 800
-
-200 if (y1.eq.0.0 .or. x2.gt.0.0) goto 600
-  if (y1.gt.0.0) goto 800
-  goto 700
-
-300 if (y1.gt.0.0) goto 400
-  if (x1*y2 .ge. y1*x2) goto 600
-  ksicr = 2
-  return
-
-400 if (y1*x2.ge.x1*y2) goto 600
-  ksicr = -2
-  return
-
-600 ksicr = 0
-  return
-
-700 ksicr = 1
-  return
-
-800 ksicr = -1
-  return
-
 end function ksicr
 
 subroutine vector_rot3 (u,phi)
@@ -491,8 +518,11 @@ subroutine tensor_rot3 (t,phi)
 
 !     Rotates a general tensor t by the angle phi around the
 !       x3 axis (within the x1-x2 plane).
-  real(8) :: phi
-  real(8) :: t(9), ttmp(9)
+  implicit none
+  
+  real(8), intent(inout) :: phi
+  real(8), intent(inout) :: t(9)
+  real(8) :: ttmp(9)
   real(8), parameter :: pi=3.14159265358979323846d0
   real(8), parameter :: deg2rad=pi/180.d0
   real(8), parameter :: rad2deg=180.d0/pi
@@ -572,3 +602,4 @@ subroutine unit(x)
   return
 end subroutine unit
 
+end module mod_dtrigreen
