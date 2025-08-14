@@ -10,6 +10,7 @@
 
 module error_handling
   use mpi
+  use physical_constants, only: DP
   implicit none
   
   ! Error codes
@@ -23,7 +24,7 @@ module error_handling
   
   ! Error message buffer size
   integer, parameter :: MAX_ERROR_MESSAGE_LENGTH = 256
-  integer, parameter :: mpi_max_error_string = 512
+  integer, parameter :: ERROR_STRING_LENGTH = 512
   
   ! Global error state
   logical :: global_error_occurred = .false.
@@ -54,12 +55,12 @@ contains
     integer, intent(in) :: ierr
     character(len=*), intent(in) :: operation_name
     integer :: error_class, error_string_len
-    character(len=mpi_max_error_string) :: error_string
+    character(len=ERROR_STRING_LENGTH) :: error_string
     
-    if (ierr /= mpi_success) then
+    if (ierr /= MPI_SUCCESS) then
       ! Get error class and string
-      call mpi_error_class(ierr, error_class)
-      call mpi_error_string(ierr, error_string, error_string_len)
+      call MPI_Error_class(ierr, error_class)
+      call MPI_Error_string(ierr, error_string, error_string_len)
       
       ! Set global error state
       global_error_code = ERROR_MPI_FAILURE
@@ -72,7 +73,7 @@ contains
       write(*, *) '  Error message: ', trim(error_string)
       
       ! Abort MPI execution
-      call mpi_abort(mpi_comm_world, ERROR_MPI_FAILURE, ierr)
+      call MPI_Abort(MPI_COMM_WORLD, ERROR_MPI_FAILURE, ierr)
     end if
   end subroutine check_mpi_error
   
@@ -174,7 +175,7 @@ contains
   subroutine handle_numerical_error(operation, value, threshold)
     implicit none
     character(len=*), intent(in) :: operation
-    real(8), intent(in) :: value, threshold
+    real(DP), intent(in) :: value, threshold
     
     character(len=MAX_ERROR_MESSAGE_LENGTH) :: error_msg
     
@@ -193,7 +194,7 @@ contains
   !===============================================================================
   subroutine check_numerical_stability(array, array_name)
     implicit none
-    real(8), dimension(:), intent(in) :: array
+    real(DP), dimension(:), intent(in) :: array
     character(len=*), intent(in) :: array_name
     
     integer :: i, n
