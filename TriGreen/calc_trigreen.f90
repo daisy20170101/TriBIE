@@ -687,12 +687,35 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
      start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
   end if
    
-   ! Initialize variables
-   vpl(1:3) = 1.d0
-   l_miu = parm_l/parm_miu
-   ss = 1.d0
-   ds = 0.d0
-   op = 0.d0
+       ! Initialize variables
+    vpl(1:3) = 1.d0
+    l_miu = parm_l/parm_miu
+    ss = 1.d0
+    ds = 0.d0
+    op = 0.d0
+    
+    ! Validate input parameters
+    if (isnan(parm_nu) .or. isnan(parm_l) .or. isnan(parm_miu)) then
+      write(*,*) 'Process', myid, ': Invalid material parameters:'
+      write(*,*) '  parm_nu =', parm_nu
+      write(*,*) '  parm_l =', parm_l
+      write(*,*) '  parm_miu =', parm_miu
+      error_occurred = .true.
+      error_message = "Invalid material parameters"
+      return
+    end if
+    
+    ! Check for reasonable parameter ranges
+    if (parm_nu < -1.0d0 .or. parm_nu > 0.5d0) then
+      write(*,*) 'Process', myid, ': Warning: parm_nu =', parm_nu, ' is outside normal range [-1, 0.5]'
+    end if
+    
+    if (parm_miu <= 0.0d0) then
+      write(*,*) 'Process', myid, ': Error: parm_miu =', parm_miu, ' must be positive'
+      error_occurred = .true.
+      error_message = "Invalid shear modulus (must be positive)"
+      return
+    end if
    
    ! Allocate arrays only for local cells (memory efficient)
    ! Note: arr_trid must be (9,n_cell) because each process needs triangle data for ALL cells
@@ -748,21 +771,39 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
          arr_cl_v2(:,:,1) = 0.d0
        end if
    
-   ! CRITICAL: We need triangle data for ALL cells, not just local ones
-   ! Each process must compute triangle data for all cells to perform Green's function calculations
-   ! This is a necessary overhead for the distributed computation
-   write(*,*) "Process", myid, "computing triangle data for all", n_cell, "cells"
-   do k = 1, n_cell
-     vj(1:3) = arr_cell(k,1:3)
-     p1(1:3) = arr_vertex(vj(1),1:3)
-     p2(1:3) = arr_vertex(vj(2),1:3)
-     p3(1:3) = arr_vertex(vj(3),1:3)
-     
-     arr_trid(1:3,k) = p1(1:3)
-     arr_trid(4:6,k) = p2(1:3)
-     arr_trid(7:9,k) = p3(1:3)
-   end do
-   write(*,*) "Process", myid, "completed triangle data computation"
+       ! CRITICAL: We need triangle data for ALL cells, not just local ones
+    ! Each process must compute triangle data for all cells to perform Green's function calculations
+    ! This is a necessary overhead for the distributed computation
+    write(*,*) "Process", myid, "computing triangle data for all", n_cell, "cells"
+    do k = 1, n_cell
+      vj(1:3) = arr_cell(k,1:3)
+      
+      ! Validate vertex indices
+      if (vj(1) < 1 .or. vj(1) > n_vertex .or. &
+          vj(2) < 1 .or. vj(2) > n_vertex .or. &
+          vj(3) < 1 .or. vj(3) > n_vertex) then
+        write(*,*) 'Process', myid, ': Invalid vertex indices for cell', k, ':', vj(1), vj(2), vj(3)
+        cycle
+      end if
+      
+      p1(1:3) = arr_vertex(vj(1),1:3)
+      p2(1:3) = arr_vertex(vj(2),1:3)
+      p3(1:3) = arr_vertex(vj(3),1:3)
+      
+      ! Validate triangle coordinates
+      if (any(isnan(p1)) .or. any(isnan(p2)) .or. any(isnan(p3))) then
+        write(*,*) 'Process', myid, ': NaN coordinates for cell', k
+        write(*,*) '  p1 =', p1
+        write(*,*) '  p2 =', p2
+        write(*,*) '  p3 =', p3
+        cycle
+      end if
+      
+      arr_trid(1:3,k) = p1(1:3)
+      arr_trid(4:6,k) = p2(1:3)
+      arr_trid(7:9,k) = p3(1:3)
+    end do
+    write(*,*) "Process", myid, "completed triangle data computation"
 
   write(6,*) "Process", myid, "starting hybrid parallel computation"
   
@@ -775,6 +816,69 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
       if (k >= n_cell) cycle
       
       do i = 1, n_cell
+        ! Debug: Check input parameters before calling dstuart
+        if (isnan(parm_nu) .or. any(isnan(arr_co(:,j))) .or. any(isnan(arr_trid(:,i))) then
+          !$OMP CRITICAL
+          write(*,*) 'Process', myid, ': Invalid input parameters to dstuart:'
+          write(*,*) '  parm_nu =', parm_nu
+          write(*,*) '  arr_co(:,', j, ') =', arr_co(:,j)
+          write(*,*) '  arr_trid(:,', i, ') =', arr_trid(:,i)
+          !$OMP END CRITICAL
+          cycle
+        end if
+        
+        ! Check for degenerate triangles (zero area)
+        real(8) :: area_triangle
+        area_triangle = abs((arr_trid(4,i) - arr_trid(1,i)) * (arr_trid(7,i) - arr_trid(1,i)) - &
+                           (arr_trid(7,i) - arr_trid(1,i)) * (arr_trid(4,i) - arr_trid(1,i))) / 2.0d0
+        
+        if (area_triangle < 1.0d-12) then
+          !$OMP CRITICAL
+          write(*,*) 'Process', myid, ': Degenerate triangle detected for i=', i, 'area =', area_triangle
+          !$OMP END CRITICAL
+          cycle
+        end if
+        
+        ! Check if observation point is too close to triangle vertices (can cause numerical issues)
+        real(8) :: dist_min, dist
+        dist_min = 1.0d-6  ! Minimum distance threshold
+        
+        ! Distance to vertex 1
+        dist = sqrt(sum((arr_co(:,j) - arr_trid(1:3,i))**2))
+        if (dist < dist_min) then
+          !$OMP CRITICAL
+          write(*,*) 'Process', myid, ': Observation point too close to vertex 1: dist =', dist
+          !$OMP END CRITICAL
+          cycle
+        end if
+        
+        ! Distance to vertex 2
+        dist = sqrt(sum((arr_co(:,j) - arr_trid(4:6,i))**2))
+        if (dist < dist_min) then
+          !$OMP CRITICAL
+          write(*,*) 'Process', myid, ': Observation point too close to vertex 2: dist =', dist
+          !$OMP END CRITICAL
+          cycle
+        end if
+        
+        ! Distance to vertex 3
+        dist = sqrt(sum((arr_co(:,j) - arr_trid(7:9,i))**2))
+        if (dist < dist_min) then
+          !$OMP CRITICAL
+          write(*,*) 'Process', myid, ': Observation point too close to vertex 3: dist =', dist
+          !$OMP END CRITICAL
+          cycle
+        end if
+        
+        ! Validate ss, ds, op parameters
+        if (isnan(ss) .or. isnan(ds) .or. isnan(op)) then
+          !$OMP CRITICAL
+          write(*,*) 'Process', myid, ': Invalid ss, ds, op parameters:'
+          write(*,*) '  ss =', ss, 'ds =', ds, 'op =', op
+          !$OMP END CRITICAL
+          cycle
+        end if
+        
         ! Calculate strain gradients using Stuart's method
         call dstuart(parm_nu, arr_co(:,j), arr_trid(:,i), ss, ds, op, u, t)
         
@@ -783,6 +887,12 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
           !$OMP CRITICAL
           error_occurred = .true.
           error_message = "Invalid results from dstuart calculation"
+          write(*,*) 'Process', myid, ': dstuart failed for j=', j, 'i=', i
+          write(*,*) '  parm_nu =', parm_nu
+          write(*,*) '  arr_co(:,', j, ') =', arr_co(:,j)
+          write(*,*) '  arr_trid(:,', i, ') =', arr_trid(:,i)
+          write(*,*) '  u =', u
+          write(*,*) '  t =', t
           !$OMP END CRITICAL
           cycle
         end if
