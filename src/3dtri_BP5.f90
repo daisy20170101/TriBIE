@@ -204,10 +204,8 @@ if(myid==master)then
   
   ! MODIFICATION: Handle surface Green's functions based on format
   if (use_trigreen_format) then
-     ! For TriGreen, we might not have surface Green's functions, so create dummy or skip
-     write(*,*) 'Note: Using TriGreen format - surface Green functions may not be available'
-     ! Create dummy surface Green's functions or skip this section
-     allocate(surf1(n_obv,Nt_all),surf2(n_obv,Nt_all),surf3(n_obv,Nt_all))
+     ! For TriGreen, we might not have surface Green's functions, so initialize to zeros
+     write(*,*) 'Note: Using TriGreen format - surface Green functions initialized to zero'
      surf1 = 0.d0
      surf2 = 0.d0
      surf3 = 0.d0
