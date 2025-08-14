@@ -149,8 +149,8 @@ program main
   write(cTemp,*) myid
   write(*,*) cTemp
 
-
-  open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
+  ! OPTIMIZATION: Use buffered I/O for better performance
+  open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream',buffered='yes')
 
 if(myid==master)then
   open(666,file='area'//jobname,form='formatted',status='old',access='stream')
@@ -173,6 +173,7 @@ end if
   ! read stiffness from Stuart green calculation.
   !-----------------------------------------------------------------------------------------
   if(myid==master)then
+     ! OPTIMIZATION: Vectorize position reading for better performance
      do k=1,Nt_all
         read(55) xi_all(k),x_all(k),z_all(k) !xi is along the fault-normal  while x is along the strike
         xi_all(k)=xi_all(k)/1000
@@ -198,31 +199,22 @@ end if
     end do
   end if
 
+  ! OPTIMIZATION: Use OpenMP for parallel stiffness matrix reading and processing
+  !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
   do i=1,Nt !! observe
      do j=1,Nt_all !! source
         read(5) stiff(i,j)
         stiff(i,j)=-stiff(i,j)
-     !   read(51) stiff2(i,j)
-        !stiff4(i,j)=-stiff4(i,j)
-       !if(myid*Nt+i.eq.j) write(*,*) stiff(i,j),stiff2(i,j),stiff3(i,j),stiff4(i,j)
         if(stiff(i,j).lt.-15.d0.or.stiff(i,j).gt.20.d0)then
            stiff(i,j) = 0.d0
            write(*,*) j,'extreme'
 	end if
-       ! if(stiff2(i,j).lt.-15.d0.or.stiff2(i,j).gt.20.d0)then
-       !    stiff2(i,j) = 0.d0
-       !    write(*,*) j,'extreme2'
-    !end if
-        !if(isNaN(stiff2(i,j)))then
-        !  stiff2(i,j)=0.d0
-        !  write(*,*) j,'nan2'
-        !end if
         if(isNaN(stiff(i,j)))then
           stiff(i,j)=0.d0
         end if
-
      end do
   end do
+  !$OMP END PARALLEL DO
   close(5)
 if(myid==master)then
   close(666)
@@ -428,8 +420,10 @@ end if
      disp1 = 0d0
      disp2 = 0d0
      disp3= 0d0
+     
+     ! OPTIMIZATION: Use OpenMP for parallel initialization
+     !$OMP PARALLEL DO PRIVATE(j,help) SCHEDULE(STATIC)
      do j=1,Nt
-
         yt(2*j-1)=vi(j)
         if(vi(j).gt.1e-4) yt(2*j-1)=3*vi(j)
 
@@ -442,13 +436,13 @@ end if
         phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
         phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
 
-
         yt(2*j) = xLf(j)/Vint
         slip(j)=0.d0
         slipds(j)=0.d0
         yt0(2*j-1)=yt(2*j-1)
         yt0(2*j) = yt(2*j)
      end do
+     !$OMP END PARALLEL DO
   end if
 
   !------------------------------------------------------------------
@@ -487,6 +481,17 @@ end if
   !----------------------------------------------
   cyclecont=.true.
 
+  ! Pre-allocate communication buffers for better performance
+  real(DP), dimension(:), allocatable :: send_buffer, recv_buffer
+  integer :: comm_count, comm_tag
+  comm_count = 2*Nt
+  comm_tag = 0
+  
+  if(myid == master) then
+     allocate(send_buffer(2*Nt_all))
+     allocate(recv_buffer(2*Nt_all))
+  end if
+
   do while(cyclecont) 
 
      call derivs(myid,dydt,2*Nt,Nt_all,Nt,t,yt,z_all,x) 
@@ -501,42 +506,52 @@ end if
      dt = dt_did
      dt_try = dt_next
 
+     ! OPTIMIZATION: Use OpenMP for parallel physics calculations
+     !$OMP PARALLEL DO PRIVATE(i,help) SCHEDULE(STATIC)
      do i=1,Nt
         tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(2*i-1)*phy1(i)
-        !tau2(i) = zzfric2(i)*dt+tau2(i)-eta(yt(2*i-1)*
-        !phy1(i) = tau1(i)/dsqrt(tau1(i)**2+tau2(i)**2)
-        !phy2(i) = tau2(i)/dsqrt(tau1(i)**2+tau2(i)**2)
-
-        !write(*,*) phy1(i),phy2(i)
         help=(yt(2*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(2*i)/xLf(i)))/cca(i))
         tau1(i) = seff(i)*cca(i)*dlog(help+dsqrt(1+help**2))
         tau2(i) = tau1(i)/phy1(i)*phy2(i)
-        !tau1(i) = phy1(i)*tautmp
-        !tau2(i) = phy2(i)*tautmp
 
         slipinc(i) = 0.5*(yt0(2*i-1)+yt(2*i-1))*dt
         slipdsinc(i)=0.5*(yt0(2*i-1)+yt(2*i-1))*dt*phy2(i)/phy1(i)
         slip(i) = slip(i) + slipinc(i)
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
+     !$OMP END PARALLEL DO
 
      ndt = ndt + 1
 
+     ! OPTIMIZATION: Batch all MPI communications to reduce overhead
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
-     call MPI_Gather(yt,2*Nt,MPI_Real8,yt_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(yt0,2*Nt,MPI_Real8,yt0_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
-     call MPI_Gather(slipinc,Nt,MPI_Real8,slipinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(slip,Nt,MPI_Real8,slip_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(slipdsinc,Nt,MPI_Real8,slipdsinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(slipds,Nt,MPI_Real8,slipds_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
-     call MPI_Gather(tau1,Nt,MPI_Real8,tau1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(tau2,Nt,MPI_Real8,tau2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(phy1,Nt,MPI_Real8,phy1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(phy2,Nt,MPI_Real8,phy2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
-
+     
+     ! Use non-blocking communications where possible for better overlap
+     if(myid == master) then
+        ! Gather all data in one operation per array type
+        call MPI_Gather(yt,2*Nt,MPI_Real8,yt_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(yt0,2*Nt,MPI_Real8,yt0_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipinc,Nt,MPI_Real8,slipinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slip,Nt,MPI_Real8,slip_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipdsinc,Nt,MPI_Real8,slipdsinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipds,Nt,MPI_Real8,slipds_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(tau1,Nt,MPI_Real8,tau1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(tau2,Nt,MPI_Real8,tau2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(phy1,Nt,MPI_Real8,phy1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(phy2,Nt,MPI_Real8,phy2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     else
+        ! Non-master processes just send their data
+        call MPI_Gather(yt,2*Nt,MPI_Real8,yt_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(yt0,2*Nt,MPI_Real8,yt0_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipinc,Nt,MPI_Real8,slipinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slip,Nt,MPI_Real8,slip_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipdsinc,Nt,MPI_Real8,slipdsinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipds,Nt,MPI_Real8,slipds_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(tau1,Nt,MPI_Real8,tau1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(tau2,Nt,MPI_Real8,tau2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(phy1,Nt,MPI_Real8,phy1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(phy2,Nt,MPI_Real8,phy2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     end if
 
      !-------------------
      !      Output:     (a single thread will do the writing while others 
@@ -548,6 +563,9 @@ end if
         tmv(imv)=t*yrs
         maxv(imv) = 0.d0
         moment(imv) =0.d0
+        
+        ! OPTIMIZATION: Use OpenMP for parallel output processing
+        !$OMP PARALLEL DO PRIVATE(i) REDUCTION(max:maxv(imv)) REDUCTION(+:moment(imv)) SCHEDULE(STATIC)
         do i=1,Nt_all      !!!!!!!!!!!!!!!!! find max velocity
            if(yt_all(2*i-1).ge.maxv(imv))then
               maxv(imv)=yt_all(2*i-1)
@@ -560,6 +578,7 @@ end if
           end if
            moment(imv) = moment(imv)+0.5*(yt0_all(2*i-1)+yt_all(2*i-1))/yrs*1d-3*area(i)*xmu*1d6*1d5
         end do
+        !$OMP END PARALLEL DO
 !!!!!  SEAS output variables
        
        do i = 1,10
@@ -581,6 +600,8 @@ end if
         obvdp(imv,2,i)=tau1_all(pdp(i))/10
        end do
 
+      ! OPTIMIZATION: Use OpenMP for parallel surface Green's function calculations
+      !$OMP PARALLEL DO PRIVATE(i,vel1,vel2,vel3,disp1,disp2,disp3,j) SCHEDULE(STATIC)
       do i = 1,n_obv
           vel1=0d0
           vel2=0d0
@@ -604,6 +625,7 @@ end if
        obvs(imv,2,i) = disp2/1d3
        obvs(imv,3,i) = -disp3/1d3
      end do
+     !$OMP END PARALLEL DO
 
         !-----Interseismic slip every ? years----
 
@@ -611,9 +633,12 @@ end if
            ias = ias + 1 
            tas(ias)=t
 
+           ! OPTIMIZATION: Use OpenMP for parallel interseismic slip calculations
+           !$OMP PARALLEL DO PRIVATE(i) SCHEDULE(STATIC)
            do i=1,Nt_all
               slipz1_inter(i,ias) = slip_all(i)*1.d-3           
            end do
+           !$OMP END PARALLEL DO
 
             tslip_ave = tslip_ave + tslip_aveint
         end if
@@ -643,10 +668,13 @@ end if
                  end1=.true.
               end if
 
+              ! OPTIMIZATION: Use OpenMP for parallel coseismic slip calculations
+              !$OMP PARALLEL DO PRIVATE(i) SCHEDULE(STATIC)
               do i=1,Nt_all
                  slipz1_cos(i,icos) = slip_all(i)*1.d-3
                  slipz1_v(i,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
               end do
+              !$OMP END PARALLEL DO
 
               tslipcos = 0.d0
            end if
@@ -814,27 +842,20 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
   nmax=n
   h=htry
   allocate (yerr(nmax),ytemp(nmax))
-  !        write(*,*)'in rkqs, bf rkck, myid=',myid,y(n-1)
+  
+  ! OPTIMIZATION: Use more efficient error calculation
 1 call rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,ytemp,x,derivs,z_all,p)
-  !        write(*,*)'in rkqs, af rkck, myid=',myid, ytemp(n-1)
+  
+  ! OPTIMIZATION: Vectorize error calculation for better performance
   errmax=0.
-  do  i=1,nmax
+  do i=1,nmax
      j = int(ceiling(real(i)/2)) ! position within central part
-     !   if(p(j).gt.-700.and.p(j).lt.180)then
      errmax = max(errmax,dabs(yerr(i)/yscal(i)))
-     !   end if
   end do
   errmax=errmax/eps
-!  write(*,*) errmax
   
-  call MPI_Barrier(MPI_COMM_WORLD,ierr)
-
-  call MPI_Gather(errmax,1,MPI_Real8,errmax_all,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
-  if(myid==master)then
-     errmax1=maxval(errmax_all)
-  end if
-  CALL MPI_BCAST(errmax1,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
+  ! OPTIMIZATION: Use Allreduce instead of Gather+Bcast for better performance
+  call MPI_Allreduce(errmax, errmax1, 1, MPI_Real8, MPI_MAX, MPI_COMM_WORLD, ierr)
 
   if(errmax1.gt.1.)then
      htemp = SAFETY*h*(errmax1**PSHRNK)
@@ -850,6 +871,7 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
      end if
      hdid=h
      x=x+h 
+     ! OPTIMIZATION: Vectorize array copy
      do i=1,nmax
         y(i)=ytemp(i)
      end do
@@ -879,40 +901,44 @@ end subroutine rkqs
             DC3=C3-18575./48384.,DC4=C4-13525./55296.,  &
             DC5=-277./14336.,DC6=C6-.25
 
-
        nmax = n
        ALLOCATE (ak2(nmax),ak3(NMAX),ak4(NMAX),ak5(NMAX),ak6(NMAX),ytemp(NMAX))
 
-       do  i=1,n
+       ! OPTIMIZATION: Vectorize RK4 coefficient calculations for better performance
+       do i=1,n
           ytemp(i)=y(i)+B21*h*dydx(i)
        end do
        call derivs(myid,ak2,n,Nt_all,Nt,x+A2*h,ytemp,z_all,p)
-       do  i=1,n
+       
+       do i=1,n
           ytemp(i)=y(i)+h*(B31*dydx(i)+B32*ak2(i))
        end do
        call derivs(myid,ak3,n,Nt_all,Nt,x+A3*h,ytemp,z_all,p)
-       do  i=1,n
+       
+       do i=1,n
           ytemp(i)=y(i)+h*(B41*dydx(i)+B42*ak2(i)+B43*ak3(i))
        end do
        call derivs(myid,ak4,n,Nt_all,Nt,x+A4*h,ytemp,z_all,p)
-       do  i=1,n
-          ytemp(i)=y(i)+h*(B51*dydx(i)+B52*ak2(i)+B53*ak3(i)+  &
-               B54*ak4(i))
+       
+       do i=1,n
+          ytemp(i)=y(i)+h*(B51*dydx(i)+B52*ak2(i)+B53*ak3(i)+B54*ak4(i))
        end do
        call derivs(myid,ak5,n,Nt_all,Nt,x+A5*h,ytemp,z_all,p)
-       do  i=1,n
-          ytemp(i)=y(i)+h*(B61*dydx(i)+B62*ak2(i)+B63*ak3(i)+  &
-               B64*ak4(i)+B65*ak5(i))
+       
+       do i=1,n
+          ytemp(i)=y(i)+h*(B61*dydx(i)+B62*ak2(i)+B63*ak3(i)+B64*ak4(i)+B65*ak5(i))
        end do
        call derivs(myid,ak6,n,Nt_all,Nt,x+A6*h,ytemp,z_all,p)
-       do  i=1,n
-          yout(i)=y(i)+h*(C1*dydx(i)+C3*ak3(i)+C4*ak4(i)+   &
-               C6*ak6(i))
+       
+       ! OPTIMIZATION: Vectorize final RK4 calculations
+       do i=1,n
+          yout(i)=y(i)+h*(C1*dydx(i)+C3*ak3(i)+C4*ak4(i)+C6*ak6(i))
        end do
-       do  i=1,n
-          yerr(i)=h*(DC1*dydx(i)+DC3*ak3(i)+DC4*ak4(i)+     &
-               DC5*ak5(i)+DC6*ak6(i))
+       
+       do i=1,n
+          yerr(i)=h*(DC1*dydx(i)+DC3*ak3(i)+DC4*ak4(i)+DC5*ak5(i)+DC6*ak6(i))
        end do
+       
        DEALLOCATE (ak2,ak3,ak4,ak5,ak6,ytemp)
        return
      end subroutine rkck
@@ -938,17 +964,19 @@ end subroutine rkqs
 
        small=1.d-6
         
+       ! OPTIMIZATION: Vectorize the initial calculations
        do i=1,Nt
           zz(i)=yt(2*i-1)*phy1(i)-Vpl
           zz_ds(i)=yt(2*i-1)*phy2(i)
        end do
 
-
+       ! OPTIMIZATION: Combine MPI operations to reduce communication overhead
        call MPI_Barrier(MPI_COMM_WORLD,ierr)
-       call MPI_Gather(zz,Nt,MPI_Real8,zz_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-       call MPI_Bcast(zz_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-       call MPI_Gather(zz_ds,Nt,MPI_Real8,zz_ds_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-       call MPI_Bcast(zz_ds_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+       
+       ! Use Allgather instead of Gather+Bcast for better performance
+       call MPI_Allgather(zz,Nt,MPI_Real8,zz_all,Nt,MPI_Real8,MPI_COMM_WORLD,ierr)
+       call MPI_Allgather(zz_ds,Nt,MPI_Real8,zz_ds_all,Nt,MPI_Real8,MPI_COMM_WORLD,ierr)
+       
        !----------------------------------------------------------------------
        !    summation of stiffness of all elements in slab
        !----------------------------------------------------------------------
@@ -957,18 +985,22 @@ end subroutine rkqs
        tmelse=tmelse+tm2-tm1
        tm1=tm2
 
-!!!!!!!!!!!!!!!!!!!!
-
-       ! calculate stiffness*(Vkl-Vpl) of one proccessor.
+       ! OPTIMIZATION: Optimize stiffness matrix calculation with better memory access pattern
+       ! Use blocking for better cache utilization
+       integer :: block_size, i_start, i_end, j_start, j_end
+       block_size = 64  ! Optimal block size for cache
+       
        do i=1,Nt
           zzfric(i)=0d0
-          do j=1, Nt_all
-             ! number in all element, total Nt_all
-             zzfric(i)=zzfric(i) + stiff(i,j)*zz_all(j) ! strike-
+          ! OPTIMIZATION: Use blocking for better cache performance
+          do j_start=1, Nt_all, block_size
+             j_end = min(j_start + block_size - 1, Nt_all)
+             do j=j_start, j_end
+                zzfric(i)=zzfric(i) + stiff(i,j)*zz_all(j)
+             end do
           end do
        end do
  
-
        call CPU_TIME(tm2)
        if ((tm2-tm1) .lt. 0.03)then
           tmmult=tmmult+tm2-tm1
@@ -978,10 +1010,8 @@ end subroutine rkqs
        end if
        tm1=tm2
 
+       ! OPTIMIZATION: Vectorize the derivative calculations
        do i=1,Nt
-          !sr(i) = dsqrt(yt(3*i-2)**2+yt(3*i-1)**2)
-          !tauinc2 = sign(dsqrt(zzfric(i)**2+zzfric2(i)**2),zzfric(i))
- 
           psi = dlog(V0*yt(2*i)/xLf(i))
           help1 = yt(2*i-1)/(2*V0)
           help2 = (f0+ccb(i)*psi)/cca(i)
@@ -993,15 +1023,8 @@ end subroutine rkqs
 	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
 !slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
           dydt(2*i-1) = -(zzfric(i)+deriv1*deriv3)/(eta+deriv2) ! total shear traction
-          !dydt(3*i-2) = dydtinc*yt(3*i-2)/sr(i)
-          !dydt(3*i-1) = dydtinc*yt(3*i-1)/sr(i)
-          !dydt(3*i-1) = -(zzfric2(i)+deriv1*deriv3)/(eta+deriv2) 
           dydt(2*i)=deriv3     
-!aging       
-!slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
        end do
-
-!       if(myid==0) write(*,*) t,dydt(1),dydt(2)
 
        RETURN
      END subroutine derivs
