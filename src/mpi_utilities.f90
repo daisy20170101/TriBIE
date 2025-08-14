@@ -69,8 +69,8 @@ contains
     
     if (ierr /= MPI_SUCCESS) then
       write(*, *) 'MPI error in ', trim(operation_name), ': ', ierr
-      call MPI_Abort(world_comm, ierr, ierr)
-      stop
+      write(*, *) 'ABORTING: MPI error in ', trim(operation_name)
+      stop 1
     end if
     
   end subroutine check_mpi_error
@@ -113,9 +113,9 @@ contains
   end subroutine synchronize_processes
   
   !===============================================================================
-  ! SUBROUTINE: Broadcast scalar integer
+  ! SUBROUTINE: Broadcast integer value
   !===============================================================================
-  subroutine broadcast_integer_scalar(value, root)
+  subroutine broadcast_integer(value, root)
     implicit none
     integer, intent(inout) :: value
     integer, intent(in) :: root
@@ -124,12 +124,12 @@ contains
     call MPI_Bcast(value, 1, mpi_int_type, root, world_comm, ierr)
     call check_mpi_error(ierr, 'MPI_Bcast integer')
     
-  end subroutine broadcast_integer_scalar
+  end subroutine broadcast_integer
   
   !===============================================================================
-  ! SUBROUTINE: Broadcast scalar double precision
+  ! SUBROUTINE: Broadcast double precision value
   !===============================================================================
-  subroutine broadcast_double_scalar(value, root)
+  subroutine broadcast_double(value, root)
     implicit none
     real(DP), intent(inout) :: value
     integer, intent(in) :: root
@@ -138,7 +138,7 @@ contains
     call MPI_Bcast(value, 1, mpi_dp_type, root, world_comm, ierr)
     call check_mpi_error(ierr, 'MPI_Bcast double')
     
-  end subroutine broadcast_double_scalar
+  end subroutine broadcast_double
   
   !===============================================================================
   ! SUBROUTINE: Broadcast integer array
@@ -171,11 +171,11 @@ contains
   !===============================================================================
   ! SUBROUTINE: Gather double precision arrays
   !===============================================================================
-  subroutine gather_double_arrays(send_buffer, recv_buffer, send_count, root)
+  subroutine gather_double_arrays(send_buffer, send_count, recv_buffer, root)
     implicit none
     real(DP), dimension(:), intent(in) :: send_buffer
-    real(DP), dimension(:), intent(out) :: recv_buffer
     integer, intent(in) :: send_count, root
+    real(DP), dimension(:), intent(out) :: recv_buffer
     integer :: ierr
     
     call MPI_Gather(send_buffer, send_count, mpi_dp_type, recv_buffer, &
@@ -187,11 +187,11 @@ contains
   !===============================================================================
   ! SUBROUTINE: Allgather double precision arrays
   !===============================================================================
-  subroutine allgather_double_arrays(send_buffer, recv_buffer, send_count)
+  subroutine allgather_double_arrays(send_buffer, send_count, recv_buffer)
     implicit none
     real(DP), dimension(:), intent(in) :: send_buffer
-    real(DP), dimension(:), intent(out) :: recv_buffer
     integer, intent(in) :: send_count
+    real(DP), dimension(:), intent(out) :: recv_buffer
     integer :: ierr
     
     call MPI_Allgather(send_buffer, send_count, mpi_dp_type, recv_buffer, &
@@ -203,11 +203,11 @@ contains
   !===============================================================================
   ! SUBROUTINE: Scatter double precision arrays
   !===============================================================================
-  subroutine scatter_double_arrays(send_buffer, recv_buffer, send_count, root)
+  subroutine scatter_double_arrays(send_buffer, send_count, recv_buffer, root)
     implicit none
     real(DP), dimension(:), intent(in) :: send_buffer
-    real(DP), dimension(:), intent(out) :: recv_buffer
     integer, intent(in) :: send_count, root
+    real(DP), dimension(:), intent(out) :: recv_buffer
     integer :: ierr
     
     call MPI_Scatter(send_buffer, send_count, mpi_dp_type, recv_buffer, &
@@ -323,7 +323,7 @@ contains
   !===============================================================================
   ! SUBROUTINE: Non-blocking receive double precision array
   !===============================================================================
-  subroutine ireceive_double_array(buffer, count, source, tag, request)
+  subroutine irecv_double_array(buffer, count, source, tag, request)
     implicit none
     real(DP), dimension(:), intent(out) :: buffer
     integer, intent(in) :: count, source, tag
@@ -333,7 +333,7 @@ contains
     call MPI_Irecv(buffer, count, mpi_dp_type, source, tag, world_comm, request, ierr)
     call check_mpi_error(ierr, 'MPI_Irecv double array')
     
-  end subroutine ireceive_double_array
+  end subroutine irecv_double_array
   
   !===============================================================================
   ! SUBROUTINE: Wait for non-blocking operation
@@ -361,48 +361,5 @@ contains
     call check_mpi_error(ierr, 'MPI_Waitall')
     
   end subroutine wait_for_all_requests
-  
-  !===============================================================================
-  ! SUBROUTINE: Print process information
-  !===============================================================================
-  subroutine print_process_info()
-    implicit none
-    
-    if (is_master_process()) then
-      write(*, *) '=== MPI Process Information ==='
-      write(*, *) 'Total processes: ', num_processes
-      write(*, *) 'Master rank: ', master_rank
-      write(*, *) 'MPI data types:'
-      write(*, *) '  Double precision: ', mpi_dp_type
-      write(*, *) '  Integer: ', mpi_int_type
-      write(*, *) '  Logical: ', mpi_logical_type
-      write(*, *) '================================'
-    end if
-    
-  end subroutine print_process_info
-  
-  !===============================================================================
-  ! SUBROUTINE: Finalize MPI utilities
-  !===============================================================================
-  subroutine finalize_mpi_utilities()
-    implicit none
-    
-    ! Reset process information
-    my_rank = -1
-    num_processes = -1
-    
-  end subroutine finalize_mpi_utilities
-  
-  !===============================================================================
-  ! SUBROUTINE: Abort MPI execution
-  !===============================================================================
-  subroutine abort_mpi_execution(error_code)
-    implicit none
-    integer, intent(in) :: error_code
-    integer :: ierr
-    
-    call MPI_Abort(world_comm, error_code, ierr)
-    
-  end subroutine abort_mpi_execution
   
 end module mpi_utilities

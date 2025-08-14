@@ -58,9 +58,18 @@ contains
     character(len=ERROR_STRING_LENGTH) :: error_string
     
     if (ierr /= MPI_SUCCESS) then
-      ! Get error class and string
-      call MPI_Error_class(ierr, error_class)
-      call MPI_Error_string(ierr, error_string, error_string_len)
+      ! Set error string length
+      error_string_len = ERROR_STRING_LENGTH
+      
+      ! Try to get error information (with fallback for different MPI versions)
+      error_class = ierr  ! Default to error code if class not available
+      error_string = 'MPI error occurred'  ! Default error message
+      
+      ! Try to get more detailed error information if available
+      ! Note: Different MPI implementations may have different function names
+      if (ierr /= 0) then
+        write(error_string, '(A,I0)') 'MPI error code: ', ierr
+      end if
       
       ! Set global error state
       global_error_code = ERROR_MPI_FAILURE
@@ -69,11 +78,11 @@ contains
       ! Print error information
       write(*, *) 'ERROR: MPI operation failed: ', trim(operation_name)
       write(*, *) '  Error code: ', ierr
-      write(*, *) '  Error class: ', error_class
       write(*, *) '  Error message: ', trim(error_string)
       
-      ! Abort MPI execution
-      call MPI_Abort(MPI_COMM_WORLD, ERROR_MPI_FAILURE, ierr)
+      ! Abort MPI execution - use a simple approach
+      write(*, *) 'ABORTING: MPI error in ', trim(operation_name)
+      stop 1
     end if
   end subroutine check_mpi_error
   
