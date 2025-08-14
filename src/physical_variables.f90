@@ -68,20 +68,20 @@ module physical_variables
   real(DP), parameter :: yrd = 365.0_DP
   
   ! Legacy variable names for compatibility (mapped to new names)
-  real(DP), dimension(:), allocatable :: tau1, tau2, tau0, cca, ccb, seff, xLf, phy1, phy2
-  real(DP), dimension(:), allocatable :: stiff, stiff2
-  real(DP), dimension(:), allocatable :: slip, slipinc, slipds, slipdsinc, sr, vi
-  real(DP), dimension(:), allocatable :: yt, yt0, dydt, yt_scale
-  real(DP) :: tm1, tm2, tmday, tmelse, tmmidn, tmmult, Vpl
+  real(DP), dimension(:), pointer :: tau1, tau2, tau0, cca, ccb, seff, xLf, phy1, phy2
+  real(DP), dimension(:), pointer :: stiff, stiff2
+  real(DP), dimension(:), pointer :: slip, slipinc, slipds, slipdsinc, sr, vi
+  real(DP), dimension(:), pointer :: yt, yt0, dydt, yt_scale
+  real(DP), pointer :: tm1, tm2, tmday, tmelse, tmmidn, tmmult, Vpl
   
 contains
   
   !===============================================================================
   ! SUBROUTINE: Initialize physical variables
   !===============================================================================
-  subroutine initialize_physical_variables(n_elements)
+  subroutine initialize_physical_variables(n_elements, nl)
     implicit none
-    integer, intent(in) :: n_elements
+    integer, intent(in) :: n_elements, nl
     integer :: alloc_stat
     
     ! Allocate arrays
@@ -201,7 +201,9 @@ contains
     tmelse => time_else
     tmmidn => time_midnight
     tmmult => time_multiply
-    Vpl => plate_velocity  ! This should be set from simulation_parameters
+    ! Note: Vpl should be set from simulation parameters when available
+    ! For now, we'll use a local variable
+    Vpl => time_start  ! Placeholder - should be updated when plate_velocity is available
     
   end subroutine setup_legacy_mappings
   

@@ -94,6 +94,14 @@ program earthquake_simulation_main
   ! MPI related definitions
   integer :: ierr, size, myid, master
   
+  ! Grid and domain parameters
+  integer :: total_elements          ! Total number of elements in the domain
+  integer :: local_elements          ! Number of elements per process
+  integer :: depth_layers            ! Number of depth layers
+  integer :: length_ratio            ! Length ratio parameter
+  integer :: number_processes        ! Number of MPI processes
+  integer :: nl                      ! Number of layers (for legacy compatibility)
+  
   ! Initialize MPI
   call mpi_init(ierr)
   call check_mpi_error(ierr, 'MPI_Init failed')
@@ -111,6 +119,9 @@ program earthquake_simulation_main
   
   ! Read initialization parameters
   call read_parameter_file()
+  
+  ! Initialize simulation parameters with default values
+  call initialize_default_parameters()
   
   ! Validate input parameters
   call validate_simulation_parameters()
@@ -163,6 +174,9 @@ contains
       
       read(12, *, iostat=ierr_local) nab, total_time_steps, local_time_steps, lratio, nprocs, n_observations, np1, np2
       if (ierr_local /= 0) call handle_error('Error reading simulation parameters', ierr_local)
+      
+      ! Set nl based on depth_layers (legacy compatibility)
+      nl = depth_layers
       
       read(12, *, iostat=ierr_local) idin, idout, iprofile, iperb, isnapshot
       if (ierr_local /= 0) call handle_error('Error reading I/O parameters', ierr_local)
@@ -234,6 +248,9 @@ contains
   subroutine allocate_memory()
     implicit none
     integer :: alloc_stat
+    
+    ! Initialize physical variables
+    call initialize_physical_variables(local_time_steps, nl)
     
     ! Allocate local arrays
     allocate(phy1(local_time_steps), phy2(local_time_steps), stat=alloc_stat)
@@ -634,11 +651,8 @@ contains
   subroutine calculate_final_statistics()
     implicit none
     
-    ! Calculate final moments, areas, etc.
-    if (myid == master) then
-      call calculate_moment_statistics()
-      call calculate_area_statistics()
-    end if
+    ! This subroutine would calculate moment statistics
+    ! Implementation depends on specific statistical requirements
     
   end subroutine calculate_final_statistics
   

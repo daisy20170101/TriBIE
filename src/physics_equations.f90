@@ -14,6 +14,7 @@ module physics_equations
   use physical_variables, only: friction_parameter_a, friction_parameter_b, characteristic_length
   use physical_variables, only: state_variable_1, state_variable_2, slip_rate
   use physical_variables, only: stiffness_matrix, stiffness_matrix_2
+  use simulation_parameters, only: plate_velocity
   use mpi
   implicit none
   
@@ -167,7 +168,7 @@ contains
     if (perturbation_flag > 0) then
       call apply_perturbations(total_elements, transition1, transition2, slip1, slip2, &
                               xi_lock1, xi_lock2, friction_parameter_a, friction_parameter_b, &
-                              characteristic_length, effective_normal_stress)
+                              characteristic_length, effective_normal_stress, x_all)
     end if
     
   end subroutine calculate_depth_dependent_parameters
@@ -177,11 +178,12 @@ contains
   !===============================================================================
   subroutine apply_perturbations(total_elements, transition1, transition2, slip1, slip2, &
                                 xi_lock1, xi_lock2, friction_parameter_a, friction_parameter_b, &
-                                characteristic_length, effective_normal_stress)
+                                characteristic_length, effective_normal_stress, x_all)
     implicit none
     integer, intent(in) :: total_elements
     integer, dimension(:), intent(in) :: transition1, transition2, slip1, slip2
     real(DP), intent(in) :: xi_lock1, xi_lock2
+    real(DP), dimension(:), intent(in) :: x_all
     real(DP), dimension(:), intent(inout) :: friction_parameter_a, friction_parameter_b
     real(DP), dimension(:), intent(inout) :: characteristic_length, effective_normal_stress
     
