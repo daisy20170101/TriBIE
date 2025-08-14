@@ -1023,6 +1023,9 @@ end subroutine rkqs
        real (DP) :: psi,help1,help2,help
        real (DP) :: SECNDS
        real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_ds_all(Nt_all),zz_all(Nt_all),zzfric2(Nt)
+       
+       ! Local variables for blocking optimization
+       integer :: block_size, j_start, j_end
        intrinsic imag,real
 
        !MPI RELATED DEFINITIONS
@@ -1032,7 +1035,7 @@ end subroutine rkqs
        small=1.d-6
         
        ! OPTIMIZATION: Vectorize the initial calculations
-       do i=1,local_cells
+       do i=1,Nt
           zz(i)=yt(2*i-1)*phy1(i)-Vpl
           zz_ds(i)=yt(2*i-1)*phy2(i)
        end do
@@ -1041,8 +1044,8 @@ end subroutine rkqs
        call MPI_Barrier(MPI_COMM_WORLD,ierr)
        
        ! Use Allgather instead of Gather+Bcast for better performance
-       call MPI_Allgather(zz,local_cells,MPI_Real8,zz_all,local_cells,MPI_Real8,MPI_COMM_WORLD,ierr)
-       call MPI_Allgather(zz_ds,local_cells,MPI_Real8,zz_ds_all,local_cells,MPI_Real8,MPI_COMM_WORLD,ierr)
+       call MPI_Allgather(zz,Nt,MPI_Real8,zz_all,Nt,MPI_Real8,MPI_COMM_WORLD,ierr)
+       call MPI_Allgather(zz_ds,Nt,MPI_Real8,zz_ds_all,Nt,MPI_Real8,MPI_COMM_WORLD,ierr)
        
        !----------------------------------------------------------------------
        !    summation of stiffness of all elements in slab
@@ -1056,7 +1059,7 @@ end subroutine rkqs
        ! Use blocking for better cache utilization
        block_size = 64  ! Optimal block size for cache
        
-       do i=1,local_cells
+       do i=1,Nt
           zzfric(i)=0d0
           ! OPTIMIZATION: Use blocking for better cache performance
           do j_start=1, Nt_all, block_size
@@ -1077,7 +1080,7 @@ end subroutine rkqs
        tm1=tm2
 
        ! OPTIMIZATION: Vectorize the derivative calculations
-       do i=1,local_cells
+       do i=1,Nt
           psi = dlog(V0*yt(2*i)/xLf(i))
           help1 = yt(2*i-1)/(2*V0)
           help2 = (f0+ccb(i)*psi)/cca(i)
