@@ -15,7 +15,7 @@ set -e
 
 # Configuration variables
 PROGRAM_NAME="3dtri_BP5"
-SOURCE_FILE="3dtri_BP5.f90"
+SOURCE_FILE="3dtri_BP5_modified.f90"
 MODULE_FILE="phy3d_module_non.f90"
 OUTPUT_DIR="build"
 
