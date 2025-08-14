@@ -15,7 +15,7 @@ set -e
 
 # Configuration variables
 PROGRAM_NAME="3dtri_BP5"
-SOURCE_FILE="3dtri_BP5_modified.f90"
+SOURCE_FILE="3dtri_BP5.f90"
 MODULE_FILE="phy3d_module_non.f90"
 OUTPUT_DIR="build"
 
@@ -25,7 +25,8 @@ CC="mpicc"
 
 # Compiler flags for optimization
 FFLAGS="-O3 -march=native -mtune=native -funroll-loops -ftree-vectorize"
-FFLAGS="$FFLAGS -fopenmp -fno-stack-protector -fno-range-check"
+FFLAGS="$FFLAGS -ffast-math -faggressive-loop-optimizations -floop-nest-optimize"
+FFLAGS="$FFLAGS -fprefetch-loop-arrays -fno-stack-protector -fno-range-check"
 FFLAGS="$FFLAGS -std=f2008 -Wall -Wextra"
 
 # MPI flags
