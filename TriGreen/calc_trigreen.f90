@@ -598,11 +598,6 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
     a1(2) = vpl2*rl
 
   a1(3) = gamma
- !!!!!!!!!!! modified burger vector only apply to east-north/ normal-parallel coordinates.
-
-    a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
-    a1(2) = nv(1)/sqrt(nv(1)**2+nv(2)**2)
-    a1(3) = 0.0
 
     ! calc axis 2
     call vector_product(a1, a3, a2)

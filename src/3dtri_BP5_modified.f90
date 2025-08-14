@@ -173,11 +173,11 @@ program main
   ! MODIFICATION: Choose file format based on use_trigreen_format flag
   if (use_trigreen_format) then
      ! Load TriGreen format files
-     open(5, file=trim(stiffname)//'trigreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream',buffered='yes')
+     open(5, file=trim(stiffname)//'trigreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
      write(*,*) 'Loading TriGreen file: trigreen_', trim(adjustl(cTemp)), '.bin'
   else
      ! Load original ssGreen format files
-     open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream',buffered='yes')
+     open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
      write(*,*) 'Loading ssGreen file: ssGreen_', trim(adjustl(cTemp)), '.bin'
   end if
 
@@ -262,7 +262,7 @@ end if
            stiff(i,j) = 0.d0
            write(*,*) j,'extreme'
 	end if
-        if(isNaN(stiff(i,j)))then
+        if(stiff(i,j) /= stiff(i,j))then  ! Check for NaN using IEEE standard
           stiff(i,j)=0.d0
         end if
      end do
