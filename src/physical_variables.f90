@@ -15,42 +15,20 @@ module physical_variables
   ! Make all variables public
   public
   
-  ! Stress variables
-  real(DP), dimension(:), allocatable :: shear_stress_1        ! First component of shear stress
-  real(DP), dimension(:), allocatable :: shear_stress_2        ! Second component of shear stress
-  real(DP), dimension(:), allocatable :: total_shear_stress    ! Total shear stress
-  real(DP), dimension(:), allocatable :: effective_normal_stress ! Effective normal stress
-  
-  ! Friction law parameters
-  real(DP), dimension(:), allocatable :: friction_parameter_a  ! Rate-and-state parameter a
-  real(DP), dimension(:), allocatable :: friction_parameter_b  ! Rate-and-state parameter b
-  real(DP), dimension(:), allocatable :: characteristic_length ! Characteristic slip distance
+  ! Physical variables (stress, slip, friction parameters)
+  real(DP), dimension(:), allocatable, target :: shear_stress_1, shear_stress_2, total_shear_stress
+  real(DP), dimension(:), allocatable, target :: friction_parameter_a, friction_parameter_b, characteristic_length
+  real(DP), dimension(:), allocatable, target :: effective_normal_stress, state_variable_1, state_variable_2
+  real(DP), dimension(:), allocatable, target :: slip_rate, initial_velocity
   
   ! Slip variables
-  real(DP), dimension(:), allocatable :: total_slip            ! Total slip on fault
-  real(DP), dimension(:), allocatable :: slip_increment        ! Incremental slip
-  real(DP), dimension(:), allocatable :: dip_slip             ! Dip-slip component
-  real(DP), dimension(:), allocatable :: dip_slip_increment   ! Incremental dip-slip
-  
-  ! State variables for rate-and-state friction
-  real(DP), dimension(:), allocatable :: state_variable_1      ! First state variable
-  real(DP), dimension(:), allocatable :: state_variable_2      ! Second state variable
-  
-  ! Velocity variables
-  real(DP), dimension(:), allocatable :: slip_rate             ! Slip rate
-  real(DP), dimension(:), allocatable :: initial_velocity      ! Initial velocity
+  real(DP), dimension(:), allocatable, target :: total_slip, slip_increment, dip_slip, dip_slip_increment
   
   ! Stiffness matrices
-  real(DP), dimension(:,:), allocatable :: stiffness_matrix    ! Main stiffness matrix
-  real(DP), dimension(:,:), allocatable :: stiffness_matrix_2  ! Secondary stiffness matrix
+  real(DP), dimension(:,:), allocatable, target :: stiffness_matrix, stiffness_matrix_2
   
   ! Time variables
-  real(DP) :: time_start          ! Start time for timing measurements
-  real(DP) :: time_end            ! End time for timing measurements
-  real(DP) :: time_day            ! Day time component
-  real(DP) :: time_else           ! Other time component
-  real(DP) :: time_midnight       ! Midnight time component
-  real(DP) :: time_multiply       ! Multiplication time component
+  real(DP), target :: time_start, time_end, time_day, time_else, time_midnight, time_multiply
   
   ! Physical parameters (from original code, kept for compatibility)
   real(DP), parameter :: pi = 3.14159265358979323_DP
@@ -130,8 +108,19 @@ contains
     allocate(initial_velocity(n_elements), stat=alloc_stat)
     if (alloc_stat /= 0) call handle_allocation_error('initial_velocity', alloc_stat)
     
+    ! Allocate stiffness matrices (for legacy compatibility)
+    allocate(stiffness_matrix(n_elements, n_elements), stat=alloc_stat)
+    if (alloc_stat /= 0) call handle_allocation_error('stiffness_matrix', alloc_stat)
+    
+    allocate(stiffness_matrix_2(n_elements, n_elements), stat=alloc_stat)
+    if (alloc_stat /= 0) call handle_allocation_error('stiffness_matrix_2', alloc_stat)
+    
     ! Initialize arrays to zero
     call initialize_arrays_to_zero()
+    
+    ! Initialize stiffness matrices to zero
+    stiffness_matrix = 0.0_DP
+    stiffness_matrix_2 = 0.0_DP
     
     ! Set up legacy variable mappings
     call setup_legacy_mappings()
