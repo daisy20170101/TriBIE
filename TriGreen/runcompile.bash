@@ -41,14 +41,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Compile the dstuart module FIRST (it's now a proper F90 module)
-echo "Compiling mod_dtrigreen.f90..."
-$MPIF90 $FFLAGS -c mod_dtrigreen.f90 -o mod_dtrigreen.o
-
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to compile mod_dtrigreen.f90"
-    exit 1
-fi
 
 # Compile the comdun module AFTER mod_dtrigreen (since it may depend on it)
 if [ -f "sub_comdun.f90" ]; then
@@ -60,19 +52,15 @@ if [ -f "sub_comdun.f90" ]; then
         exit 1
     fi
     SUB_COMDUN_OBJ="sub_comdun.o"
-elif [ -f "sub_comdun.f" ]; then
-    echo "Warning: sub_comdun.f90 not found, using old F77 version..."
-    echo "Compiling sub_comdun.f..."
-    $MPIF90 $FFLAGS -c sub_comdun.f -o sub_comdun.o
-    
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to compile sub_comdun.f"
-        exit 1
-    fi
-    SUB_COMDUN_OBJ="sub_comdun.o"
-else
-    echo "Warning: Neither sub_comdun.f90 nor sub_comdun.f found, skipping..."
-    SUB_COMDUN_OBJ=""
+fi
+
+# Compile the dstuart module FIRST (it's now a proper F90 module)
+echo "Compiling mod_dtrigreen.f90..."
+$MPIF90 $FFLAGS -c mod_dtrigreen.f90 -o mod_dtrigreen.o
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to compile mod_dtrigreen.f90"
+    exit 1
 fi
 
 # Compile the main program
