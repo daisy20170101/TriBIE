@@ -23,7 +23,7 @@ program p_calc_green
    integer :: ierr,size,myid
    integer :: Nt,Nt_all,master
    real(8) :: start_time, end_time
-   integer :: cells_processed
+   integer :: local_cells,cells_processed
    
    ! OpenMP setup
    integer :: num_threads
@@ -93,7 +93,11 @@ program p_calc_green
      end if
 
      Nt_all=n_cell
-     Nt=Nt_all/size
+
+  ! Calculate local cell count for this process
+  local_cells = (n_cell + size - 1) / size  ! Ceiling division
+  cells_processed = local_cells
+  Nt = local_cells
 
      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      ! for all element's center point as op
@@ -568,7 +572,8 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
 
     a1(1) = vpl1*rl
     a1(2) = vpl2*rl
-    a1(3) = gamma
+
+  a1(3) = gamma
  !!!!!!!!!!! modified burger vector only apply to east-north/ normal-parallel coordinates.
 
     a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
@@ -598,11 +603,10 @@ end subroutine
 subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, & 
                 n_vertex,n_cell,cells_processed, error_occurred, error_message)
  use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
- use mpi
  use mod_dtrigreen
  implicit none
  
-   integer, intent(out) :: cells_processed
+   integer, intent(in) :: cells_processed
   integer, intent(in) :: myid, size, Nt, n_cell, n_vertex
   real(8), intent(in) :: arr_vertex(n_vertex,3)
   integer, intent(in) :: arr_cell(n_cell,3)
@@ -633,27 +637,24 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   ! Initialize variables
   vpl(1:3) = 1.d0
   l_miu = parm_l/parm_miu
-  ss = 0.d0
-  ds = 1.d0
+  ss = 1.d0
+  ds = 0.d0
   op = 0.d0
-  cells_processed = 0
-    
+  local_cells = cells_processed  
 
 
   ! Calculate local cell count for this process
-  local_cells = (n_cell + size - 1) / size  ! Ceiling division
+  !local_cells = (n_cell + size - 1) / size  ! Ceiling division
   
   ! Allocate only local arrays (memory efficient)
-  allocate(arr_co(3,local_cells), arr_trid(9,local_cells), arr_cl_v2(3,3,local_cells))
+  allocate(arr_co(3,n_cell), arr_trid(9,n_cell), arr_cl_v2(3,3,n_cell))
   allocate(arr_out(local_cells, n_cell))
  
   ! Pre-compute cell properties for local cells
-  do j = 1, local_cells
+  do j = 1, n_cell
     ! Map global cell index to local
-    k = myid * local_cells + j
-    if (k > n_cell) exit
     
-    vj(1:3) = arr_cell(k,1:3)
+    vj(1:3) = arr_cell(j,1:3)
     p1(1:3) = arr_vertex(vj(1),1:3)
     p2(1:3) = arr_vertex(vj(2),1:3)
     p3(1:3) = arr_vertex(vj(3),1:3)
@@ -670,7 +671,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
     arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
     arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
     
-    arr_out(j,:) = 0.d0
+    arr_out(:,j) = 0.d0
   end do
 
   write(6,*) "Process", myid, "starting hybrid parallel computation"
@@ -683,7 +684,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
     
     do i = 1, n_cell
       ! Calculate strain gradients using Stuart's method
-      call dstuart(parm_nu, arr_co(:,j), arr_trid(:,i), ss, ds, op, u, t)
+      call dstuart(parm_nu, arr_co(:,k), arr_trid(:,i), ss, ds, op, u, t)
       
       ! Check for invalid results from dstuart
       if (any(isnan(u)) .or. any(isnan(t))) then
@@ -718,7 +719,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
       end if
 
       ! Calculate local stress in Bar (0.1MPa)
-      arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,j), matmul(sig33(:,:), arr_cl_v2(:,2,j)))
+      arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,k), matmul(sig33(:,:), arr_cl_v2(:,1,k)))
       
       ! Check final result
       if (isnan(arr_out(j,i))) then
@@ -739,7 +740,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   end if
   
   ! Count processed cells after OpenMP loop
-  cells_processed = local_cells
+ ! cells_processed = local_cells
    
   write(cTemp,*) myid
   write(*,*) "Process", myid, "completed", cells_processed, "cells"
