@@ -46,8 +46,9 @@ module physical_variables
   real(DP), parameter :: yrd = 365.0_DP
   
   ! Legacy variable names for compatibility (mapped to new names)
+  ! Note: stiff and stiff2 are 2D pointers to match stiffness matrices
   real(DP), dimension(:), pointer :: tau1, tau2, tau0, cca, ccb, seff, xLf, phy1, phy2
-  real(DP), dimension(:), pointer :: stiff, stiff2
+  real(DP), dimension(:,:), pointer :: stiff, stiff2
   real(DP), dimension(:), pointer :: slip, slipinc, slipds, slipdsinc, sr, vi
   real(DP), dimension(:), pointer :: yt, yt0, dydt, yt_scale
   real(DP), pointer :: tm1, tm2, tmday, tmelse, tmmidn, tmmult, Vpl
