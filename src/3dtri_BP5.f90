@@ -69,6 +69,10 @@ program main
   real(DP),dimension(:,:,:),allocatable :: obvs,obvstrk,obvdp
   real(DP) :: vel1,vel2,vel3,disp1,disp2,disp3
   integer, dimension(:),allocatable :: pstrk, pdp
+  
+  ! Communication buffer variables
+  real(DP), dimension(:), allocatable :: send_buffer, recv_buffer
+  integer :: comm_count, comm_tag
 
   character(len=40) :: cTemp,filename,ct
 
@@ -544,9 +548,7 @@ end if
   !----------------------------------------------
   cyclecont=.true.
 
-  ! Pre-allocate communication buffers for better performance
-  real(DP), dimension(:), allocatable :: send_buffer, recv_buffer
-  integer :: comm_count, comm_tag
+  ! Set communication parameters
   comm_count = 2*local_cells
   comm_tag = 0
   
@@ -627,8 +629,7 @@ end if
         maxv(imv) = 0.d0
         moment(imv) =0.d0
         
-        ! OPTIMIZATION: Use OpenMP for parallel output processing
-        !$OMP PARALLEL DO PRIVATE(i) REDUCTION(max:maxv(imv)) REDUCTION(+:moment(imv)) SCHEDULE(STATIC)
+        ! Find max velocity and calculate moment
         do i=1,Nt_all      !!!!!!!!!!!!!!!!! find max velocity
            if(yt_all(2*i-1).ge.maxv(imv))then
               maxv(imv)=yt_all(2*i-1)
@@ -641,7 +642,6 @@ end if
           end if
            moment(imv) = moment(imv)+0.5*(yt0_all(2*i-1)+yt_all(2*i-1))/yrs*1d-3*area(i)*xmu*1d6*1d5
         end do
-        !$OMP END PARALLEL DO
 !!!!!  SEAS output variables
        
        do i = 1,10
@@ -696,12 +696,10 @@ end if
            ias = ias + 1 
            tas(ias)=t
 
-           ! OPTIMIZATION: Use OpenMP for parallel interseismic slip calculations
-           !$OMP PARALLEL DO PRIVATE(i) SCHEDULE(STATIC)
+           ! Calculate interseismic slip
            do i=1,Nt_all
               slipz1_inter(i,ias) = slip_all(i)*1.d-3           
            end do
-           !$OMP END PARALLEL DO
 
             tslip_ave = tslip_ave + tslip_aveint
         end if
