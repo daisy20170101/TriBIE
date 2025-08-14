@@ -73,6 +73,9 @@ program main
   ! Communication buffer variables
   real(DP), dimension(:), allocatable :: send_buffer, recv_buffer
   integer :: comm_count, comm_tag
+  
+  ! Blocking variables for cache optimization
+  integer :: block_size, i_start, i_end, j_start, j_end
 
   character(len=40) :: cTemp,filename,ct
 
@@ -551,6 +554,9 @@ end if
   ! Set communication parameters
   comm_count = 2*local_cells
   comm_tag = 0
+  
+  ! Initialize blocking parameters
+  block_size = 64  ! Optimal block size for cache
   
   if(myid == master) then
      allocate(send_buffer(2*Nt_all))
@@ -1048,7 +1054,6 @@ end subroutine rkqs
 
        ! OPTIMIZATION: Optimize stiffness matrix calculation with better memory access pattern
        ! Use blocking for better cache utilization
-       integer :: block_size, i_start, i_end, j_start, j_end
        block_size = 64  ! Optimal block size for cache
        
        do i=1,local_cells
