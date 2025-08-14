@@ -14,6 +14,16 @@ program p_calc_green
     use mpi
     use omp_lib
    implicit none
+   
+   ! Simple isnan function for checking invalid values
+   
+   ! Function to check for NaN values
+   contains
+   logical function isnan(x)
+     real(8), intent(in) :: x
+     isnan = (x /= x)
+   end function isnan
+   
   character(*),parameter        :: fname="triangular_mesh.gts"
   integer ::                   n_vertex,n_edge,n_cell
   real(8),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
@@ -24,6 +34,9 @@ program p_calc_green
    integer :: Nt,Nt_all,master
    real(8) :: start_time, end_time
    integer :: local_cells,cells_processed
+   
+   ! Dynamic load balancing variables
+   integer :: base_cells, extra_cells, start_idx
    
    ! OpenMP setup
    integer :: num_threads
@@ -84,20 +97,40 @@ program p_calc_green
    if (.not. error_occurred) then
      write(*,*) myid
 
-     ! Check if the number of cells can be evenly distributed
-     if(mod(n_cell,size)/=0)then
-        write(*,*)'Warning: n_cell (',n_cell,') is not evenly divisible by MPI processes (',size,')'
-        write(*,*)'This may cause load imbalance. Consider adjusting the number of processes.'
-     else
-        write(*,*)'Each process calculates',n_cell/size,'cells'
-     end if
+      ! OPTIMIZATION: Implement dynamic load balancing for optimal distribution
+      Nt_all = n_cell
+      
+      if(mod(n_cell,size)/=0)then
+         write(*,*)'n_cell (',n_cell,') is not evenly divisible by MPI processes (',size,')'
+         write(*,*)'Implementing dynamic load balancing for optimal distribution...'
+         
+         ! Calculate optimal distribution using ceiling division
+         base_cells = Nt_all / size
+         extra_cells = mod(Nt_all, size)
+         
+         write(*,*)'Base cells per process:', base_cells
+         write(*,*)'Extra cells to distribute:', extra_cells
+         write(*,*)'Processes 0 to', extra_cells-1, 'will get', base_cells+1, 'cells'
+         write(*,*)'Processes', extra_cells, 'to', size-1, 'will get', base_cells, 'cells'
+      else
+         write(*,*)'n_cell (',n_cell,') is evenly divisible by MPI processes (',size,')'
+         base_cells = Nt_all / size
+         extra_cells = 0
+         write(*,*)'Each process calculates', base_cells, 'cells'
+      end if
 
-     Nt_all=n_cell
-
-  ! Calculate local cell count for this process
-  local_cells = (n_cell + size - 1) / size  ! Ceiling division
-  cells_processed = local_cells
-  Nt = local_cells
+      ! Calculate local cell count for this process using optimal distribution
+      if (myid < extra_cells) then
+         local_cells = base_cells + 1
+         start_idx = myid * (base_cells + 1)
+      else
+         local_cells = base_cells
+         start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
+      end if
+      
+      write(*,*)'Process', myid, 'gets', local_cells, 'cells starting from index', start_idx
+      cells_processed = local_cells
+      Nt = local_cells
 
      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      ! for all element's center point as op
@@ -629,62 +662,85 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   real(8),allocatable :: arr_out(:,:)
   
   ! Dynamic load balancing variables
-  integer :: local_cells
+  integer :: local_cells, start_idx
   integer :: ierr
   
-
-
-  ! Initialize variables
-  vpl(1:3) = 1.d0
-  l_miu = parm_l/parm_miu
-  ss = 1.d0
-  ds = 0.d0
-  op = 0.d0
-  local_cells = cells_processed  
-
-
-  ! Calculate local cell count for this process
-  !local_cells = (n_cell + size - 1) / size  ! Ceiling division
+  ! Get distribution parameters from main program
+  local_cells = cells_processed
   
-  ! Allocate only local arrays (memory efficient)
-  allocate(arr_co(3,n_cell), arr_trid(9,n_cell), arr_cl_v2(3,3,n_cell))
-  allocate(arr_out(local_cells, n_cell))
- 
-  ! Pre-compute cell properties for local cells
-  do j = 1, n_cell
-    ! Map global cell index to local
-    
-    vj(1:3) = arr_cell(j,1:3)
-    p1(1:3) = arr_vertex(vj(1),1:3)
-    p2(1:3) = arr_vertex(vj(2),1:3)
-    p3(1:3) = arr_vertex(vj(3),1:3)
-    
-    call calc_triangle_centroid(p1, p2, p3, co)
-    arr_co(1:3,j) = co(1:3)
-    arr_trid(1:3,j) = p1(1:3)
-    arr_trid(4:6,j) = p2(1:3)
-    arr_trid(7:9,j) = p3(1:3)
-    
-    call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
-    ! For now, use identity matrix for coordinate transformation
-    arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
-    arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
-    arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
-    
-    arr_out(:,j) = 0.d0
-  end do
+  ! Calculate start_idx based on myid and distribution
+  if (myid < extra_cells) then
+     start_idx = myid * (base_cells + 1)
+  else
+     start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
+  end if
+   
+   ! Initialize variables
+   vpl(1:3) = 1.d0
+   l_miu = parm_l/parm_miu
+   ss = 1.d0
+   ds = 0.d0
+   op = 0.d0
+   
+   ! Allocate arrays only for local cells (memory efficient)
+   ! Note: arr_trid must be (9,n_cell) because each process needs triangle data for ALL cells
+   ! to compute Green's functions between local cells and all other cells
+   allocate(arr_co(3,local_cells), arr_trid(9,n_cell), arr_cl_v2(3,3,local_cells))
+   allocate(arr_out(local_cells, n_cell))
+  
+   ! Pre-compute cell properties for local cells only
+   do j = 1, local_cells
+     ! Map local index to global cell index
+     k = start_idx + j - 1
+     if (k >= n_cell) exit
+     
+     vj(1:3) = arr_cell(k,1:3)
+     p1(1:3) = arr_vertex(vj(1),1:3)
+     p2(1:3) = arr_vertex(vj(2),1:3)
+     p3(1:3) = arr_vertex(vj(3),1:3)
+     
+     call calc_triangle_centroid(p1, p2, p3, co)
+     arr_co(1:3,j) = co(1:3)
+     arr_trid(1:3,k) = p1(1:3)
+     arr_trid(4:6,k) = p2(1:3)
+     arr_trid(7:9,k) = p3(1:3)
+     
+     call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
+     arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
+     arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
+     arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
+     
+     arr_out(j,:) = 0.d0
+   end do
+   
+   ! CRITICAL: We need triangle data for ALL cells, not just local ones
+   ! Each process must compute triangle data for all cells to perform Green's function calculations
+   ! This is a necessary overhead for the distributed computation
+   write(*,*) "Process", myid, "computing triangle data for all", n_cell, "cells"
+   do k = 1, n_cell
+     vj(1:3) = arr_cell(k,1:3)
+     p1(1:3) = arr_vertex(vj(1),1:3)
+     p2(1:3) = arr_vertex(vj(2),1:3)
+     p3(1:3) = arr_vertex(vj(3),1:3)
+     
+     arr_trid(1:3,k) = p1(1:3)
+     arr_trid(4:6,k) = p2(1:3)
+     arr_trid(7:9,k) = p3(1:3)
+   end do
+   write(*,*) "Process", myid, "completed triangle data computation"
 
   write(6,*) "Process", myid, "starting hybrid parallel computation"
   
   ! Hybrid MPI+OpenMP parallel computation
   !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) SHARED(arr_co, arr_trid, arr_out, arr_cl_v2)
   do j = 1, local_cells
-    k = myid * local_cells + j
-    if (k > n_cell) cycle
+    ! Map local index to global cell index
+    k = start_idx + j - 1
+    if (k >= n_cell) cycle
     
     do i = 1, n_cell
       ! Calculate strain gradients using Stuart's method
-      call dstuart(parm_nu, arr_co(:,k), arr_trid(:,i), ss, ds, op, u, t)
+      call dstuart(parm_nu, arr_co(:,j), arr_trid(:,i), ss, ds, op, u, t)
       
       ! Check for invalid results from dstuart
       if (any(isnan(u)) .or. any(isnan(t))) then
@@ -719,7 +775,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
       end if
 
       ! Calculate local stress in Bar (0.1MPa)
-      arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,k), matmul(sig33(:,:), arr_cl_v2(:,1,k)))
+      arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,j), matmul(sig33(:,:), arr_cl_v2(:,1,j)))
       
       ! Check final result
       if (isnan(arr_out(j,i))) then
@@ -742,8 +798,21 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   ! Count processed cells after OpenMP loop
  ! cells_processed = local_cells
    
-  write(cTemp,*) myid
-  write(*,*) "Process", myid, "completed", cells_processed, "cells"
+   write(cTemp,*) myid
+   write(*,*) "Process", myid, "completed", local_cells, "cells"
+   write(*,*) "Process", myid, "processed cells from index", start_idx, "to", start_idx + local_cells - 1
+
+   ! Performance monitoring for load balancing
+   if (myid == 0) then
+      write(*,*) "=========================================="
+      write(*,*) "Dynamic Load Balancing Summary:"
+      write(*,*) "Total cells:", n_cell
+      write(*,*) "MPI processes:", size
+      write(*,*) "Base cells per process:", base_cells
+      write(*,*) "Extra cells distributed:", extra_cells
+      write(*,*) "Load imbalance:", extra_cells, "cells (max difference between processes)"
+      write(*,*) "=========================================="
+   end if
 
   ! Write results to file
   open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
