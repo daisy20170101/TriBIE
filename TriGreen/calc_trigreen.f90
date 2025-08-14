@@ -15,15 +15,6 @@ program p_calc_green
     use omp_lib
    implicit none
    
-   ! Simple isnan function for checking invalid values
-   
-   ! Function to check for NaN values
-   contains
-   logical function isnan(x)
-     real(8), intent(in) :: x
-     isnan = (x /= x)
-   end function isnan
-   
   character(*),parameter        :: fname="triangular_mesh.gts"
   integer ::                   n_vertex,n_edge,n_cell
   real(8),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
@@ -868,6 +859,17 @@ subroutine performance_monitoring(myid, start_time, end_time, cells_processed)
     write(*,*) "  Cells per second:", cells_processed / avg_time
   endif
 end subroutine
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! isnan function for checking invalid values
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+logical function isnan(x)
+  implicit none
+  real(8), intent(in) :: x
+  isnan = (x /= x)
+end function isnan
+
+end program
 
 
 
