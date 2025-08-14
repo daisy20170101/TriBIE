@@ -1,18 +1,16 @@
 #! /usr/bin/python
 
-# This is the configuration file for compiling Tri3DSSE
+# This is the configuration file for compiling TriBIE
 
 import os
-import sys
-#import libs
 
+mpi_fc = os.environ.get('MPI_FC', os.environ.get('MPIFC', 'mpifort'))
 
-env=Environment(ENV={'PATH':os.environ['PATH']},LINK='mpiifort',F90='mpiifort')
-#env.Tool('mpiifort')
+env = Environment(ENV={'PATH': os.environ['PATH']}, LINK=mpi_fc, F90=mpi_fc, FORTRAN=mpi_fc)
 
-sources=['3dtri_lock20_old.f90', 'phy3d_module_non.f90']
+sources = ['src/phy3d_module_non.f90', 'src/3dtriBIE_v1.f90']
 
-objs= env.Program(target='3dtri',source = ['src/phy3d_module_non.f90','src/3dtri_lock20_old.f90'])
+program = env.Program(target='3dtriBIE', source=sources)
 
 
 
