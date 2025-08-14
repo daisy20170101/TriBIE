@@ -1,8 +1,11 @@
 ! Module to define global variables used in 3d_sub.f90 (or 3d_strike.f90)
 Module phy3d_module_non
+use, intrinsic :: iso_fortran_env, only: real64
 public
 
-integer, parameter :: DP0=kind(1.d0)
+implicit none
+
+integer, parameter :: DP0 = real64
 integer :: IDin, IDout,Iprofile,Lratio,Nab,nprocs,Nl,Nd,hd
 integer :: nmv,nas,ncos,nnul,nsse
 real (DP0), parameter :: pi = 3.14159265358979323

@@ -192,12 +192,12 @@ program main
   end if
 
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(cca_all,Nt,MPI_Real8,cca,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(ccb_all,Nt,MPI_Real8,ccb,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(xLf_all,Nt,MPI_Real8,xLf,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(seff_all,Nt,MPI_Real8,seff,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(x_all,Nt,MPI_Real8,x,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(cca_all,Nt,MPI_DOUBLE_PRECISION,cca,Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(ccb_all,Nt,MPI_DOUBLE_PRECISION,ccb,Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(xLf_all,Nt,MPI_DOUBLE_PRECISION,xLf,Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(seff_all,Nt,MPI_DOUBLE_PRECISION,seff,Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(x_all,Nt,MPI_DOUBLE_PRECISION,x,Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+  call MPI_Bcast(z_all,Nt_all,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
 
   call CPU_TIME(tmbegin)
 
@@ -261,13 +261,13 @@ program main
         write(1,*)'This is a restart job. Start time ',t,' yr'
      end if
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(t,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(dt,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(dt_try,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Bcast(t,1,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+     call MPI_Bcast(dt,1,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+     call MPI_Bcast(dt_try,1,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(ndt,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(nrec,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatter(yt_all,2*Nt,MPI_Real8,yt,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatter(slip_all,Nt,MPI_Real8,slip,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatter(yt_all,2*Nt,MPI_DOUBLE_PRECISION,yt,2*Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatter(slip_all,Nt,MPI_DOUBLE_PRECISION,slip,Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
 
      ndtnext = ndt
      tprint_inter = t
@@ -315,10 +315,10 @@ program main
      ndt = ndt + 1
 
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
-     call MPI_Gather(yt,2*Nt,MPI_Real8,yt_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(slipinc,Nt,MPI_Real8,slipinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(slip,Nt,MPI_Real8,slip_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Gather(tau,Nt,MPI_Real8,tau_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Gather(yt,2*Nt,MPI_DOUBLE_PRECISION,yt_all,2*Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+     call MPI_Gather(slipinc,Nt,MPI_DOUBLE_PRECISION,slipinc_all,Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+     call MPI_Gather(slip,Nt,MPI_DOUBLE_PRECISION,slip_all,Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
+     call MPI_Gather(tau,Nt,MPI_DOUBLE_PRECISION,tau_all,Nt,MPI_DOUBLE_PRECISION,master,MPI_COMM_WORLD,ierr)
 
      !-------------------
      !      Output:     (a single thread will do the writing while others 
@@ -523,7 +523,7 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
   real (DP) :: eps,hdid,hnext,htry,x
   real (DP) :: dydx(n),y(n),yscal(n),z_all(Nt_all),p(Nt) !p is position
   external derivs
-  real (DP) :: errmax,errmax1,h,htemp,xnew,errmax_all(nprocs)
+  real (DP) :: errmax,errmax1,h,htemp,xnew
   real (DP), dimension(:), allocatable :: yerr,ytemp
   real (DP), parameter :: SAFETY=0.9, PGROW=-.2,PSHRNK=-.25,ERRCON=1.89e-4
 
@@ -549,12 +549,7 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
   
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
 
-  call MPI_Gather(errmax,1,MPI_Real8,errmax_all,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
-  if(myid==master)then
-     errmax1=maxval(errmax_all)
-  end if
-  CALL MPI_BCAST(errmax1,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
+  call MPI_Allreduce(errmax, errmax1, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierr)
 
   if(errmax1.gt.1.)then
      htemp = SAFETY*h*(errmax1**PSHRNK)
@@ -669,8 +664,7 @@ end subroutine rkqs
 
 
        call MPI_Barrier(MPI_COMM_WORLD,ierr)
-       call MPI_Gather(zz,Nt,MPI_Real8,zz_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-       call MPI_Bcast(zz_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+       call MPI_Allgather(zz,Nt,MPI_DOUBLE_PRECISION,zz_all,Nt,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,ierr)
 
        !----------------------------------------------------------------------
        !    summation of stiffness of all elements in slab
@@ -691,10 +685,7 @@ end subroutine rkqs
 
        ! calculate stiffness*(Vkl-Vpl) of one proccessor.
        do i=1,Nt
-          do j=1, Nt_all
-             ! number in all element, total Nt_all
-             zzfric(i) = zzfric(i) + stiff(i,j)*zz_all(j)
-          end do
+          zzfric(i) = dot_product(stiff(i,1:Nt_all), zz_all(1:Nt_all))
        end do
 
        call CPU_TIME(tm2)
@@ -707,8 +698,8 @@ end subroutine rkqs
        tm1=tm2
 
        do i=1,Nt
-          if(yt(2*i).lt.0.00001)then
-             yt(2*i) = yt(2*i)+0.00001
+          if(yt(2*i).lt.1.0d-5)then
+             yt(2*i) = 1.0d-5
           end if
 
           if(yt(2*i-1).le.small)then 

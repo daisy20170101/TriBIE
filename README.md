@@ -50,8 +50,16 @@ Please contact us if you need help with calculating stiffness using PyLith.
 ## Compilation
 
 ``
-$ mpiifort src/phy3d_module_non.f90 src/3dtriBIE_v1.f90 -o 3dtriBIE
+$ mpifort src/phy3d_module_non.f90 src/3dtriBIE_v1.f90 -O3 -o 3dtriBIE
 ``
+
+Or using SCons (if installed):
+
+``
+$ scons -Q
+``
+
+Set `MPI_FC` environment variable to point to your MPI Fortran compiler if needed.
 
 ## Parameter files
 
