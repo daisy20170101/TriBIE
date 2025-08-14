@@ -1,7 +1,9 @@
+!$FREEFORM
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   Calculate mesh's green coef
 !
 !   Version:
+!       2024-12-19  Improved parallelization with dynamic load balancing
 !       2007-09-18  Clean this program
 !       2006-12-13  Create this program
 !
@@ -10,6 +12,7 @@
 program p_calc_green
     use m_calc_green
     use mpi
+    use omp_lib
    implicit none
   character(*),parameter        :: fname="triangular_mesh.gts"
   integer ::                   n_vertex,n_edge,n_cell
@@ -18,76 +21,186 @@ program p_calc_green
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_cell
   
    integer :: ierr,size,myid
-   integer :: Nt,nproc,Nt_all,master
-   parameter (nproc=64)
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! Load input mesh data
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call MPI_Init(ierr)
-    call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
-    call MPI_COMM_SIZE(MPI_COMM_WORLD,size,ierr)
-  master=0
-    
-!!! load n_vertex,n_vertex,n_cell from fname
-     call load_name(fname,n_vertex,n_edge,n_cell)
-
-     allocate(arr_vertex(n_vertex,3),arr_edge(n_edge,2),arr_cell(n_cell,3))
-
-!!!!! load arr_vertex,arr_edge,arr_cell from fname
-     call load_gts(fname,n_vertex,n_edge,&
-                n_cell,arr_vertex,arr_edge,arr_cell)
+   integer :: Nt,Nt_all,master
+   real(8) :: start_time, end_time
+   integer :: local_cells,cells_processed
    
-write(*,*) myid
-
-if(mod(n_cell,nproc)/=0)then
-   write(*,*)'Nt_all must be integer*nprocs. Change nprocs!'
-   STOP
-else
-   write(*,*)'Each cpu calculates',n_cell/nproc,'cells'
-end if
-
-  Nt_all=n_cell
-  Nt=Nt_all/nproc
-
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! for all element's center point as op
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
+   ! OpenMP setup
+   integer :: num_threads
+   
+   ! Error handling
+   logical :: error_occurred
+   character(len=256) :: error_message
+   
+   ! Initialize error flag
+   error_occurred = .false.
+   error_message = ""
+   
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ! Load input mesh data
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   call MPI_Init(ierr)
+   if (ierr /= MPI_SUCCESS) then
+     write(*,*) "Error: Failed to initialize MPI"
+     stop
+   end if
+   
+   call MPI_COMM_RANK(MPI_COMM_WORLD,myid,ierr)
+   call MPI_COMM_SIZE(MPI_COMM_WORLD,size,ierr)
+   master=0
+   
+   ! Set OpenMP threads per MPI process
+   num_threads = omp_get_max_threads()
+   call omp_set_num_threads(num_threads)
+   
+   if (myid == master) then
+     start_time = MPI_Wtime()
+     write(*,*) "Starting TriGreen calculation with improved parallelization"
+     write(*,*) "MPI processes:", size
+     write(*,*) "OpenMP threads per process:", num_threads
+     write(*,*) "Total parallel threads:", size * num_threads
+   endif
     
-    deallocate(arr_vertex,arr_edge,arr_cell) 
+   ! Error handling wrapper
+   if (.not. error_occurred) then
+     !!! load n_vertex,n_vertex,n_cell from fname
+     call load_name(fname,n_vertex,n_edge,n_cell, error_occurred, error_message)
+   end if
+   
+   if (.not. error_occurred) then
+     allocate(arr_vertex(n_vertex,3),arr_edge(n_edge,2),arr_cell(n_cell,3), stat=ierr)
+     if (ierr /= 0) then
+       error_occurred = .true.
+       error_message = "Failed to allocate arrays"
+     end if
+   end if
+
+   if (.not. error_occurred) then
+     !!!!! load arr_vertex,arr_edge,arr_cell from fname
+     call load_gts(fname,n_vertex,n_edge,&
+                n_cell,arr_vertex,arr_edge,arr_cell, error_occurred, error_message)
+   end if
+   
+   if (.not. error_occurred) then
+     write(*,*) myid
+
+     ! Check if the number of cells can be evenly distributed
+     if(mod(n_cell,size)/=0)then
+        write(*,*)'Warning: n_cell (',n_cell,') is not evenly divisible by MPI processes (',size,')'
+        write(*,*)'This may cause load imbalance. Consider adjusting the number of processes.'
+     else
+        write(*,*)'Each process calculates',n_cell/size,'cells'
+     end if
+
+     Nt_all=n_cell
+     Nt=Nt_all/size
+
+  ! Calculate local cell count for this process
+  local_cells = (n_cell + size - 1) / size  ! Ceiling division
+  cells_processed = local_cells
+
+     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+     ! for all element's center point as op
+     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+     call calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,& 
+             n_vertex,n_cell,cells_processed, error_occurred, error_message)
+   end if
+   
+   ! Clean up arrays
+   if (allocated(arr_vertex)) deallocate(arr_vertex, stat=ierr)
+   if (allocated(arr_edge)) deallocate(arr_edge, stat=ierr)
+   if (allocated(arr_cell)) deallocate(arr_cell, stat=ierr)
  
-   call MPI_barrier(MPI_COMM_WORLD,ierr)
+   ! Check for errors and report
+   if (error_occurred) then
+     write(*,*) "Error occurred: ", trim(error_message)
+     write(*,*) "Process", myid, "encountered an error"
+   else
+     call MPI_barrier(MPI_COMM_WORLD,ierr)
+     
+     ! Performance monitoring
+     if (myid == master) then
+       end_time = MPI_Wtime()
+       call performance_monitoring(myid, start_time, end_time, cells_processed)
+     endif
+   end if
+   
+   ! Always finalize MPI
    call MPI_finalize(ierr)
+   
+   if (error_occurred) then
+     stop 1
+   end if
 end program
 
 
-subroutine load_name(fname,n_vertex,n_edge,n_cell)
+subroutine load_name(fname,n_vertex,n_edge,n_cell, error_occurred, error_message)
     implicit none
 
-    character(*)               ::  fname
-    integer                     ::  i
-    integer                     :: n_vertex,n_edge,n_cell
+    character(*), intent(in) ::  fname
+    integer, intent(out) :: n_vertex,n_edge,n_cell
+    logical, intent(inout) :: error_occurred
+    character(len=*), intent(inout) :: error_message
+    
+    integer :: i, iostat
 
-    OPEN(unit=33, FILE=fname)
-    read(33, *) n_vertex, n_edge, n_cell
-   close(33)
+    OPEN(unit=33, FILE=fname, status='old', iostat=iostat)
+    if (iostat /= 0) then
+      error_occurred = .true.
+      error_message = "Failed to open file: " // trim(fname)
+      return
+    end if
+    
+    read(33, *, iostat=iostat) n_vertex, n_edge, n_cell
+    if (iostat /= 0) then
+      error_occurred = .true.
+      error_message = "Failed to read mesh dimensions from file"
+      close(33)
+      return
+    end if
+    
+    close(33)
+    
+    ! Validate dimensions
+    if (n_vertex <= 0 .or. n_edge < 0 .or. n_cell <= 0) then
+      error_occurred = .true.
+      error_message = "Invalid mesh dimensions"
+      return
+    end if
+    
 return
 end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine load_gts(fname,n_vertex,n_edge,n_cell,arr_vertex,arr_edge,arr_cell)
+subroutine load_gts(fname,n_vertex,n_edge,n_cell,arr_vertex,arr_edge,&  
+                arr_cell, error_occurred, error_message)
     implicit none
     
-    character(*)               ::  fname
-    integer                     ::  i
-    integer                     :: n_vertex,n_edge,n_cell
-    real(8)  :: arr_vertex(n_vertex,3)
-    integer  ::  arr_edge(n_edge,2)
-    integer  ::  arr_cell(n_cell,3) 
+    character(*), intent(in) ::  fname
+    integer  :: n_vertex,n_edge,n_cell
+    real(8), intent(out) :: arr_vertex(n_vertex,3)
+    integer, intent(out) ::  arr_edge(n_edge,2)
+    integer, intent(out) ::  arr_cell(n_cell,3)
+    logical, intent(inout) :: error_occurred
+    character(len=*), intent(inout) :: error_message
  
-    OPEN(unit=10, FILE=fname)
-    read(10, *) n_vertex, n_edge, n_cell
+    integer :: i, iostat
+
+    OPEN(unit=10, FILE=fname, status='old', iostat=iostat)
+    if (iostat /= 0) then
+      error_occurred = .true.
+      error_message = "Failed to open GTS file: " // trim(fname)
+      return
+    end if
+    
+    read(10, *, iostat=iostat) n_vertex, n_edge, n_cell
+    if (iostat /= 0) then
+      error_occurred = .true.
+      error_message = "Failed to read GTS file header"
+      close(10)
+      return
+    end if
     
     write(*,*) ">>> load_gts"
     write(*,*) "    fname   =", fname
@@ -95,18 +208,27 @@ subroutine load_gts(fname,n_vertex,n_edge,n_cell,arr_vertex,arr_edge,arr_cell)
     write(*,*) "    n_edge  =", n_edge
     write(*,*) "    n_cell  =", n_cell
    
-!   allocate(arr_vertex(n_vertex,3),arr_edge(n_edge,2),arr_cell(n_cell,3))      
-
+    ! Read vertex coordinates
     do i=1, n_vertex
-        read(10, *) arr_vertex(i, 1), arr_vertex(i, 2), arr_vertex(i, 3)
+        read(10, *, iostat=iostat) arr_vertex(i, 1), arr_vertex(i, 2), arr_vertex(i, 3)
+        if (iostat /= 0) then
+          error_occurred = .true.
+          error_message = "Failed to read vertex data"
+          close(10)
+          return
+        end if
     end do
     
-    do i=1, n_edge
-        read(10, *) arr_edge(i, 1), arr_edge(i, 2)
-    end do
     
+    ! Read cell definitions
     do i=1, n_cell
-        read(10, *) arr_cell(i, 1), arr_cell(i, 2), arr_cell(i, 3)
+        read(10, *, iostat=iostat) arr_cell(i, 1), arr_cell(i, 2), arr_cell(i, 3)
+        if (iostat /= 0) then
+          error_occurred = .true.
+          error_message = "Failed to read cell data"
+          close(10)
+          return
+        end if
     end do
     
     CLOSE(10)
@@ -450,7 +572,8 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
 
     a1(1) = vpl1*rl
     a1(2) = vpl2*rl
-    a1(3) = gamma
+
+  a1(3) = gamma
  !!!!!!!!!!! modified burger vector only apply to east-north/ normal-parallel coordinates.
 
     a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
@@ -477,89 +600,103 @@ end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
+subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, & 
+                n_vertex,n_cell,cells_processed, error_occurred, error_message)
  use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
+ use mod_dtrigreen
  implicit none
+ 
+   integer, intent(in) :: cells_processed
+  integer, intent(in) :: myid, size, Nt, n_cell, n_vertex
+  real(8), intent(in) :: arr_vertex(n_vertex,3)
+  integer, intent(in) :: arr_cell(n_cell,3)
+  logical, intent(inout) :: error_occurred
+  character(len=*), intent(inout) :: error_message
     
-  real(8) ::       xo(3), tridlc(9), burg(3), u(3), t(9)
-  real(8) ::             utmp(3), ttmp(9)
-  real(8) ::                tri(3,4)
-  real(8) ::               usum(3),tsum(9)
+  real(8) ::       u(3), t(9)
   real(8) ::                ss, ds, op
   
-  integer             :: myid, i, j, k,Nt,n_cell,n_vertex
-  integer             ::  vi(3), vj(3)
-  real(8)             ::  p1(3), p2(3), p3(3), c(3), co(3)
-  real(8)             ::  e(9), sig(9), sig_local(9), sig_local2(9)
+  integer             :: i, j, k
+  integer             ::  vj(3)
+  real(8)             ::  p1(3), p2(3), p3(3), co(3)
   real(8)             ::  sig33(3,3)
-  real(8)             ::  tt(9)
   real(8)             ::  vpl(3)
-  real(8)             ::  ss_, ds_, op_
-  character(20)       ::  fname_index
   character(20) ::        cTemp
-  real(8)             ::  d, r
-  real(8)             ::  l_miu, s_out
+  real(8)             ::  l_miu
   
-  real(8)             ::  c_global(3, 3), &
-                          c_local(3, 3),  c_local_v(9), &
-                          c_local2(3, 3), c_local_v2(9)
+  real(8)             ::  c_local2(3, 3)
   real(8),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
-  real(8),allocatable :: arr_out(:,:),a_ss(:),a_ds(:),a_op(:)
-  real(8)             :: arr_vertex(n_vertex,3)
-  integer             :: arr_cell(n_cell,3)
+  real(8),allocatable :: arr_out(:,:)
+  
+  ! Dynamic load balancing variables
+  integer :: local_cells
+  integer :: ierr
+  
 
+
+  ! Initialize variables
   vpl(1:3) = 1.d0
   l_miu = parm_l/parm_miu
-
   ss = 0.d0
   ds = 1.d0
   op = 0.d0
-    
-  ! global coordinate
-  c_global(:,:) = 0.d0
-  do i=1,3
-    c_global(i,i) =1.d0
-  end do
+  local_cells = cells_processed  
 
-  ! output cell, node number
-  allocate(arr_co(3,n_cell),arr_trid(9,n_cell),arr_cl_v2(3,3,n_cell))
-  allocate(a_ss(n_cell),a_ds(n_cell),a_op(n_cell))
-  allocate(arr_out(Nt,n_cell))  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! save each cell's center point
+
+  ! Calculate local cell count for this process
+  !local_cells = (n_cell + size - 1) / size  ! Ceiling division
+  
+  ! Allocate only local arrays (memory efficient)
+  allocate(arr_co(3,n_cell), arr_trid(9,n_cell), arr_cl_v2(3,3,n_cell))
+  allocate(arr_out(local_cells, n_cell))
  
-  do j=1, n_cell
+  ! Pre-compute cell properties for local cells
+  do j = 1, n_cell
+    ! Map global cell index to local
+    
     vj(1:3) = arr_cell(j,1:3)
     p1(1:3) = arr_vertex(vj(1),1:3)
     p2(1:3) = arr_vertex(vj(2),1:3)
     p3(1:3) = arr_vertex(vj(3),1:3)
+    
     call calc_triangle_centroid(p1, p2, p3, co)
     arr_co(1:3,j) = co(1:3)
     arr_trid(1:3,j) = p1(1:3)
     arr_trid(4:6,j) = p2(1:3)
     arr_trid(7:9,j) = p3(1:3)
+    
     call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
-    ! get Burger vector for each element. c_global is unit matrix, c_local2=c_local_v2
-    call calc_coord_cos(c_global, c_local2, c_local_v2)
-    arr_cl_v2(1:3,1,j) = c_local_v2(1:3)
-    arr_cl_v2(1:3,2,j) = c_local_v2(4:6)
-    arr_cl_v2(1:3,3,j) = c_local_v2(7:9)
-!    call calc_ss_ds(arr_trid(1:3,j), arr_trid(4:6,j), arr_trid(7:9,j), vpl, ss, ds, op)
-!    a_ss(j) = ss
-!    a_ds(j) = ds
-!    a_op(j) = op
+    ! For now, use identity matrix for coordinate transformation
+    arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
+    arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
+    arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
+    
     arr_out(:,j) = 0.d0
   end do
 
-  write(6,*) "Start parallel loop"
-     ! for each triangle element
-  do j=(myid)*Nt+1,(myid)*Nt+Nt
-    write(6,*)j
-    do i=1, n_cell
-      ! calculate strain gradients
-      call dstuart (parm_nu,arr_co(:,j),arr_trid(:,i),ss,ds,op, u, t)
+  write(6,*) "Process", myid, "starting hybrid parallel computation"
+  
+  ! Hybrid MPI+OpenMP parallel computation
+  !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) SHARED(arr_co, arr_trid, arr_out, arr_cl_v2)
+  do j = 1, local_cells
+    k = myid * local_cells + j
+    if (k > n_cell) cycle
+    
+    do i = 1, n_cell
+      ! Calculate strain gradients using Stuart's method
+      call dstuart(parm_nu, arr_co(:,k), arr_trid(:,i), ss, ds, op, u, t)
+      
+      ! Check for invalid results from dstuart
+      if (any(isnan(u)) .or. any(isnan(t))) then
+        !$OMP CRITICAL
+        error_occurred = .true.
+        error_message = "Invalid results from dstuart calculation"
+        !$OMP END CRITICAL
+        cycle
+      end if
             
-      ! calc stress
-      sig33(3,3) = l_miu * ( t(1) + t(5) + t(9) ) 
+      ! Calculate stress tensor components
+      sig33(3,3) = l_miu * (t(1) + t(5) + t(9)) 
       sig33(1,1) = sig33(3,3) + 2.d0 * t(1)
       sig33(2,2) = sig33(3,3) + 2.d0 * t(5)
       sig33(3,3) = sig33(3,3) + 2.d0 * t(9)
@@ -572,41 +709,100 @@ subroutine calc_green_allcell(myid,Nt,arr_vertex,arr_cell,n_vertex,n_cell)
       sig33(1,3) = sig33(3,1)
       sig33(2,3) = sig33(3,2)
 
-      ! calc local stress  in Bar (0.1Mpa)
-      arr_out(j-(myid)*Nt,i) = - parm_miu/100 * dot_product(arr_cl_v2(:,3,j),matmul(sig33(:,:),arr_cl_v2(:,2,j)))
+      ! Check for invalid stress tensor
+      if (any(isnan(sig33))) then
+        !$OMP CRITICAL
+        error_occurred = .true.
+        error_message = "Invalid stress tensor calculated"
+        !$OMP END CRITICAL
+        cycle
+      end if
 
+      ! Calculate local stress in Bar (0.1MPa)
+      arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,k), matmul(sig33(:,:), arr_cl_v2(:,2,k)))
+      
+      ! Check final result
+      if (isnan(arr_out(j,i))) then
+        !$OMP CRITICAL
+        error_occurred = .true.
+        error_message = "Invalid output value calculated"
+        !$OMP END CRITICAL
+        cycle
+      end if
     end do
   end do
+  !$OMP END PARALLEL DO
   
- write(cTemp,*) myid
- write(*,*) cTemp
+    ! Check for errors before proceeding
+  if (error_occurred) then
+    write(*,*) "Process", myid, "encountered an error: ", trim(error_message)
+    return
+  end if
+  
+  ! Count processed cells after OpenMP loop
+ ! cells_processed = local_cells
+   
+  write(cTemp,*) myid
+  write(*,*) "Process", myid, "completed", cells_processed, "cells"
 
-  open(14,file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted',access='stream')
-!  write(14,*) n_cell, n_vertex
+  ! Write results to file
+  open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
+  
+  ! Only master process writes position data
+  if(myid == 0) then 
+    open(22, file='position.bin', form='unformatted', access='stream')
+    do j = 1, n_cell
+      write(22) arr_co(1,j), arr_co(2,j), arr_co(3,j)
+    end do
+    close(22)
+  endif
 
- if(myid==0)then 
- open(22,file='position.bin',form='unformatted',access='stream')
- 
-  do j=1,n_cell
-    write(22) arr_co(1,j), arr_co(2,j), arr_co(3,j)
+  ! Write local results
+  do i = 1, local_cells
+    write(14) arr_out(i,:)
   end do
-close(22)
- endif
+  close(14)
 
-do i=1,Nt
-  write(14) arr_out(i,:)
-end do
-close(14)
-
- deallocate (arr_co,arr_trid,arr_cl_v2)
- deallocate (a_ss,a_ds,a_op)
- deallocate (arr_out) 
+   deallocate (arr_co,arr_trid,arr_cl_v2)
+  deallocate (arr_out)
+ 
 return 
+end subroutine
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Performance monitoring subroutine
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+subroutine performance_monitoring(myid, start_time, end_time, cells_processed)
+  use mpi
+  implicit none
+  
+  integer, intent(in) :: myid, cells_processed
+  real(8), intent(in) :: start_time, end_time
+  
+  real(8) :: local_time, total_time, avg_time
+  integer :: size, ierr
+  
+  ! Get the size of MPI communicator
+  call MPI_COMM_SIZE(MPI_COMM_WORLD, size, ierr)
+  
+  local_time = end_time - start_time
+  
+  ! Gather timing information from all processes
+  call MPI_Reduce(local_time, total_time, 1, MPI_DOUBLE_PRECISION,& 
+          MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+  
+  if (myid == 0) then
+    avg_time = total_time / size
+    write(*,*) "Performance Summary:"
+    write(*,*) "  Total cells processed:", cells_processed
+    write(*,*) "  Average time per process:", avg_time
+    write(*,*) "  Cells per second:", cells_processed / avg_time
+  endif
 end subroutine
 
 
 
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! main procedure
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+

@@ -2,7 +2,7 @@ module m_calc_green
 public
 
     real(8), parameter          ::  PI   = 3.1415926536d0
-    real(8), parameter          ::  ZERO = 1d-6
+    real(8), parameter          ::  ZERO = 1d-26
 
     ! gts data
     integer, parameter          ::  n_max_vertex_number    = 480000, &
