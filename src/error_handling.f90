@@ -12,25 +12,26 @@ module error_handling
   use mpi
   implicit none
   
-  ! Make all functions public
-  public
-  
   ! Error codes
-  integer, parameter :: ERROR_SUCCESS = 0
+  integer, parameter :: ERROR_NONE = 0
   integer, parameter :: ERROR_MPI_FAILURE = 1
   integer, parameter :: ERROR_FILE_IO = 2
-  integer, parameter :: ERROR_INVALID_PARAMETER = 3
-  integer, parameter :: ERROR_MEMORY_ALLOCATION = 4
-  integer, parameter :: ERROR_NUMERICAL = 5
-  integer, parameter :: ERROR_USER_DEFINED = 100
+  integer, parameter :: ERROR_PARAMETER_VALIDATION = 3
+  integer, parameter :: ERROR_NUMERICAL_STABILITY = 4
+  integer, parameter :: ERROR_MEMORY_ALLOCATION = 5
+  integer, parameter :: ERROR_INVALID_OPERATION = 6
   
   ! Error message buffer size
-  integer, parameter :: MAX_ERROR_MESSAGE_LENGTH = 512
+  integer, parameter :: MAX_ERROR_MESSAGE_LENGTH = 256
+  integer, parameter :: mpi_max_error_string = 512
   
   ! Global error state
-  logical :: error_occurred = .false.
-  integer :: last_error_code = ERROR_SUCCESS
-  character(len=MAX_ERROR_MESSAGE_LENGTH) :: last_error_message = ''
+  logical :: global_error_occurred = .false.
+  integer :: global_error_code = ERROR_NONE
+  character(len=MAX_ERROR_MESSAGE_LENGTH) :: global_error_message = ''
+  
+  ! Make all functions public
+  public
   
 contains
   
@@ -40,57 +41,40 @@ contains
   subroutine initialize_error_handling()
     implicit none
     
-    error_occurred = .false.
-    last_error_code = ERROR_SUCCESS
-    last_error_message = ''
+    global_error_occurred = .false.
+    global_error_code = ERROR_NONE
+    global_error_message = ''
     
   end subroutine initialize_error_handling
   
   !===============================================================================
-  ! SUBROUTINE: Check MPI error
+  ! SUBROUTINE: Check MPI error and handle it
   !===============================================================================
   subroutine check_mpi_error(ierr, operation_name)
-    implicit none
     integer, intent(in) :: ierr
     character(len=*), intent(in) :: operation_name
-    
-    if (ierr /= MPI_SUCCESS) then
-      call handle_mpi_error(ierr, operation_name)
-    end if
-    
-  end subroutine check_mpi_error
-  
-  !===============================================================================
-  ! SUBROUTINE: Handle MPI error
-  !===============================================================================
-  subroutine handle_mpi_error(ierr, operation_name)
-    implicit none
-    integer, intent(in) :: ierr
-    character(len=*), intent(in) :: operation_name
-    character(len=MAX_ERROR_MESSAGE_LENGTH) :: error_msg
     integer :: error_class, error_string_len
-    character(len=MPI_MAX_ERROR_STRING) :: error_string
+    character(len=mpi_max_error_string) :: error_string
     
-    ! Get MPI error class and string
-    call MPI_Error_class(ierr, error_class)
-    call MPI_Error_string(ierr, error_string, error_string_len)
-    
-    ! Build error message
-    write(error_msg, '(A,A,A,I0,A,A)') 'MPI error in ', trim(operation_name), &
-                                       ': code=', ierr, ', class=', trim(error_string)
-    
-    ! Set global error state
-    error_occurred = .true.
-    last_error_code = ERROR_MPI_FAILURE
-    last_error_message = error_msg
-    
-    ! Print error message
-    write(*, *) 'ERROR: ', trim(error_msg)
-    
-    ! Abort MPI execution
-    call MPI_Abort(MPI_COMM_WORLD, ERROR_MPI_FAILURE, ierr)
-    
-  end subroutine handle_mpi_error
+    if (ierr /= mpi_success) then
+      ! Get error class and string
+      call mpi_error_class(ierr, error_class)
+      call mpi_error_string(ierr, error_string, error_string_len)
+      
+      ! Set global error state
+      global_error_code = ERROR_MPI_FAILURE
+      global_error_message = 'MPI error in ' // trim(operation_name) // ': ' // trim(error_string)
+      
+      ! Print error information
+      write(*, *) 'ERROR: MPI operation failed: ', trim(operation_name)
+      write(*, *) '  Error code: ', ierr
+      write(*, *) '  Error class: ', error_class
+      write(*, *) '  Error message: ', trim(error_string)
+      
+      ! Abort MPI execution
+      call mpi_abort(mpi_comm_world, ERROR_MPI_FAILURE, ierr)
+    end if
+  end subroutine check_mpi_error
   
   !===============================================================================
   ! SUBROUTINE: Handle general error
@@ -106,13 +90,13 @@ contains
     if (present(error_code)) then
       code = error_code
     else
-      code = ERROR_USER_DEFINED
+      code = ERROR_INVALID_OPERATION
     end if
     
     ! Set global error state
-    error_occurred = .true.
-    last_error_code = code
-    last_error_message = error_message
+    global_error_occurred = .true.
+    global_error_code = code
+    global_error_message = error_message
     
     ! Print error message
     write(*, *) 'ERROR: ', trim(error_message)
@@ -159,7 +143,7 @@ contains
                                        ', but got ', trim(actual_value)
     
     ! Handle error
-    call handle_error(error_msg, ERROR_INVALID_PARAMETER)
+    call handle_error(error_msg, ERROR_INVALID_OPERATION)
     
   end subroutine handle_parameter_error
   
@@ -200,7 +184,7 @@ contains
                                        ', threshold ', threshold
     
     ! Handle error
-    call handle_error(error_msg, ERROR_NUMERICAL)
+    call handle_error(error_msg, ERROR_INVALID_OPERATION)
     
   end subroutine handle_numerical_error
   
@@ -221,8 +205,8 @@ contains
     
     ! Check for NaN and infinite values
     do i = 1, n
-      if (isnan(array(i))) has_nan = .true.
-      if (isinf(array(i))) has_inf = .true.
+      if (array(i) /= array(i)) has_nan = .true.
+      if (abs(array(i)) > huge(array(i))) has_inf = .true.
     end do
     
     ! Report issues
@@ -241,7 +225,7 @@ contains
   !===============================================================================
   subroutine check_array_bounds(array, array_name, expected_size)
     implicit none
-    real(8), dimension(:), intent(in) :: array
+    real(DP), dimension(:), intent(in) :: array
     character(len=*), intent(in) :: array_name
     integer, intent(in) :: expected_size
     
@@ -262,10 +246,10 @@ contains
   !===============================================================================
   subroutine check_positive_value(value, value_name)
     implicit none
-    real(8), intent(in) :: value
+    real(DP), intent(in) :: value
     character(len=*), intent(in) :: value_name
     
-    if (value <= 0.0_8) then
+    if (value <= 0.0_DP) then
       call handle_parameter_error(trim(value_name), 'positive', &
                                 trim(real_to_string(value)))
     end if
@@ -277,7 +261,7 @@ contains
   !===============================================================================
   subroutine check_value_in_range(value, value_name, min_val, max_val)
     implicit none
-    real(8), intent(in) :: value, min_val, max_val
+    real(DP), intent(in) :: value, min_val, max_val
     character(len=*), intent(in) :: value_name
     
     if (value < min_val .or. value > max_val) then
@@ -306,12 +290,42 @@ contains
   !===============================================================================
   function real_to_string(r) result(str)
     implicit none
-    real(8), intent(in) :: r
+    real(DP), intent(in) :: r
     character(len=20) :: str
     
     write(str, '(E15.7)') r
     
   end function real_to_string
+  
+  !===============================================================================
+  ! FUNCTION: Check if array contains NaN values
+  !===============================================================================
+  function has_nan_values(array) result(has_nan)
+    real(DP), dimension(:), intent(in) :: array
+    logical :: has_nan
+    integer :: i
+    
+    has_nan = .false.
+    do i = 1, size(array)
+      ! Check for NaN using IEEE functions (Fortran 2003+)
+      if (array(i) /= array(i)) has_nan = .true.
+    end do
+  end function has_nan_values
+  
+  !===============================================================================
+  ! FUNCTION: Check if array contains infinite values
+  !===============================================================================
+  function has_infinite_values(array) result(has_inf)
+    real(DP), dimension(:), intent(in) :: array
+    logical :: has_inf
+    integer :: i
+    
+    has_inf = .false.
+    do i = 1, size(array)
+      ! Check for infinite values
+      if (abs(array(i)) > huge(array(i))) has_inf = .true.
+    end do
+  end function has_infinite_values
   
   !===============================================================================
   ! SUBROUTINE: Get error status
@@ -320,7 +334,7 @@ contains
     implicit none
     logical :: has_error
     
-    has_error = error_occurred
+    has_error = global_error_occurred
     
   end function has_error_occurred
   
@@ -331,7 +345,7 @@ contains
     implicit none
     integer :: error_code
     
-    error_code = last_error_code
+    error_code = global_error_code
     
   end function get_last_error_code
   
@@ -342,7 +356,7 @@ contains
     implicit none
     character(len=MAX_ERROR_MESSAGE_LENGTH) :: error_message
     
-    error_message = last_error_message
+    error_message = global_error_message
     
   end function get_last_error_message
   
@@ -352,9 +366,9 @@ contains
   subroutine clear_error_state()
     implicit none
     
-    error_occurred = .false.
-    last_error_code = ERROR_SUCCESS
-    last_error_message = ''
+    global_error_occurred = .false.
+    global_error_code = ERROR_NONE
+    global_error_message = ''
     
   end subroutine clear_error_state
   
@@ -364,11 +378,11 @@ contains
   subroutine print_error_summary()
     implicit none
     
-    if (error_occurred) then
+    if (global_error_occurred) then
       write(*, *) '=== Error Summary ==='
       write(*, *) 'Error occurred: Yes'
-      write(*, *) 'Error code: ', last_error_code
-      write(*, *) 'Error message: ', trim(last_error_message)
+      write(*, *) 'Error code: ', global_error_code
+      write(*, *) 'Error message: ', trim(global_error_message)
       write(*, *) '===================='
     else
       write(*, *) 'No errors occurred'
