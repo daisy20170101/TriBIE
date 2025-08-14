@@ -153,7 +153,7 @@ program p_calc_green
          call calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,& 
                  n_vertex,n_cell,cells_processed,base_cells,extra_cells, error_occurred, error_message)
        end if
-
+     end if  ! End of if (.not. error_occurred) block
 
    
    ! Clean up arrays
