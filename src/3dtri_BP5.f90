@@ -75,6 +75,10 @@ program main
   !MPI RELATED DEFINITIONS
   integer :: ierr,size,myid,master
 
+  ! Dynamic load balancing variables (compatible with calc_trigreen.f90)
+  integer :: base_cells, extra_cells, local_cells, start_idx
+  logical :: use_trigreen_format = .true.  ! Set to .true. to use TriGreen files
+
   call MPI_Init(ierr)
   CALL MPI_COMM_RANK( MPI_COMM_WORLD, myid, ierr )
   CALL MPI_COMM_SIZE( MPI_COMM_WORLD, size, ierr )
@@ -105,11 +109,39 @@ program main
   !num. of rows each proc. 
   Nt_all = Nt_all
 
-  if(mod(Nt_all,nprocs)/=0)then
-     write(*,*)'Nd_all must be integer*nprocs. Change nprocs!'
-     STOP
+  ! MODIFICATION: Implement dynamic load balancing compatible with calc_trigreen.f90
+  if (use_trigreen_format) then
+     ! Calculate optimal distribution using the same algorithm as calc_trigreen.f90
+     base_cells = Nt_all / size
+     extra_cells = mod(Nt_all, size)
+     
+     if (myid < extra_cells) then
+        local_cells = base_cells + 1
+        start_idx = myid * (base_cells + 1)
+     else
+        local_cells = base_cells
+        start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
+     end if
+     
+     ! Override Nt with the actual local cells for this process
+     Nt = local_cells
+     
+     if (myid == master) then
+        write(*,*) 'Using TriGreen format with dynamic load balancing'
+        write(*,*) 'Base cells per process:', base_cells
+        write(*,*) 'Extra cells distributed:', extra_cells
+        write(*,*) 'Total processes:', size
+     end if
+     
+     write(*,*) 'Process', myid, 'gets', local_cells, 'cells starting from index', start_idx
   else
-     write(*,*)'Each cpu calculates',Nt_all/nprocs,'cells'
+     ! Original logic for even distribution
+     if(mod(Nt_all,nprocs)/=0)then
+        write(*,*)'Nd_all must be integer*nprocs. Change nprocs!'
+        STOP
+     else
+        write(*,*)'Each cpu calculates',Nt_all/nprocs,'cells'
+     end if
   end if
 
 
@@ -142,19 +174,40 @@ program main
        xLf(Nt),tau1(Nt),tau2(Nt),tau0(Nt),slipds(Nt),slipdsinc(Nt),slip(Nt),slipinc(Nt), &
        yt(2*Nt),dydt(2*Nt),yt_scale(2*Nt),yt0(2*Nt),sr(Nt),vi(Nt))
 
-  ALLOCATE (stiff(Nt,Nt_all),stiff2(Nt,Nt_all))   !!! stiffness of Stuart green calculation
+  ALLOCATE (stiff(local_cells,Nt_all),stiff2(local_cells,Nt_all))   !!! stiffness of Stuart green calculation
 
   !Read in stiffness matrix, in nprocs segments
 
   write(cTemp,*) myid
   write(*,*) cTemp
 
-  ! OPTIMIZATION: Use buffered I/O for better performance
-  open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream',buffered='yes')
+  ! MODIFICATION: Choose file format based on use_trigreen_format flag
+  if (use_trigreen_format) then
+     ! Load TriGreen format files
+     open(5, file=trim(stiffname)//'trigreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
+     write(*,*) 'Loading TriGreen file: trigreen_', trim(adjustl(cTemp)), '.bin'
+  else
+     ! Load original ssGreen format files
+     open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
+     write(*,*) 'Loading ssGreen file: ssGreen_', trim(adjustl(cTemp)), '.bin'
+  end if
 
 if(myid==master)then
   open(666,file='area'//jobname,form='formatted',status='old',access='stream')
-  open(51,file=trim(stiffname)//'surfGreen'//'.bin',form='unformatted',access='stream')
+  
+  ! MODIFICATION: Handle surface Green's functions based on format
+  if (use_trigreen_format) then
+     ! For TriGreen, we might not have surface Green's functions, so create dummy or skip
+     write(*,*) 'Note: Using TriGreen format - surface Green functions may not be available'
+     ! Create dummy surface Green's functions or skip this section
+     allocate(surf1(n_obv,Nt_all),surf2(n_obv,Nt_all),surf3(n_obv,Nt_all))
+     surf1 = 0.d0
+     surf2 = 0.d0
+     surf3 = 0.d0
+  else
+     open(51,file=trim(stiffname)//'surfGreen'//'.bin',form='unformatted',access='stream')
+  end if
+  
   open(55,file=trim(stiffname)//'position.bin',form='unformatted',access='stream')
   open(56,file='profstrk'//jobname,form='formatted',status='old')
   open(57,file='profdp'//jobname,form='formatted',status='old')
@@ -167,7 +220,12 @@ if(myid==master)then
  close(56)
  close(57)
 end if
-  record_cor=Nt*(myid)
+  ! MODIFICATION: Update record_cor for dynamic load balancing
+  if (use_trigreen_format) then
+     record_cor = start_idx
+  else
+     record_cor = Nt * myid
+  end if
 
   !-------------------------------------------------------------------------------------------
   ! read stiffness from Stuart green calculation.
@@ -185,23 +243,26 @@ end if
        read(666,'(E14.7)') area(k)
      end do
 !! read surface Green's
-    do j = 1,n_obv
-      do k=1,Nt_all
-        read(51) surf1(j,k)
-      end do
-      do k=1,Nt_all
-        read(51) surf2(j,k)
-        surf2(j,k)=-surf2(j,k)
-      end do
-      do k=1,Nt_all
-        read(51) surf3(j,k)
-      end do
-    end do
+    if (.not. use_trigreen_format) then
+       ! Read surface Green's functions only for original format
+       do j = 1,n_obv
+         do k=1,Nt_all
+           read(51) surf1(j,k)
+         end do
+         do k=1,Nt_all
+           read(51) surf2(j,k)
+           surf2(j,k)=-surf2(j,k)
+         end do
+         do k=1,Nt_all
+           read(51) surf3(j,k)
+         end do
+       end do
+    end if
   end if
 
   ! OPTIMIZATION: Use OpenMP for parallel stiffness matrix reading and processing
   !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
-  do i=1,Nt !! observe
+  do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
         read(5) stiff(i,j)
         stiff(i,j)=-stiff(i,j)
@@ -209,7 +270,7 @@ end if
            stiff(i,j) = 0.d0
            write(*,*) j,'extreme'
 	end if
-        if(isNaN(stiff(i,j)))then
+        if(stiff(i,j) /= stiff(i,j))then  ! Check for NaN using IEEE standard
           stiff(i,j)=0.d0
         end if
      end do
@@ -218,8 +279,10 @@ end if
   close(5)
 if(myid==master)then
   close(666)
+  if (.not. use_trigreen_format) then
+     close(51)
+  end if
   close(55)
-  close(51)
 end if
   !!-----------------------------------------------------------------------------------------
   !--------------------------------------------------------------------------------------------
@@ -234,12 +297,12 @@ end if
 
 
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(cca_all,Nt,MPI_Real8,cca,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(ccb_all,Nt,MPI_Real8,ccb,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(xLf_all,Nt,MPI_Real8,xLf,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(seff_all,Nt,MPI_Real8,seff,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(vi_all,Nt,MPI_Real8,vi,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(x_all,Nt,MPI_Real8,x,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(cca_all,local_cells,MPI_Real8,cca,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(ccb_all,local_cells,MPI_Real8,ccb,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(xLf_all,local_cells,MPI_Real8,xLf,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(seff_all,local_cells,MPI_Real8,seff,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(vi_all,local_cells,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatter(x_all,local_cells,MPI_Real8,x,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
   call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
@@ -457,9 +520,9 @@ end if
      call MPI_Bcast(dt_try,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(ndt,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(nrec,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatter(yt_all,2*Nt,MPI_Real8,yt,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatter(slip_all,Nt,MPI_Real8,slip,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatter(slipds_all,Nt,MPI_Real8,slipds,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatter(yt_all,2*local_cells,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatter(slip_all,local_cells,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatter(slipds_all,local_cells,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
 
      ndtnext = ndt
@@ -484,7 +547,7 @@ end if
   ! Pre-allocate communication buffers for better performance
   real(DP), dimension(:), allocatable :: send_buffer, recv_buffer
   integer :: comm_count, comm_tag
-  comm_count = 2*Nt
+  comm_count = 2*local_cells
   comm_tag = 0
   
   if(myid == master) then
@@ -494,13 +557,13 @@ end if
 
   do while(cyclecont) 
 
-     call derivs(myid,dydt,2*Nt,Nt_all,Nt,t,yt,z_all,x) 
+     call derivs(myid,dydt,2*local_cells,Nt_all,local_cells,t,yt,z_all,x) 
 
-     do j=1,2*Nt
+     do j=1,2*local_cells
         yt_scale(j)=dabs(yt(j))+dabs(dt_try*dydt(j))
         yt0(j) = yt(j)
      end do
-     CALL rkqs(myid,yt,dydt,2*Nt,Nt_all,Nt,t,dt_try,accuracy,yt_scale, &
+     CALL rkqs(myid,yt,dydt,2*local_cells,Nt_all,local_cells,t,dt_try,accuracy,yt_scale, &
           dt_did,dt_next,z_all,x)
 
      dt = dt_did
@@ -508,7 +571,7 @@ end if
 
      ! OPTIMIZATION: Use OpenMP for parallel physics calculations
      !$OMP PARALLEL DO PRIVATE(i,help) SCHEDULE(STATIC)
-     do i=1,Nt
+     do i=1,local_cells
         tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(2*i-1)*phy1(i)
         help=(yt(2*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(2*i)/xLf(i)))/cca(i))
         tau1(i) = seff(i)*cca(i)*dlog(help+dsqrt(1+help**2))
@@ -529,28 +592,28 @@ end if
      ! Use non-blocking communications where possible for better overlap
      if(myid == master) then
         ! Gather all data in one operation per array type
-        call MPI_Gather(yt,2*Nt,MPI_Real8,yt_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(yt0,2*Nt,MPI_Real8,yt0_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipinc,Nt,MPI_Real8,slipinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slip,Nt,MPI_Real8,slip_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipdsinc,Nt,MPI_Real8,slipdsinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipds,Nt,MPI_Real8,slipds_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau1,Nt,MPI_Real8,tau1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau2,Nt,MPI_Real8,tau2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy1,Nt,MPI_Real8,phy1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy2,Nt,MPI_Real8,phy2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(yt,2*local_cells,MPI_Real8,yt_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(yt0,2*local_cells,MPI_Real8,yt0_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipinc,local_cells,MPI_Real8,slipinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slip,local_cells,MPI_Real8,slip_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipds,local_cells,MPI_Real8,slipds_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(tau1,local_cells,MPI_Real8,tau1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(tau2,local_cells,MPI_Real8,tau2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(phy1,local_cells,MPI_Real8,phy1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(phy2,local_cells,MPI_Real8,phy2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      else
         ! Non-master processes just send their data
-        call MPI_Gather(yt,2*Nt,MPI_Real8,yt_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(yt0,2*Nt,MPI_Real8,yt0_all,2*Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipinc,Nt,MPI_Real8,slipinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slip,Nt,MPI_Real8,slip_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipdsinc,Nt,MPI_Real8,slipdsinc_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipds,Nt,MPI_Real8,slipds_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau1,Nt,MPI_Real8,tau1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau2,Nt,MPI_Real8,tau2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy1,Nt,MPI_Real8,phy1_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy2,Nt,MPI_Real8,phy2_all,Nt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(yt,2*local_cells,MPI_Real8,yt_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(yt0,2*local_cells,MPI_Real8,yt0_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipinc,local_cells,MPI_Real8,slipinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slip,local_cells,MPI_Real8,slip_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(slipds,local_cells,MPI_Real8,slipds_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(tau1,local_cells,MPI_Real8,tau1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(tau2,local_cells,MPI_Real8,tau2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(phy1,local_cells,MPI_Real8,phy1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gather(phy2,local_cells,MPI_Real8,phy2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      end if
 
      !-------------------
@@ -965,7 +1028,7 @@ end subroutine rkqs
        small=1.d-6
         
        ! OPTIMIZATION: Vectorize the initial calculations
-       do i=1,Nt
+       do i=1,local_cells
           zz(i)=yt(2*i-1)*phy1(i)-Vpl
           zz_ds(i)=yt(2*i-1)*phy2(i)
        end do
@@ -974,8 +1037,8 @@ end subroutine rkqs
        call MPI_Barrier(MPI_COMM_WORLD,ierr)
        
        ! Use Allgather instead of Gather+Bcast for better performance
-       call MPI_Allgather(zz,Nt,MPI_Real8,zz_all,Nt,MPI_Real8,MPI_COMM_WORLD,ierr)
-       call MPI_Allgather(zz_ds,Nt,MPI_Real8,zz_ds_all,Nt,MPI_Real8,MPI_COMM_WORLD,ierr)
+       call MPI_Allgather(zz,local_cells,MPI_Real8,zz_all,local_cells,MPI_Real8,MPI_COMM_WORLD,ierr)
+       call MPI_Allgather(zz_ds,local_cells,MPI_Real8,zz_ds_all,local_cells,MPI_Real8,MPI_COMM_WORLD,ierr)
        
        !----------------------------------------------------------------------
        !    summation of stiffness of all elements in slab
@@ -990,7 +1053,7 @@ end subroutine rkqs
        integer :: block_size, i_start, i_end, j_start, j_end
        block_size = 64  ! Optimal block size for cache
        
-       do i=1,Nt
+       do i=1,local_cells
           zzfric(i)=0d0
           ! OPTIMIZATION: Use blocking for better cache performance
           do j_start=1, Nt_all, block_size
@@ -1011,7 +1074,7 @@ end subroutine rkqs
        tm1=tm2
 
        ! OPTIMIZATION: Vectorize the derivative calculations
-       do i=1,Nt
+       do i=1,local_cells
           psi = dlog(V0*yt(2*i)/xLf(i))
           help1 = yt(2*i-1)/(2*V0)
           help2 = (f0+ccb(i)*psi)/cca(i)
