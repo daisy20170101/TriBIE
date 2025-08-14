@@ -807,7 +807,13 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   if(myid == 0) then 
     open(22, file='position.bin', form='unformatted', access='stream')
     do j = 1, n_cell
-      write(22) arr_co(1,j), arr_co(2,j), arr_co(3,j)
+      vj(1:3) = arr_cell(j,1:3)
+     p1(1:3) = arr_vertex(vj(1),1:3)
+     p2(1:3) = arr_vertex(vj(2),1:3)
+     p3(1:3) = arr_vertex(vj(3),1:3)
+
+     call calc_triangle_centroid(p1, p2, p3, co)
+      write(22) co(1), co(2), co(3)
     end do
     close(22)
   endif
