@@ -46,12 +46,36 @@ all: $(BUILD_DIR)/$(TARGET)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Compile modules
-$(BUILD_DIR)/%.o: %.f90 $(BUILD_DIR)
+# Compile modules in dependency order
+$(BUILD_DIR)/physical_constants.o: physical_constants.f90 $(BUILD_DIR)
 	$(FC) $(FFLAGS) -c $< -o $@
 
-# Compile main program
-$(BUILD_DIR)/$(MAIN_PROGRAM).o: $(MAIN_PROGRAM).f90 $(BUILD_DIR) $(MODS)
+$(BUILD_DIR)/simulation_parameters.o: simulation_parameters.f90 $(BUILD_DIR)/physical_constants.o
+	$(FC) $(FFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/physical_variables.o: physical_variables.f90 $(BUILD_DIR)/physical_constants.o
+	$(FC) $(FFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/io_parameters.o: io_parameters.f90 $(BUILD_DIR)
+	$(FC) $(FFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/error_handling.o: error_handling.f90 $(BUILD_DIR)/physical_constants.o
+	$(FC) $(FFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/time_integration.o: time_integration.f90 $(BUILD_DIR)/physical_constants.o
+	$(FC) $(FFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/physics_equations.o: physics_equations.f90 $(BUILD_DIR)/physical_constants.o $(BUILD_DIR)/physical_variables.o $(BUILD_DIR)/simulation_parameters.o
+	$(FC) $(FFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/mpi_utilities.o: mpi_utilities.f90 $(BUILD_DIR)/physical_constants.o
+	$(FC) $(FFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/io_handling.o: io_handling.f90 $(BUILD_DIR)/physical_constants.o $(BUILD_DIR)/io_parameters.o
+	$(FC) $(FFLAGS) -c $< -o $@
+
+# Compile main program (depends on all modules)
+$(BUILD_DIR)/$(MAIN_PROGRAM).o: $(MAIN_PROGRAM).f90 $(OBJS)
 	$(FC) $(FFLAGS) -c $< -o $@
 
 # Link executable
@@ -91,15 +115,3 @@ help:
 
 # Phony targets
 .PHONY: all clean rebuild install uninstall help
-
-# Dependencies
-$(BUILD_DIR)/physical_constants.o: physical_constants.f90
-$(BUILD_DIR)/simulation_parameters.o: simulation_parameters.f90 $(BUILD_DIR)/physical_constants.o
-$(BUILD_DIR)/physical_variables.o: physical_variables.f90 $(BUILD_DIR)/physical_constants.o
-$(BUILD_DIR)/io_parameters.o: io_parameters.f90
-$(BUILD_DIR)/error_handling.o: error_handling.f90
-$(BUILD_DIR)/time_integration.o: time_integration.f90 $(BUILD_DIR)/physical_constants.o
-$(BUILD_DIR)/physics_equations.o: physics_equations.f90 $(BUILD_DIR)/physical_constants.o $(BUILD_DIR)/physical_variables.o $(BUILD_DIR)/simulation_parameters.o
-$(BUILD_DIR)/mpi_utilities.o: mpi_utilities.f90
-$(BUILD_DIR)/io_handling.o: io_handling.f90 $(BUILD_DIR)/physical_constants.o $(BUILD_DIR)/io_parameters.o
-$(BUILD_DIR)/$(MAIN_PROGRAM).o: $(MAIN_PROGRAM).f90 $(OBJS)
