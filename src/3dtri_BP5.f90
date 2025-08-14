@@ -381,7 +381,8 @@ end if
 		write(i,100)'# Column #8 = State (log10 s)'
 		write(i,100)'# '
 		write(i,100)'# The line below lists the names of the data fields:'
-		write(i,'(A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A)')'t','slip_2','slip_3','slip_rate_2','slip_rate_3','shear_stress_2','shear_stress_3','state'
+		write(i,'(A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A)')'t','slip_2','slip_3','slip_rate_2',&
+      'slip_rate_3','shear_stress_2','shear_stress_3','state'
 		write(i,100)'# Below is the time-series data.'		
 	end do 
  100	format(A)
