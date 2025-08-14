@@ -93,11 +93,11 @@ program p_calc_green
      end if
 
      Nt_all=n_cell
-     Nt=Nt_all/size
 
   ! Calculate local cell count for this process
   local_cells = (n_cell + size - 1) / size  ! Ceiling division
   cells_processed = local_cells
+  Nt = local_cells
 
      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      ! for all element's center point as op
@@ -637,8 +637,8 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   ! Initialize variables
   vpl(1:3) = 1.d0
   l_miu = parm_l/parm_miu
-  ss = 0.d0
-  ds = 1.d0
+  ss = 1.d0
+  ds = 0.d0
   op = 0.d0
   local_cells = cells_processed  
 
@@ -719,7 +719,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
       end if
 
       ! Calculate local stress in Bar (0.1MPa)
-      arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,k), matmul(sig33(:,:), arr_cl_v2(:,2,k)))
+      arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,k), matmul(sig33(:,:), arr_cl_v2(:,1,k)))
       
       ! Check final result
       if (isnan(arr_out(j,i))) then
