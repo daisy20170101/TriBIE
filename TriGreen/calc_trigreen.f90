@@ -88,56 +88,73 @@ program p_calc_green
    if (.not. error_occurred) then
      write(*,*) myid
 
-      ! OPTIMIZATION: Implement dynamic load balancing for optimal distribution
-      Nt_all = n_cell
-      
-      if(mod(n_cell,size)/=0)then
-         write(*,*)'n_cell (',n_cell,') is not evenly divisible by MPI processes (',size,')'
-         write(*,*)'Implementing dynamic load balancing for optimal distribution...'
-         
-         ! Calculate optimal distribution using ceiling division
-         base_cells = Nt_all / size
-         extra_cells = mod(Nt_all, size)
-         
-         write(*,*)'Base cells per process:', base_cells
-         write(*,*)'Extra cells to distribute:', extra_cells
-         write(*,*)'Processes 0 to', extra_cells-1, 'will get', base_cells+1, 'cells'
-         write(*,*)'Processes', extra_cells, 'to', size-1, 'will get', base_cells, 'cells'
-      else
-         write(*,*)'n_cell (',n_cell,') is evenly divisible by MPI processes (',size,')'
-         base_cells = Nt_all / size
-         extra_cells = 0
-         write(*,*)'Each process calculates', base_cells, 'cells'
-      end if
+             ! OPTIMIZATION: Implement dynamic load balancing for optimal distribution
+       Nt_all = n_cell
+       
+       ! Special handling for single-CPU execution
+       if (size == 1) then
+          write(*,*)'Single CPU execution detected - all cells assigned to process 0'
+          base_cells = n_cell
+          extra_cells = 0
+          local_cells = n_cell
+          start_idx = 0
+          cells_processed = n_cell
+          Nt = n_cell
+          
+          ! Call subroutine directly for single CPU
+          call calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,& 
+                  n_vertex,n_cell,cells_processed,base_cells,extra_cells, error_occurred, error_message)
+       else
+          ! Multi-CPU dynamic load balancing
+          if(mod(n_cell,size)/=0)then
+             write(*,*)'n_cell (',n_cell,') is not evenly divisible by MPI processes (',size,')'
+             write(*,*)'Implementing dynamic load balancing for optimal distribution...'
+             
+             ! Calculate optimal distribution using ceiling division
+             base_cells = Nt_all / size
+             extra_cells = mod(Nt_all, size)
+             
+             write(*,*)'Base cells per process:', base_cells
+             write(*,*)'Extra cells to distribute:', extra_cells
+             write(*,*)'Processes 0 to', extra_cells-1, 'will get', base_cells+1, 'cells'
+             write(*,*)'Processes', extra_cells, 'to', size-1, 'will get', base_cells, 'cells'
+          else
+             write(*,*)'n_cell (',n_cell,') is evenly divisible by MPI processes (',size,')'
+             base_cells = Nt_all / size
+             extra_cells = 0
+             write(*,*)'Each process calculates', base_cells, 'cells'
+          end if
 
-      ! Calculate local cell count for this process using optimal distribution
-      ! Ensure master process (myid == 0) always gets at least 1 cell
-      if (myid < extra_cells) then
-         local_cells = base_cells + 1
-         start_idx = myid * (base_cells + 1)
-      else
-         local_cells = base_cells
-         start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
-      end if
-      
-      ! Special handling for master process to ensure it always gets cells
-      if (myid == 0 .and. local_cells == 0) then
-         ! If master would get 0 cells, take 1 from the last process
-         local_cells = 1
-         start_idx = 0
-         write(*,*) 'Warning: Master process adjusted to get 1 cell'
-      end if
-      
-      write(*,*)'Process', myid, 'gets', local_cells, 'cells starting from index', start_idx
-      cells_processed = local_cells
-      Nt = local_cells
+          ! Calculate local cell count for this process using optimal distribution
+          ! Ensure master process (myid == 0) always gets at least 1 cell
+          if (myid < extra_cells) then
+             local_cells = base_cells + 1
+             start_idx = myid * (base_cells + 1)
+          else
+             local_cells = base_cells
+             start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
+          end if
+          
+          ! Special handling for master process to ensure it always gets cells
+          if (myid == 0 .and. local_cells == 0) then
+             ! If master would get 0 cells, take 1 from the last process
+             local_cells = 1
+             start_idx = 0
+             write(*,*) 'Warning: Master process adjusted to get 1 cell'
+          end if
+          
+          write(*,*)'Process', myid, 'gets', local_cells, 'cells starting from index', start_idx
+          cells_processed = local_cells
+          Nt = local_cells
 
-     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     ! for all element's center point as op
-     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     call calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,& 
-             n_vertex,n_cell,cells_processed,base_cells,extra_cells, error_occurred, error_message)
-   end if
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! for all element's center point as op
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         call calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,& 
+                 n_vertex,n_cell,cells_processed,base_cells,extra_cells, error_occurred, error_message)
+       end if
+
+
    
    ! Clean up arrays
    if (allocated(arr_vertex)) deallocate(arr_vertex, stat=ierr)
@@ -684,37 +701,52 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
    allocate(arr_co(3,max(1,local_cells)), arr_trid(9,n_cell), arr_cl_v2(3,3,max(1,local_cells)))
    allocate(arr_out(max(1,local_cells), n_cell))
   
-   ! Pre-compute cell properties for local cells only
-   if (local_cells > 0) then
-     do j = 1, local_cells
-       ! Map local index to global cell index
-       k = start_idx + j - 1
-       if (k >= n_cell) exit
-       
-       vj(1:3) = arr_cell(k,1:3)
-       p1(1:3) = arr_vertex(vj(1),1:3)
-       p2(1:3) = arr_vertex(vj(2),1:3)
-       p3(1:3) = arr_vertex(vj(3),1:3)
-       
-       call calc_triangle_centroid(p1, p2, p3, co)
-       arr_co(1:3,j) = co(1:3)
-       arr_trid(1:3,k) = p1(1:3)
-       arr_trid(4:6,k) = p2(1:3)
-       arr_trid(7:9,k) = p3(1:3)
-       
-       call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
-       arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
-       arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
-       arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
-       
-       arr_out(j,:) = 0.d0
-     end do
-   else
-     ! Initialize arrays for processes with no cells
-     arr_out(1,:) = 0.d0
-     arr_co(:,1) = 0.d0
-     arr_cl_v2(:,:,1) = 0.d0
-   end if
+          ! Pre-compute cell properties for local cells only
+       if (local_cells > 0) then
+         do j = 1, local_cells
+           ! Map local index to global cell index
+           k = start_idx + j - 1
+           if (k >= n_cell) exit
+           
+           ! Bounds checking for safety
+           if (k < 1 .or. k > n_cell) then
+             write(*,*) 'Error: Invalid cell index k =', k, 'for j =', j
+             cycle
+           end if
+           
+           vj(1:3) = arr_cell(k,1:3)
+           
+           ! Bounds checking for vertex indices
+           if (vj(1) < 1 .or. vj(1) > n_vertex .or. &
+               vj(2) < 1 .or. vj(2) > n_vertex .or. &
+               vj(3) < 1 .or. vj(3) > n_vertex) then
+             write(*,*) 'Error: Invalid vertex indices for cell', k, ':', vj(1), vj(2), vj(3)
+             cycle
+           end if
+           
+           p1(1:3) = arr_vertex(vj(1),1:3)
+           p2(1:3) = arr_vertex(vj(2),1:3)
+           p3(1:3) = arr_vertex(vj(3),1:3)
+           
+           call calc_triangle_centroid(p1, p2, p3, co)
+           arr_co(1:3,j) = co(1:3)
+           arr_trid(1:3,k) = p1(1:3)
+           arr_trid(4:6,k) = p2(1:3)
+           arr_trid(7:9,k) = p3(1:3)
+           
+           call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
+           arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
+           arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
+           arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
+           
+           arr_out(j,:) = 0.d0
+         end do
+       else
+         ! Initialize arrays for processes with no cells
+         arr_out(1,:) = 0.d0
+         arr_co(:,1) = 0.d0
+         arr_cl_v2(:,:,1) = 0.d0
+       end if
    
    ! CRITICAL: We need triangle data for ALL cells, not just local ones
    ! Each process must compute triangle data for all cells to perform Green's function calculations
@@ -853,8 +885,9 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   end if
   close(14)
 
+   ! Deallocate arrays allocated in this subroutine
    deallocate (arr_co,arr_trid,arr_cl_v2)
-  deallocate (arr_out)
+   deallocate (arr_out)
  
 return 
 end subroutine
