@@ -111,12 +111,21 @@ program p_calc_green
       end if
 
       ! Calculate local cell count for this process using optimal distribution
+      ! Ensure master process (myid == 0) always gets at least 1 cell
       if (myid < extra_cells) then
          local_cells = base_cells + 1
          start_idx = myid * (base_cells + 1)
       else
          local_cells = base_cells
          start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
+      end if
+      
+      ! Special handling for master process to ensure it always gets cells
+      if (myid == 0 .and. local_cells == 0) then
+         ! If master would get 0 cells, take 1 from the last process
+         local_cells = 1
+         start_idx = 0
+         write(*,*) 'Warning: Master process adjusted to get 1 cell'
       end if
       
       write(*,*)'Process', myid, 'gets', local_cells, 'cells starting from index', start_idx
@@ -671,33 +680,41 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
    ! Allocate arrays only for local cells (memory efficient)
    ! Note: arr_trid must be (9,n_cell) because each process needs triangle data for ALL cells
    ! to compute Green's functions between local cells and all other cells
-   allocate(arr_co(3,local_cells), arr_trid(9,n_cell), arr_cl_v2(3,3,local_cells))
-   allocate(arr_out(local_cells, n_cell))
+   ! Ensure minimum size of 1 to avoid allocation issues
+   allocate(arr_co(3,max(1,local_cells)), arr_trid(9,n_cell), arr_cl_v2(3,3,max(1,local_cells)))
+   allocate(arr_out(max(1,local_cells), n_cell))
   
    ! Pre-compute cell properties for local cells only
-   do j = 1, local_cells
-     ! Map local index to global cell index
-     k = start_idx + j - 1
-     if (k >= n_cell) exit
-     
-     vj(1:3) = arr_cell(k,1:3)
-     p1(1:3) = arr_vertex(vj(1),1:3)
-     p2(1:3) = arr_vertex(vj(2),1:3)
-     p3(1:3) = arr_vertex(vj(3),1:3)
-     
-     call calc_triangle_centroid(p1, p2, p3, co)
-     arr_co(1:3,j) = co(1:3)
-     arr_trid(1:3,k) = p1(1:3)
-     arr_trid(4:6,k) = p2(1:3)
-     arr_trid(7:9,k) = p3(1:3)
-     
-     call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
-     arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
-     arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
-     arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
-     
-     arr_out(j,:) = 0.d0
-   end do
+   if (local_cells > 0) then
+     do j = 1, local_cells
+       ! Map local index to global cell index
+       k = start_idx + j - 1
+       if (k >= n_cell) exit
+       
+       vj(1:3) = arr_cell(k,1:3)
+       p1(1:3) = arr_vertex(vj(1),1:3)
+       p2(1:3) = arr_vertex(vj(2),1:3)
+       p3(1:3) = arr_vertex(vj(3),1:3)
+       
+       call calc_triangle_centroid(p1, p2, p3, co)
+       arr_co(1:3,j) = co(1:3)
+       arr_trid(1:3,k) = p1(1:3)
+       arr_trid(4:6,k) = p2(1:3)
+       arr_trid(7:9,k) = p3(1:3)
+       
+       call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
+       arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
+       arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
+       arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
+       
+       arr_out(j,:) = 0.d0
+     end do
+   else
+     ! Initialize arrays for processes with no cells
+     arr_out(1,:) = 0.d0
+     arr_co(:,1) = 0.d0
+     arr_cl_v2(:,:,1) = 0.d0
+   end if
    
    ! CRITICAL: We need triangle data for ALL cells, not just local ones
    ! Each process must compute triangle data for all cells to perform Green's function calculations
@@ -718,62 +735,67 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   write(6,*) "Process", myid, "starting hybrid parallel computation"
   
   ! Hybrid MPI+OpenMP parallel computation
-  !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) SHARED(arr_co, arr_trid, arr_out, arr_cl_v2)
-  do j = 1, local_cells
-    ! Map local index to global cell index
-    k = start_idx + j - 1
-    if (k >= n_cell) cycle
-    
-    do i = 1, n_cell
-      ! Calculate strain gradients using Stuart's method
-      call dstuart(parm_nu, arr_co(:,j), arr_trid(:,i), ss, ds, op, u, t)
+  if (local_cells > 0) then
+    !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) SHARED(arr_co, arr_trid, arr_out, arr_cl_v2)
+    do j = 1, local_cells
+      ! Map local index to global cell index
+      k = start_idx + j - 1
+      if (k >= n_cell) cycle
       
-      ! Check for invalid results from dstuart
-      if (any(isnan(u)) .or. any(isnan(t))) then
-        !$OMP CRITICAL
-        error_occurred = .true.
-        error_message = "Invalid results from dstuart calculation"
-        !$OMP END CRITICAL
-        cycle
-      end if
-            
-      ! Calculate stress tensor components
-      sig33(3,3) = l_miu * (t(1) + t(5) + t(9)) 
-      sig33(1,1) = sig33(3,3) + 2.d0 * t(1)
-      sig33(2,2) = sig33(3,3) + 2.d0 * t(5)
-      sig33(3,3) = sig33(3,3) + 2.d0 * t(9)
+      do i = 1, n_cell
+        ! Calculate strain gradients using Stuart's method
+        call dstuart(parm_nu, arr_co(:,j), arr_trid(:,i), ss, ds, op, u, t)
+        
+        ! Check for invalid results from dstuart
+        if (any(isnan(u)) .or. any(isnan(t))) then
+          !$OMP CRITICAL
+          error_occurred = .true.
+          error_message = "Invalid results from dstuart calculation"
+          !$OMP END CRITICAL
+          cycle
+        end if
+              
+        ! Calculate stress tensor components
+        sig33(3,3) = l_miu * (t(1) + t(5) + t(9)) 
+        sig33(1,1) = sig33(3,3) + 2.d0 * t(1)
+        sig33(2,2) = sig33(3,3) + 2.d0 * t(5)
+        sig33(3,3) = sig33(3,3) + 2.d0 * t(9)
 
-      sig33(2,1) = t(4) + t(2)
-      sig33(3,1) = t(3) + t(7)
-      sig33(3,2) = t(6) + t(8)
+        sig33(2,1) = t(4) + t(2)
+        sig33(3,1) = t(3) + t(7)
+        sig33(3,2) = t(6) + t(8)
 
-      sig33(1,2) = sig33(2,1)
-      sig33(1,3) = sig33(3,1)
-      sig33(2,3) = sig33(3,2)
+        sig33(1,2) = sig33(2,1)
+        sig33(1,3) = sig33(3,1)
+        sig33(2,3) = sig33(3,2)
 
-      ! Check for invalid stress tensor
-      if (any(isnan(sig33))) then
-        !$OMP CRITICAL
-        error_occurred = .true.
-        error_message = "Invalid stress tensor calculated"
-        !$OMP END CRITICAL
-        cycle
-      end if
+        ! Check for invalid stress tensor
+        if (any(isnan(sig33))) then
+          !$OMP CRITICAL
+          error_occurred = .true.
+          error_message = "Invalid stress tensor calculated"
+          !$OMP END CRITICAL
+          cycle
+        end if
 
-      ! Calculate local stress in Bar (0.1MPa)
-      arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,j), matmul(sig33(:,:), arr_cl_v2(:,1,j)))
-      
-      ! Check final result
-      if (isnan(arr_out(j,i))) then
-        !$OMP CRITICAL
-        error_occurred = .true.
-        error_message = "Invalid output value calculated"
-        !$OMP END CRITICAL
-        cycle
-      end if
+        ! Calculate local stress in Bar (0.1MPa)
+        arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,j), matmul(sig33(:,:), arr_cl_v2(:,1,j)))
+        
+        ! Check final result
+        if (isnan(arr_out(j,i))) then
+          !$OMP CRITICAL
+          error_occurred = .true.
+          error_message = "Invalid output value calculated"
+          !$OMP END CRITICAL
+          cycle
+        end if
+      end do
     end do
-  end do
-  !$OMP END PARALLEL DO
+    !$OMP END PARALLEL DO
+  else
+    ! Process with no cells - no computation needed
+    write(*,*) 'Process', myid, 'skipping computation (no cells assigned)'
+  end if
   
     ! Check for errors before proceeding
   if (error_occurred) then
@@ -818,10 +840,17 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
     close(22)
   endif
 
-  ! Write local results
-  do i = 1, local_cells
-    write(14) arr_out(i,:)
-  end do
+  ! Write local results (only if we have cells to write)
+  if (local_cells > 0) then
+    do i = 1, local_cells
+      write(14) arr_out(i,:)
+    end do
+  else
+    ! Write a dummy entry to ensure file is not empty
+    ! This ensures compatibility with 3dtri_BP5.f90 which expects all processes to have files
+    write(14) 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0
+    write(*,*) 'Process', myid, 'wrote dummy entry (no cells assigned)'
+  end if
   close(14)
 
    deallocate (arr_co,arr_trid,arr_cl_v2)
