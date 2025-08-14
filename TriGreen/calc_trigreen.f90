@@ -127,7 +127,7 @@ program p_calc_green
      ! for all element's center point as op
      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      call calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,& 
-             n_vertex,n_cell,cells_processed, error_occurred, error_message)
+             n_vertex,n_cell,cells_processed,base_cells,extra_cells, error_occurred, error_message)
    end if
    
    ! Clean up arrays
@@ -625,17 +625,17 @@ end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, & 
-                n_vertex,n_cell,cells_processed, error_occurred, error_message)
- use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
- use mod_dtrigreen
- implicit none
- 
-   integer, intent(in) :: cells_processed
-  integer, intent(in) :: myid, size, Nt, n_cell, n_vertex
-  real(8), intent(in) :: arr_vertex(n_vertex,3)
-  integer, intent(in) :: arr_cell(n_cell,3)
-  logical, intent(inout) :: error_occurred
-  character(len=*), intent(inout) :: error_message
+                n_vertex,n_cell,cells_processed,base_cells,extra_cells, error_occurred, error_message)
+  use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
+  use mod_dtrigreen
+  implicit none
+  
+    integer, intent(in) :: cells_processed,base_cells,extra_cells
+   integer, intent(in) :: myid, size, Nt, n_cell, n_vertex
+   real(8), intent(in) :: arr_vertex(n_vertex,3)
+   integer, intent(in) :: arr_cell(n_cell,3)
+   logical, intent(inout) :: error_occurred
+   character(len=*), intent(inout) :: error_message
     
   real(8) ::       u(3), t(9)
   real(8) ::                ss, ds, op
@@ -869,7 +869,6 @@ logical function isnan(x)
   isnan = (x /= x)
 end function isnan
 
-end program
 
 
 
