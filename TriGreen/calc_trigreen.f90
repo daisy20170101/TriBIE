@@ -566,6 +566,17 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
     end do
   end if
 
+  ! Handle vertical triangle (nv(3) = 0)
+  if (abs(nv(3)) .lt. 1.0d-12) then
+    ! For vertical triangles, use predefined coordinate system
+    ! Set strike direction along x-axis, dip direction along y-axis
+    ! This follows the convention for vertical fault planes
+    ss = vpl1  ! Strike-slip component
+    ds = vpl2  ! Dip-slip component  
+    op = 0.0d0 ! Opening component (no opening for vertical faults)
+    return
+  end if
+
   rl=(vpl1**2+vpl2**2)+(nv(1)*vpl1+nv(2)*vpl2)**2/nv(3)**2
   rl=1.d0/rl
   rl=sqrt(rl)
@@ -621,8 +632,6 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
 
 ! Check for vertical triangle (nv(3) = 0)
     if (abs(nv(3)) .lt. 1.0d-12) then
-      write(*,*) "WARNING: Vertical triangle detected in calc_local_coordinate2"
- ! For vertical triangles, construct coordinate system by convention
       ! a1 = strike direction (along x-axis)
       a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
       a1(2) = nv(1)/sqrt(nv(1)**2+nv(2)**2)
@@ -743,7 +752,8 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   character(20) ::        cTemp
   real(DP)             ::  l_miu
   
-  real(DP)             ::  c_local2(3, 3)
+  real(DP)             ::  c_local2(3, 3), c_global(3, 3), &
+                           c_local(3, 3),  c_local_v(9), c_local_v2(9)
   real(DP),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
   real(DP),allocatable :: arr_out(:,:)
   
@@ -751,6 +761,13 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   integer :: local_cells, start_idx
   integer :: ierr
   
+ ! global coordinate
+  c_global(:,:) = 0.d0
+  do i=1,3
+    c_global(i,i) =1.d0
+  end do
+
+
   ! Get distribution parameters from main program
   local_cells = cells_processed
   
@@ -764,7 +781,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
    ! Initialize variables
    vpl(1:3) = 1.d0
    l_miu = parm_l/parm_miu
-   ss = 1.d0
+   ss = -1.d0
    ds = 0.d0
    op = 0.d0
    
@@ -809,9 +826,11 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
            arr_trid(7:9,k) = p3(1:3)
            
            call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
-           arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
-           arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
-           arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
+
+           call calc_coord_cos(c_global, c_local2, c_local_v2)
+           arr_cl_v2(1:3,1,j) = c_local_v2(1:3)
+           arr_cl_v2(1:3,2,j) = c_local_v2(4:6)
+           arr_cl_v2(1:3,3,j) = c_local_v2(7:9)
            
            arr_out(j,:) = 0.d0
          end do
