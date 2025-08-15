@@ -995,7 +995,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         ! OPTIMIZATION: Remove expensive validation checks from inner loop
         ! All validation is now pre-computed above
         ! Debug: Check input parameters before calling dstuart
-        if (isnan(parm_nu) .or. any(isnan(arr_co(:,j))) .or. any(isnan(arr_trid(:,i))) then
+        if (isnan(parm_nu) .or. any(isnan(arr_co(:,j))) .or. any(isnan(arr_trid(:,k_triangle))) then
           !$OMP CRITICAL
           write(*,*) 'Process', myid, ': Invalid input parameters to dstuart:'
           write(*,*) '  parm_nu =', parm_nu
@@ -1007,8 +1007,8 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         
         ! Check for degenerate triangles (zero area) and vertical triangles
         ! Calculate triangle area using cross product
-        v1 = arr_trid(4:6,i) - arr_trid(1:3,i)
-        v2 = arr_trid(7:9,i) - arr_trid(1:3,i)
+        v1 = arr_trid(4:6,k_triangle) - arr_trid(1:3,k_triangle)
+        v2 = arr_trid(7:9,k_triangle) - arr_trid(1:3,k_triangle)
         
         ! Cross product v1 × v2
         cross_prod(1) = v1(2) * v2(3) - v1(3) * v2(2)
@@ -1019,7 +1019,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         
         if (area_triangle < 1.0d-12) then
           !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': Degenerate triangle detected for i=', i, 'area =', area_triangle
+          write(*,*) 'Process', myid, ': Degenerate triangle detected for k_triangle=', k_triangle, 'area =', area_triangle
           !$OMP END CRITICAL
           cycle
         end if
@@ -1032,7 +1032,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         dist_min = 1.0d-6  ! Minimum distance threshold
         
         ! Distance to vertex 1
-        dist = sqrt(sum((arr_co(:,j) - arr_trid(1:3,i))**2))
+        dist = sqrt(sum((arr_co(:,j) - arr_trid(1:3,k_triangle))**2))
         if (dist < dist_min) then
           !$OMP CRITICAL
           write(*,*) 'Process', myid, ': Observation point too close to vertex 1: dist =', dist
@@ -1041,7 +1041,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         end if
         
         ! Distance to vertex 2
-        dist = sqrt(sum((arr_co(:,j) - arr_trid(4:6,i))**2))
+        dist = sqrt(sum((arr_co(:,j) - arr_trid(4:6,k_triangle))**2))
         if (dist < dist_min) then
           !$OMP CRITICAL
           write(*,*) 'Process', myid, ': Observation point too close to vertex 2: dist =', dist
@@ -1050,10 +1050,10 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         end if
         
         ! Distance to vertex 3
-        dist = sqrt(sum((arr_co(:,j) - arr_trid(7:9,i))**2))
+        dist = sqrt(sum((arr_co(:,j) - arr_trid(7:9,k_triangle))**2))
         if (dist < dist_min) then
           !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': Observation point too close to vertex 2: dist =', dist
+          write(*,*) 'Process', myid, ': Observation point too close to vertex 3: dist =', dist
           !$OMP END CRITICAL
           cycle
         end if
@@ -1068,17 +1068,17 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         end if
         
         ! Calculate strain gradients using Stuart's method
-        call dstuart(parm_nu, arr_co(:,j), arr_trid(:,i), ss, ds, op, u, t)
+        call dstuart(parm_nu, arr_co(:,j), arr_trid(:,k_triangle), ss, ds, op, u, t)
         
         ! Check for invalid results from dstuart
         if (any(isnan(u)) .or. any(isnan(t))) then
           !$OMP CRITICAL
           error_occurred = .true.
           error_message = "Invalid results from dstuart calculation"
-          write(*,*) 'Process', myid, ': dstuart failed for j=', j, 'i=', i
+          write(*,*) 'Process', myid, ': dstuart failed for j=', j, 'k_triangle=', k_triangle
           write(*,*) '  parm_nu =', parm_nu
           write(*,*) '  arr_co(:,', j, ') =', arr_co(:,j)
-          write(*,*) '  arr_trid(:,', i, ') =', arr_trid(:,i)
+          write(*,*) '  arr_trid(:,', k_triangle, ') =', arr_trid(:,k_triangle)
           write(*,*) '  u =', u
           write(*,*) '  t =', t
           !$OMP END CRITICAL
@@ -1109,10 +1109,10 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         end if
 
         ! Calculate local stress in Bar (0.1MPa)
-        arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,j), matmul(sig33(:,:), arr_cl_v2(:,1,j)))
+        arr_out(j,k_triangle) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,j), matmul(sig33(:,:), arr_cl_v2(:,1,j)))
         
         ! Check final result
-        if (isnan(arr_out(j,i))) then
+        if (isnan(arr_out(j,k_triangle))) then
           !$OMP CRITICAL
           error_occurred = .true.
           error_message = "Invalid output value calculated"
