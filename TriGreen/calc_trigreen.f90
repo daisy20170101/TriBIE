@@ -17,13 +17,13 @@ program p_calc_green
    
   character(*),parameter        :: fname="triangular_mesh.gts"
   integer ::                   n_vertex,n_edge,n_cell
-  real(8),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
+  real(DP),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_edge
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_cell
   
    integer :: ierr,size,myid
    integer :: Nt,Nt_all,master
-   real(8) :: start_time, end_time
+   real(DP) :: start_time, end_time
    integer :: local_cells,cells_processed
    
    ! Dynamic load balancing variables
@@ -186,6 +186,7 @@ end program
 
 subroutine load_name(fname,n_vertex,n_edge,n_cell, error_occurred, error_message)
     implicit none
+   integer, parameter :: DP=kind(1.d0)
 
     character(*), intent(in) ::  fname
     integer, intent(out) :: n_vertex,n_edge,n_cell
@@ -226,10 +227,11 @@ end subroutine
 subroutine load_gts(fname,n_vertex,n_edge,n_cell,arr_vertex,arr_edge,&  
                 arr_cell, error_occurred, error_message)
     implicit none
+integer, parameter :: DP=kind(1.d0)
     
     character(*), intent(in) ::  fname
     integer  :: n_vertex,n_edge,n_cell
-    real(8), intent(out) :: arr_vertex(n_vertex,3)
+    real(DP), intent(out) :: arr_vertex(n_vertex,3)
     integer, intent(out) ::  arr_edge(n_edge,2)
     integer, intent(out) ::  arr_cell(n_cell,3)
     logical, intent(inout) :: error_occurred
@@ -290,13 +292,14 @@ end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-real(8) function calc_triangle_area(p1, p2, p3)
+real(kind(1.d0)) function calc_triangle_area(p1, p2, p3)
     implicit none
+ integer, parameter :: DP=kind(1.d0)
     
-    real(8)                     ::  p1(3), p2(3), p3(3)
+    real(DP)                     ::  p1(3), p2(3), p3(3)
     
-    real(8)                     ::  a, b, c, s
-    real(8)                     ::  dx, dy, dz
+    real(DP)                     ::  a, b, c, s
+    real(DP)                     ::  dx, dy, dz
   
     ! a
     dx = p1(1) - p2(1)
@@ -324,7 +327,8 @@ end function
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_triangle_centroid(p1, p2, p3, c)
     implicit none
-    real(8)                     ::  p1(3), p2(3), p3(3), c(3)
+integer, parameter :: DP=kind(1.d0)
+    real(DP)                     ::  p1(3), p2(3), p3(3), c(3)
 
     c(1:3) = (p1(1:3) + p2(1:3) + p3(1:3)) / 3.d0
 end subroutine calc_triangle_centroid
@@ -338,8 +342,9 @@ end subroutine calc_triangle_centroid
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_strain(dg, e)
     implicit none
+integer, parameter :: DP=kind(1.d0)
     
-    real(8)             ::  dg(9), e(9)
+    real(DP)             ::  dg(9), e(9)
     
     e(1) = dg(1)
     e(2) = ( dg(3*1+1) + dg(2) ) / 2.0
@@ -350,7 +355,7 @@ subroutine calc_strain(dg, e)
     e(6) = ( dg(3*1+3) + dg(3*2+2) ) / 2.0
     
     e(7) = ( dg(3) + dg(3*2+1) ) / 2.0
-    e(8) = ( dg(3*1+3) + dg(3*2+2) ) / 2.0
+    e(DP) = ( dg(3*1+3) + dg(3*2+2) ) / 2.0
     e(9) = dg(9)
 end subroutine 
 
@@ -365,8 +370,9 @@ end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_stress(e, sig, l, miu)
     implicit none
-    
-    real(8)             ::  e(9), sig(9), l, miu
+  
+  integer, parameter :: DP=kind(1.d0)  
+    real(DP)             ::  e(9), sig(9), l, miu
     
     sig(1) = l * ( e(1) + e(5) + e(9) ) + 2.0 * miu * e(1)
     sig(2) = 2.0 * miu * e(2)
@@ -377,14 +383,15 @@ subroutine calc_stress(e, sig, l, miu)
     sig(6) = 2.0 * miu * e(6)
     
     sig(7) = 2.0 * miu * e(7)
-    sig(8) = 2.0 * miu * e(8)
+    sig(DP) = 2.0 * miu * e(DP)
     sig(9) = l * ( e(1) + e(5) + e(9) ) + 2.0 * miu * e(9)
 end subroutine
 
 subroutine calc_n_stress(e, sig, l_miu)
     implicit none
+   integer, parameter :: DP=kind(1.d0)
     
-    real(8)             ::  e(9), sig(9), l_miu
+    real(DP)             ::  e(9), sig(9), l_miu
  
     sig(1) = l_miu * ( e(1) + e(5) + e(9) ) + 2.d0 * e(1)
     sig(2) = 2.d0 * e(2)
@@ -395,7 +402,7 @@ subroutine calc_n_stress(e, sig, l_miu)
     sig(6) = 2.d0 * e(6)
     
     sig(7) = 2.d0 * e(7)
-    sig(8) = 2.d0 * e(8)
+    sig(DP) = 2.d0 * e(DP)
     sig(9) = (e(1) + e(5) + e(9)) + 2.d0 * e(9)
 end subroutine calc_n_stress
 
@@ -410,8 +417,9 @@ end subroutine calc_n_stress
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine stress_transformation(sig, v, s)
   implicit none
+  integer, parameter :: DP=kind(1.d0)
 
-  real(8)             ::  sig(9), &       ! input stress tensor
+  real(DP)             ::  sig(9), &       ! input stress tensor
                           v(9), &         ! new axis & old axis ' cos value
                           s(9)            ! output new stress tensor
                             
@@ -444,13 +452,14 @@ end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_coord_cos(c1, c2, v)
   implicit none
+  integer, parameter :: DP=kind(1.d0)
 
-  real(8)             ::  c1(3, 3), &     ! old coordinate
+  real(DP)             ::  c1(3, 3), &     ! old coordinate
                           c2(3, 3)        ! new coordinate
-  real(8)             ::  v(9)
+  real(DP)             ::  v(9)
   
   integer             ::  i, j
-  real(8)             ::  f1, f2, av1, av2
+  real(DP)             ::  f1, f2, av1, av2
   
   do j=1, 3
     do i=1, 3
@@ -475,8 +484,9 @@ end subroutine calc_coord_cos
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine vector_product(p1, p2, p)
   implicit none
+  integer, parameter :: DP=kind(1.d0) 
 
-  real(8)                     ::  p1(3), p2(3), p(3)
+  real(DP)                     ::  p1(3), p2(3), p(3)
     
   p(1) = p1(2)*p2(3) - p1(3)*p2(2)
   p(2) = p1(3)*p2(1) - p1(1)*p2(3)
@@ -485,9 +495,10 @@ end subroutine vector_product
 
 subroutine unit_vect(v)
   implicit none
+ integer, parameter :: DP=kind(1.d0)
   
-  real(8)                   :: v(3)
-  real(8)                   :: l
+  real(DP)                   :: v(3)
+  real(DP)                   :: l
 
   l = sqrt(v(1)**2 + v(2)**2 + v(3)**2)
   v(1) = v(1) / l
@@ -507,9 +518,10 @@ end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine tri_normal_vect(p1, p2, p3, p)
   implicit none
+ integer, parameter :: DP=kind(1.d0)
     
-  real(8)                     ::  p1(3), p2(3), p3(3), p(3)
-  real(8)                     ::  v1(3), v2(3)
+  real(DP)                     ::  p1(3), p2(3), p3(3), p(3)
+  real(DP)                     ::  v1(3), v2(3)
     
   v1(1:3) = p1(1:3) - p2(1:3)
   v2(1:3) = p2(1:3) - p3(1:3)
@@ -533,16 +545,16 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
  use m_calc_green 
  implicit none
     
-  real(8)                     ::  v1(3), v2(3), v3(3)
-  real(8)                     ::  v_pl(3)
-  real(8)                     ::  ss, ds, op
+  real(DP)                     ::  v1(3), v2(3), v3(3)
+  real(DP)                     ::  v_pl(3)
+  real(DP)                     ::  ss, ds, op
   
-  real(8)                     ::  vpl, vpl0, theta
-  real(8)                     ::  nv(3)
-  real(8)                     ::  x, y, z
+  real(DP)                     ::  vpl, vpl0, theta
+  real(DP)                     ::  nv(3)
+  real(DP)                     ::  x, y, z
     
-  real(8)                     ::  a, b
-  real(8)                     ::  rl,a11,a12,a13,gamma
+  real(DP)                     ::  a, b
+  real(DP)                     ::  rl,a11,a12,a13,gamma
   integer                     ::  i
     
   ! get triangle's normal vector
@@ -585,14 +597,14 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
  use m_calc_green  
   implicit none
     
-    real(8)                     ::  v1(3), v2(3), v3(3)
-    real(8)                     ::  v_pl(3)
-    real(8)                     ::  c(3, 3)
+    real(DP)                     ::  v1(3), v2(3), v3(3)
+    real(DP)                     ::  v_pl(3)
+    real(DP)                     ::  c(3, 3)
     
-    real(8)                     ::  nv(3)
-    real(8)                     ::  ss, ds, op
-    real(8)                     ::  a1(3), a2(3), a3(3)
-    real(8)                     ::  rl,gamma
+    real(DP)                     ::  nv(3)
+    real(DP)                     ::  ss, ds, op
+    real(DP)                     ::  a1(3), a2(3), a3(3)
+    real(DP)                     ::  rl,gamma
     integer                     ::  i
     
     ! get ss, ds, op
@@ -625,6 +637,13 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
 
   a1(3) = gamma
 
+ !!!!!!!!!!! modified burger vector only apply to east-north/ normal-parallel coordinates.
+
+    a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
+    a1(2) = nv(1)/sqrt(nv(1)**2+nv(2)**2)
+    a1(3) = 0.0
+
+
     ! calc axis 2
     call vector_product(a1, a3, a2)
     if ( a3(3) .lt. 0 ) then
@@ -647,31 +666,31 @@ end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, & 
                 n_vertex,n_cell,cells_processed,base_cells,extra_cells, error_occurred, error_message)
-  use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
+  use m_calc_green,only: DP,parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
   use mod_dtrigreen
   implicit none
   
     integer, intent(in) :: cells_processed,base_cells,extra_cells
    integer, intent(in) :: myid, size, Nt, n_cell, n_vertex
-   real(8), intent(in) :: arr_vertex(n_vertex,3)
+   real(DP), intent(in) :: arr_vertex(n_vertex,3)
    integer, intent(in) :: arr_cell(n_cell,3)
    logical, intent(inout) :: error_occurred
    character(len=*), intent(inout) :: error_message
     
-  real(8) ::       u(3), t(9)
-  real(8) ::                ss, ds, op
+  real(DP) ::       u(3), t(9)
+  real(DP) ::                ss, ds, op
   
   integer             :: i, j, k
   integer             ::  vj(3)
-  real(8)             ::  p1(3), p2(3), p3(3), co(3)
-  real(8)             ::  sig33(3,3)
-  real(8)             ::  vpl(3)
+  real(DP)             ::  p1(3), p2(3), p3(3), co(3)
+  real(DP)             ::  sig33(3,3)
+  real(DP)             ::  vpl(3)
   character(20) ::        cTemp
-  real(8)             ::  l_miu
+  real(DP)             ::  l_miu
   
-  real(8)             ::  c_local2(3, 3)
-  real(8),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
-  real(8),allocatable :: arr_out(:,:)
+  real(DP)             ::  c_local2(3, 3)
+  real(DP),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
+  real(DP),allocatable :: arr_out(:,:)
   
   ! Dynamic load balancing variables
   integer :: local_cells, start_idx
@@ -783,6 +802,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
           !$OMP CRITICAL
           error_occurred = .true.
           error_message = "Invalid results from dstuart calculation"
+          write(*,*) arr_co(:,j),arr_trid(:,i),ss,ds,op,u,t
           !$OMP END CRITICAL
           cycle
         end if
@@ -795,7 +815,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
 
         sig33(2,1) = t(4) + t(2)
         sig33(3,1) = t(3) + t(7)
-        sig33(3,2) = t(6) + t(8)
+        sig33(3,2) = t(6) + t(DP)
 
         sig33(1,2) = sig33(2,1)
         sig33(1,3) = sig33(3,1)
@@ -818,6 +838,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
           !$OMP CRITICAL
           error_occurred = .true.
           error_message = "Invalid output value calculated"
+          write(*,*) arr_cl_v2(:,3,j),sig33(1,1),sig33(2,2),sig33(3,3)
           !$OMP END CRITICAL
           cycle
         end if
@@ -899,10 +920,11 @@ subroutine performance_monitoring(myid, start_time, end_time, cells_processed)
   use mpi
   implicit none
   
+ integer, parameter :: DP=kind(1.d0)
   integer, intent(in) :: myid, cells_processed
-  real(8), intent(in) :: start_time, end_time
+  real(DP), intent(in) :: start_time, end_time
   
-  real(8) :: local_time, total_time, avg_time
+  real(DP) :: local_time, total_time, avg_time
   integer :: size, ierr
   
   ! Get the size of MPI communicator
@@ -927,8 +949,9 @@ end subroutine
 ! isnan function for checking invalid values
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 logical function isnan(x)
+  use m_calc_green,only: DP
   implicit none
-  real(8), intent(in) :: x
+  real(DP), intent(in) :: x
   isnan = (x /= x)
 end function isnan
 
