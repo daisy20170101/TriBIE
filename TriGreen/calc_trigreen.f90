@@ -15,15 +15,18 @@ program p_calc_green
     use omp_lib
    implicit none
    
+   ! Define precision parameter for better portability
+   integer, parameter :: DP = kind(1.0d0)
+   
   character(*),parameter        :: fname="triangular_mesh.gts"
   integer ::                   n_vertex,n_edge,n_cell
-  real(8),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
+  real(DP),DIMENSION(:,:),ALLOCATABLE  ::  arr_vertex
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_edge
   integer,DIMENSION(:,:),ALLOCATABLE  ::  arr_cell
   
    integer :: ierr,size,myid
    integer :: Nt,Nt_all,master
-   real(8) :: start_time, end_time
+   real(DP) :: start_time, end_time
    integer :: local_cells,cells_processed
    
    ! Dynamic load balancing variables
@@ -533,16 +536,16 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
  use m_calc_green 
  implicit none
     
-  real(8)                     ::  v1(3), v2(3), v3(3)
-  real(8)                     ::  v_pl(3)
-  real(8)                     ::  ss, ds, op
+  real(DP)                     ::  v1(3), v2(3), v3(3)
+  real(DP)                     ::  v_pl(3)
+  real(DP)                     ::  ss, ds, op
   
-  real(8)                     ::  vpl, vpl0, theta
-  real(8)                     ::  nv(3)
-  real(8)                     ::  x, y, z
+  real(DP)                     ::  vpl, vpl0, theta
+  real(DP)                     ::  nv(3)
+  real(DP)                     ::  x, y, z
     
-  real(8)                     ::  a, b
-  real(8)                     ::  rl,a11,a12,a13,gamma
+  real(DP)                     ::  a, b
+  real(DP)                     ::  rl,a11,a12,a13,gamma
   integer                     ::  i
     
   ! get triangle's normal vector
@@ -621,14 +624,14 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
  use m_calc_green  
   implicit none
     
-    real(8)                     ::  v1(3), v2(3), v3(3)
-    real(8)                     ::  v_pl(3)
-    real(8)                     ::  c(3, 3)
+    real(DP)                     ::  v1(3), v2(3), v3(3)
+    real(DP)                     ::  v_pl(3)
+    real(DP)                     ::  c(3, 3)
     
-    real(8)                     ::  nv(3)
-    real(8)                     ::  ss, ds, op
-    real(8)                     ::  a1(3), a2(3), a3(3)
-    real(8)                     ::  rl,gamma
+    real(DP)                     ::  nv(3)
+    real(DP)                     ::  ss, ds, op
+    real(DP)                     ::  a1(3), a2(3), a3(3)
+    real(DP)                     ::  rl,gamma
     integer                     ::  i
     
     ! get ss, ds, op
@@ -741,29 +744,29 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
    logical, intent(inout) :: error_occurred
    character(len=*), intent(inout) :: error_message
     
-  real(8) ::       u(3), t(9)
-  real(8) ::                ss, ds, op
+  real(DP) ::       u(3), t(9)
+  real(DP) ::                ss, ds, op
   
   integer             :: i, j, k
   integer             ::  vj(3)
-  real(8)             ::  p1(3), p2(3), p3(3), co(3)
-  real(8)             ::  sig33(3,3)
-  real(8)             ::  vpl(3)
-  real(8)             ::  nv(3)
+  real(DP)             ::  p1(3), p2(3), p3(3), co(3)
+  real(DP)             ::  sig33(3,3)
+  real(DP)             ::  vpl(3)
+  real(DP)             ::  nv(3)
   character(20) ::        cTemp
-  real(8)             ::  l_miu
+  real(DP)             ::  l_miu
   
-  real(8)             ::  c_local2(3, 3)
-  real(8),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
-  real(8),allocatable :: arr_out(:,:)
+  real(DP)             ::  c_local2(3, 3)
+  real(DP),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
+  real(DP),allocatable :: arr_out(:,:)
   
   ! Dynamic load balancing variables
   integer :: local_cells, start_idx
   integer :: ierr
   
   ! Variables for triangle validation
-  real(8) :: v1(3), v2(3), v3(3), cross_prod(3), area_triangle
-  real(8) :: dist_min, dist
+  real(DP) :: v1(3), v2(3), v3(3), cross_prod(3), area_triangle
+  real(DP) :: dist_min, dist
   
   ! Performance optimization variables
   logical, allocatable :: skip_triangle(:)
@@ -1202,15 +1205,15 @@ end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 logical function isnan(x)
   implicit none
-  real(8), intent(in) :: x
+  real(DP), intent(in) :: x
   isnan = (x /= x)
 end function isnan
 
 ! Helper function for optimized distance calculation
 function min_distance_to_triangle(point, triangle) result(min_dist)
   implicit none
-  real(8), intent(in) :: point(3), triangle(9)
-  real(8) :: min_dist, dist
+  real(DP), intent(in) :: point(3), triangle(9)
+  real(DP) :: min_dist, dist
   
   ! Distance to vertex 1
   min_dist = sqrt(sum((point - triangle(1:3))**2))
