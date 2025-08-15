@@ -785,6 +785,8 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   real(DP)             ::  l_miu
   
   real(DP)             ::  c_local2(3, 3)
+  real(DP)             ::  c_global(3, 3)  ! Unit matrix for coordinate transformation
+  real(DP)             ::  c_local_v2(9)   ! Local coordinate transformation vector
   real(DP),allocatable :: arr_co(:,:),arr_trid(:,:),arr_cl_v2(:,:,:)
   real(DP),allocatable :: arr_out(:,:)
   
@@ -817,6 +819,12 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
     ss = 1.d0
     ds = 0.d0
     op = 0.d0
+    
+    ! Initialize c_global as unit matrix
+    c_global = 0.d0
+    c_global(1,1) = 1.d0
+    c_global(2,2) = 1.d0
+    c_global(3,3) = 1.d0
     
     ! Validate input parameters
     if (isnan(parm_nu) .or. isnan(parm_l) .or. isnan(parm_miu)) then
@@ -882,9 +890,11 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
            arr_trid(7:9,k) = p3(1:3)
            
            call calc_local_coordinate2(p1, p2, p3, vpl, c_local2)
-           arr_cl_v2(1:3,1,j) = c_local2(1:3,1)
-           arr_cl_v2(1:3,2,j) = c_local2(1:3,2)
-           arr_cl_v2(1:3,3,j) = c_local2(1:3,3)
+           ! get Burger vector for each element. c_global is unit matrix, c_local2=c_local_v2
+           call calc_coord_cos(c_global, c_local2, c_local_v2)
+           arr_cl_v2(1:3,1,j) = c_local_v2(1:3)
+           arr_cl_v2(1:3,2,j) = c_local_v2(4:6)
+           arr_cl_v2(1:3,3,j) = c_local_v2(7:9)
            
            arr_out(j,:) = 0.d0
          end do
