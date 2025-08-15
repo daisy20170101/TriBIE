@@ -76,6 +76,9 @@ program main
   
   ! Blocking variables for cache optimization
   integer :: block_size, i_start, i_end, j_start, j_end
+  
+  ! Additional variables for advanced optimizations
+  integer :: request1, request2
 
   character(len=40) :: cTemp,filename,ct
 
@@ -1061,7 +1064,9 @@ end subroutine rkqs
        real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_ds_all(Nt_all),zz_all(Nt_all),zzfric2(Nt)
        
        ! Local variables for blocking optimization
-       integer :: block_size, j_start, j_end
+       integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
+       real(DP) :: temp_sum
+       integer :: request1, request2
        intrinsic imag,real
 
        !MPI RELATED DEFINITIONS
@@ -1080,7 +1085,6 @@ end subroutine rkqs
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
        ! Use non-blocking communication to overlap computation and communication
-       integer :: request1, request2
        
        ! Start non-blocking communication early
        call MPI_Iallgather(zz,Nt,MPI_Real8,zz_all,Nt,MPI_Real8,MPI_COMM_WORLD,request1,ierr)
@@ -1099,10 +1103,8 @@ end subroutine rkqs
        tm1=tm2
 
        ! OPTIMIZATION: Advanced blocking with cache-aware memory access
-       ! Use multiple block sizes for different cache levels
+       ! Use multiple block sizes for different cache level
        block_size = 32  ! L1 cache block size
-       integer :: i_block, j_block, i_end_block, j_end_block
-       real(DP) :: temp_sum
        
        ! OPTIMIZATION: Loop tiling for better cache utilization
        do i_block=1, Nt, block_size
@@ -1488,17 +1490,17 @@ else
 
    if((imv>0).and.(imv<nmv))then
       ! OPTIMIZATION: Use buffered I/O and reduce file operations
-      open(30,file=trim(foldername)//'maxvall'//jobname,access='append',status='unknown',buffered='yes')
-      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,access='append',status='unknown',buffered='yes')
-      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,access='append',status='unknown',buffered='yes')
-      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,access='append',status='unknown',buffered='yes')
-      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,access='append',status='unknown',buffered='yes')
-      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,access='append',status='unknown',buffered='yes')
-      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,access='append',status='unknown',buffered='yes')
-      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,access='append',status='unknown',buffered='yes')
-      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,access='append',status='unknown',buffered='yes')
-      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,access='append',status='unknown',buffered='yes')
-      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,access='append',status='unknown',buffered='yes')
+             open(30,file=trim(foldername)//'maxvall'//jobname,access='append',status='unknown')
+              open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,access='append',status='unknown')
+        open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,access='append',status='unknown')
+        open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,access='append',status='unknown')
+        open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,access='append',status='unknown')
+        open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,access='append',status='unknown')
+        open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,access='append',status='unknown')
+        open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,access='append',status='unknown')
+        open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,access='append',status='unknown')
+        open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,access='append',status='unknown')
+        open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,access='append',status='unknown')
 
       ! OPTIMIZATION: Batch writes to reduce I/O overhead
       do i=1,imv
