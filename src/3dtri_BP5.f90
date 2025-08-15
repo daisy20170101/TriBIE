@@ -85,6 +85,10 @@ program main
   ! Dynamic load balancing variables (compatible with calc_trigreen.f90)
   integer :: base_cells, extra_cells, local_cells, start_idx
   logical :: use_trigreen_format = .true.  ! Set to .true. to use TriGreen files
+  
+  ! File existence checking variables
+  logical :: trigreen_file_exists
+  character(len=256) :: trigreen_filename
 
   call MPI_Init(ierr)
   CALL MPI_COMM_RANK( MPI_COMM_WORLD, myid, ierr )
@@ -134,10 +138,15 @@ program main
      Nt = local_cells
      
      if (myid == master) then
+        write(*,*) '=========================================='
+        write(*,*) 'TriGreen Integration Status:'
+        write(*,*) '=========================================='
         write(*,*) 'Using TriGreen format with dynamic load balancing'
         write(*,*) 'Base cells per process:', base_cells
         write(*,*) 'Extra cells distributed:', extra_cells
         write(*,*) 'Total processes:', size
+        write(*,*) 'Expected files: trigreen_0.bin, trigreen_1.bin, ...'
+        write(*,*) '=========================================='
      end if
      
      write(*,*) 'Process', myid, 'gets', local_cells, 'cells starting from index', start_idx
@@ -190,9 +199,19 @@ program main
 
   ! MODIFICATION: Choose file format based on use_trigreen_format flag
   if (use_trigreen_format) then
-     ! Load TriGreen format files
-     open(5, file=trim(stiffname)//'trigreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
-     write(*,*) 'Loading TriGreen file: trigreen_', trim(adjustl(cTemp)), '.bin'
+     ! Load TriGreen format files with existence checking
+     trigreen_filename = trim(stiffname)//'trigreen_'//trim(adjustl(cTemp))//'.bin'
+     
+     ! Check if TriGreen file exists
+     inquire(file=trigreen_filename, exist=trigreen_file_exists)
+     if (.not. trigreen_file_exists) then
+        write(*,*) 'ERROR: TriGreen file not found: ', trim(trigreen_filename)
+        write(*,*) 'Process', myid, 'cannot continue without TriGreen file'
+        call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+     end if
+     
+     open(5, file=trigreen_filename, form='unformatted', access='stream', status='old')
+     write(*,*) 'Process', myid, ': Successfully loaded TriGreen file: ', trim(trigreen_filename)
   else
      ! Load original ssGreen format files
      open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
@@ -269,19 +288,37 @@ end if
   !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
-        read(5) stiff(i,j)
-        stiff(i,j)=-stiff(i,j)
+        read(5, err=100) stiff(i,j)
         if(stiff(i,j).lt.-15.d0.or.stiff(i,j).gt.20.d0)then
            stiff(i,j) = 0.d0
-           write(*,*) j,'extreme'
+           write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
 	end if
         if(stiff(i,j) /= stiff(i,j))then  ! Check for NaN using IEEE standard
           stiff(i,j)=0.d0
+          write(*,*) 'Process', myid, ': NaN detected at position (', i, ',', j, ') - set to 0'
         end if
      end do
   end do
   !$OMP END PARALLEL DO
+  
+  ! Jump to error handling if read fails
+  goto 200
+  
+  ! Error handling for file read
+  100 write(*,*) 'Process', myid, ': ERROR reading stiffness matrix from TriGreen file'
+      write(*,*) 'Process', myid, ': File may be corrupted or incomplete'
+      call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+      
+  200 continue
   close(5)
+  
+  ! TriGreen integration summary
+  if (use_trigreen_format) then
+     write(*,*) 'Process', myid, ': TriGreen stiffness matrix loaded successfully'
+     write(*,*) 'Process', myid, ': Matrix dimensions:', local_cells, 'x', Nt_all
+     write(*,*) 'Process', myid, ': Total elements loaded:', local_cells * Nt_all
+  end if
+  
 if(myid==master)then
   close(666)
   if (.not. use_trigreen_format) then
