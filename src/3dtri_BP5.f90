@@ -288,7 +288,7 @@ end if
   !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
-        read(5, err=100) stiff(i,j)
+        read(5, err=999) stiff(i,j)
         if(stiff(i,j).lt.-15.d0.or.stiff(i,j).gt.20.d0)then
            stiff(i,j) = 0.d0
            write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
@@ -305,7 +305,7 @@ end if
   goto 200
   
   ! Error handling for file read
-  100 write(*,*) 'Process', myid, ': ERROR reading stiffness matrix from TriGreen file'
+  999 write(*,*) 'Process', myid, ': ERROR reading stiffness matrix from TriGreen file'
       write(*,*) 'Process', myid, ': File may be corrupted or incomplete'
       call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
       
