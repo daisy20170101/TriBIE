@@ -11,12 +11,10 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 program p_calc_green
     use m_calc_green
+    use precision_module
     use mpi
     use omp_lib
    implicit none
-   
-   ! Define precision parameter for better portability
-   integer, parameter :: DP = kind(1.0d0)
    
   character(*),parameter        :: fname="triangular_mesh.gts"
   integer ::                   n_vertex,n_edge,n_cell
@@ -534,6 +532,7 @@ end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
  use m_calc_green 
+ use precision_module
  implicit none
     
   real(DP)                     ::  v1(3), v2(3), v3(3)
@@ -622,6 +621,7 @@ end subroutine calc_ss_ds
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
  use m_calc_green  
+ use precision_module
   implicit none
     
     real(DP)                     ::  v1(3), v2(3), v3(3)
@@ -735,6 +735,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
                 n_vertex,n_cell,cells_processed,base_cells,extra_cells, error_occurred, error_message)
   use m_calc_green,only: parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
   use mod_dtrigreen
+  use precision_module
   implicit none
   
     integer, intent(in) :: cells_processed,base_cells,extra_cells
@@ -1174,12 +1175,13 @@ end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine performance_monitoring(myid, start_time, end_time, cells_processed)
   use mpi
+  use precision_module
   implicit none
   
   integer, intent(in) :: myid, cells_processed
-  real(8), intent(in) :: start_time, end_time
+  real(DP), intent(in) :: start_time, end_time
   
-  real(8) :: local_time, total_time, avg_time
+  real(DP) :: local_time, total_time, avg_time
   integer :: size, ierr
   
   ! Get the size of MPI communicator
@@ -1204,6 +1206,7 @@ end subroutine
 ! isnan function for checking invalid values
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 logical function isnan(x)
+  use precision_module
   implicit none
   real(DP), intent(in) :: x
   isnan = (x /= x)
@@ -1211,6 +1214,7 @@ end function isnan
 
 ! Helper function for optimized distance calculation
 function min_distance_to_triangle(point, triangle) result(min_dist)
+  use precision_module
   implicit none
   real(DP), intent(in) :: point(3), triangle(9)
   real(DP) :: min_dist, dist
