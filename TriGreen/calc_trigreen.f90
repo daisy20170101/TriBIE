@@ -990,7 +990,20 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         if (skip_triangle(k_triangle)) cycle
         
         ! OPTIMIZATION: Quick distance check (only for very close points)
-        if (min_distance_to_triangle(arr_co(:,j), arr_trid(:,k_triangle)) < 1.0d-6) cycle
+        ! Calculate minimum distance to triangle vertices
+        dist_min = 1.0d-6  ! Minimum distance threshold
+        
+        ! Distance to vertex 1
+        dist = sqrt(sum((arr_co(:,j) - arr_trid(1:3,k_triangle))**2))
+        if (dist < dist_min) cycle
+        
+        ! Distance to vertex 2
+        dist = sqrt(sum((arr_co(:,j) - arr_trid(4:6,k_triangle))**2))
+        if (dist < dist_min) cycle
+        
+        ! Distance to vertex 3
+        dist = sqrt(sum((arr_co(:,j) - arr_trid(7:9,k_triangle))**2))
+        if (dist < dist_min) cycle
         
         ! OPTIMIZATION: Remove expensive validation checks from inner loop
         ! All validation is now pre-computed above
@@ -1028,35 +1041,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         ! Vertical triangles use computed coordinate systems based on actual geometry
         ! Horizontal triangles use predefined coordinate systems by convention
         
-        ! Check if observation point is too close to triangle vertices (can cause numerical issues)
-        dist_min = 1.0d-6  ! Minimum distance threshold
-        
-        ! Distance to vertex 1
-        dist = sqrt(sum((arr_co(:,j) - arr_trid(1:3,k_triangle))**2))
-        if (dist < dist_min) then
-          !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': Observation point too close to vertex 1: dist =', dist
-          !$OMP END CRITICAL
-          cycle
-        end if
-        
-        ! Distance to vertex 2
-        dist = sqrt(sum((arr_co(:,j) - arr_trid(4:6,k_triangle))**2))
-        if (dist < dist_min) then
-          !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': Observation point too close to vertex 2: dist =', dist
-          !$OMP END CRITICAL
-          cycle
-        end if
-        
-        ! Distance to vertex 3
-        dist = sqrt(sum((arr_co(:,j) - arr_trid(7:9,k_triangle))**2))
-        if (dist < dist_min) then
-          !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': Observation point too close to vertex 3: dist =', dist
-          !$OMP END CRITICAL
-          cycle
-        end if
+        ! Distance checks already performed above for optimization
         
         ! Validate ss, ds, op parameters
         if (isnan(ss) .or. isnan(ds) .or. isnan(op)) then
@@ -1238,27 +1223,7 @@ logical function isnan(x)
   isnan = (x /= x)
 end function isnan
 
-! Helper function for optimized distance calculation
-function min_distance_to_triangle(point, triangle) result(min_dist)
-  implicit none
-  
-  ! Define precision parameter locally
-  integer, parameter :: DP = kind(1.0d0)
-  
-  real(DP), intent(in) :: point(3), triangle(9)
-  real(DP) :: min_dist, dist
-  
-  ! Distance to vertex 1
-  min_dist = sqrt(sum((point - triangle(1:3))**2))
-  
-  ! Distance to vertex 2
-  dist = sqrt(sum((point - triangle(4:6))**2))
-  if (dist < min_dist) min_dist = dist
-  
-  ! Distance to vertex 2
-  dist = sqrt(sum((point - triangle(7:9))**2))
-  if (dist < min_dist) min_dist = dist
-end function min_distance_to_triangle
+! Helper function removed - distance calculations now inline for better performance
 
 
 
