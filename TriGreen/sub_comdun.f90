@@ -29,21 +29,22 @@ module comdun_module
     !   dv(b,comp,dx)  - displ deriv
     
     implicit none
+    integer, parameter :: DP=kind(1.d0)
     
     ! Parameters
-    real(8), intent(in) :: nu, x1, x2, x3, a, beta
-    real(8), intent(out) :: v(3,3), dv(3,3,3)
+    real(DP), intent(in) :: nu, x1, x2, x3, a, beta
+    real(DP), intent(out) :: v(3,3), dv(3,3,3)
     
     ! Local variables
-    real(8) :: tol, y3, y1, y2, yb3
-    real(8) :: cb, sb, ctb
-    real(8) :: z1, z2, z3, zb1, zb3
-    real(8) :: r, rb
-    real(8) :: f, fb
-    real(8) :: dfdy1, dfdy2, dfdy3
-    real(8) :: dfbdy1, dfbdy2, dfbdy3
-    real(8) :: vc(3,3), dvc(3,3,3)
-    real(8) :: vfac, pi
+    real(DP) :: tol, y3, y1, y2, yb3
+    real(DP) :: cb, sb, ctb
+    real(DP) :: z1, z2, z3, zb1, zb3
+    real(DP) :: r, rb
+    real(DP) :: f, fb
+    real(DP) :: dfdy1, dfdy2, dfdy3
+    real(DP) :: dfbdy1, dfbdy2, dfbdy3
+    real(DP) :: vc(3,3), dvc(3,3,3)
+    real(DP) :: vfac, pi
     integer :: i, j, k
     
     ! Initialize
@@ -150,8 +151,9 @@ module comdun_module
   subroutine calculate_displacements_v(y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, &
                                       cb, sb, nu, v)
     implicit none
-    real(8), intent(in) :: y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, cb, sb, nu
-    real(8), intent(out) :: v(3,3)
+    integer, parameter :: DP=kind(1.d0)
+    real(DP), intent(in) :: y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, cb, sb, nu
+    real(DP), intent(out) :: v(3,3)
     
     ! v(1,1)
     v(1,1) = -(y1 * y2 * (1.0d0 / (r * (r - y3)) + 1.0d0 / (rb * (rb + yb3)))) - &
@@ -213,8 +215,9 @@ module comdun_module
   subroutine calculate_displacements_vc(y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, &
                                        cb, sb, ctb, a, nu, vc)
     implicit none
-    real(8), intent(in) :: y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, cb, sb, ctb, a, nu
-    real(8), intent(out) :: vc(3,3)
+    integer, parameter :: DP=kind(1.d0)
+    real(DP), intent(in) :: y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, cb, sb, ctb, a, nu
+    real(DP), intent(out) :: vc(3,3)
     
     ! This is a simplified version - the full vc calculations are very complex
     ! and would require extensive rewriting. For now, we'll set them to zero
@@ -329,9 +332,10 @@ module comdun_module
   subroutine calculate_derivatives_dv(y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, &
                                       cb, sb, nu, dfdy1, dfdy2, dfdy3, dv)
     implicit none
-    real(8), intent(in) :: y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, cb, sb, nu
-    real(8), intent(in) :: dfdy1, dfdy2, dfdy3
-    real(8), intent(out) :: dv(3,3,3)
+    integer, parameter :: DP=kind(1.d0)
+    real(DP), intent(in) :: y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, cb, sb, nu
+    real(DP), intent(in) :: dfdy1, dfdy2, dfdy3
+    real(DP), intent(out) :: dv(3,3,3)
     
     ! This is a simplified version - the full dv calculations are very complex
     ! and would require extensive rewriting. For now, we'll set them to zero
@@ -679,9 +683,10 @@ module comdun_module
   subroutine calculate_derivatives_dvc(y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, &
                                        cb, sb, ctb, a, nu, dfbdy1, dfbdy2, dfbdy3, dvc)
     implicit none
-    real(8), intent(in) :: y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, cb, sb, ctb, a, nu
-    real(8), intent(in) :: dfbdy1, dfbdy2, dfbdy3
-    real(8), intent(out) :: dvc(3,3,3)
+    integer, parameter :: DP=kind(1.d0)
+    real(DP), intent(in) :: y1, y2, y3, yb3, r, rb, z1, z3, zb1, zb3, cb, sb, ctb, a, nu
+    real(DP), intent(in) :: dfbdy1, dfbdy2, dfbdy3
+    real(DP), intent(out) :: dvc(3,3,3)
     
     ! This is a simplified version - the full dvc calculations are very complex
     ! and would require extensive rewriting. For now, we'll set them to zero

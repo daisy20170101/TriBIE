@@ -16,11 +16,13 @@ subroutine dstuart (nu, xo, tridlc, ss,ds,op, u,t)
 !       Their simple angular dislocation is in the 1,3 plane
 !       with its tip under the origin and its arm pointing toward +x1.
   implicit none
+  integer, parameter :: DP=kind(1.d0)
+
   integer :: i,k,iflag
-  real(8) :: nu,ss,ds,op
-  real(8) :: xo(3), tridlc(9), burg(3), u(3), t(9)
-  real(8) :: utmp(3), ttmp(9)
-  real(8) :: tri(3,4)
+  real(DP) :: nu,ss,ds,op
+  real(DP) :: xo(3), tridlc(9), burg(3), u(3), t(9)
+  real(DP) :: utmp(3), ttmp(9)
+  real(DP) :: tri(3,4)
   ! nwarn is now a module variable, no need for common block
 
 !      nu         = poissons ratio
@@ -32,9 +34,9 @@ subroutine dstuart (nu, xo, tridlc, ss,ds,op, u,t)
 !      t(9)       = tilts = t11,t12,t13,t21,t22,t23,t31,t32,t33
 !                     (where tij = d(ui)/dxj)
 
-  real(8), parameter :: pi=3.14159265358979323846d0
-  real(8), parameter :: deg2rad=pi/180.d0
-  real(8), parameter :: rad2deg=180.d0/pi
+  real(DP), parameter :: pi=3.14159265358979323846d0
+  real(DP), parameter :: deg2rad=pi/180.d0
+  real(DP), parameter :: rad2deg=180.d0/pi
 
 !.....Initialize displacement and tilt arrays.
   u = 0.d0
@@ -87,14 +89,15 @@ subroutine burger2global (ss,ds,op, tri, burg)
 !     Note special definition of ss and ds needed for horizontal dislocations
 !         and of ds for vertical dislocations.
   implicit none
-  real(8) :: ss,ds,op
-  real(8) :: tri(3,3), burg(3)
-  real(8) :: side12(3), side13(3)
-  real(8) :: perp(3), hor(3), dwndip(3), b(3)
-  real(8), parameter :: pi=3.14159265358979323846d0
-  real(8), parameter :: deg2rad=pi/180.d0
-  real(8), parameter :: rad2deg=180.d0/pi
-  real(8) :: strikerad,strike,dip
+  integer, parameter :: DP=kind(1.d0)
+  real(DP) :: ss,ds,op
+  real(DP) :: tri(3,3), burg(3)
+  real(DP) :: side12(3), side13(3)
+  real(DP) :: perp(3), hor(3), dwndip(3), b(3)
+  real(DP), parameter :: pi=3.14159265358979323846d0
+  real(DP), parameter :: deg2rad=pi/180.d0
+  real(DP), parameter :: rad2deg=180.d0/pi
+  real(DP) :: strikerad,strike,dip
 
 !     tri(3,i) = coordinates of ith corner in 123 coordinate system.
 !                   (i=4 returns to i=1)
@@ -159,12 +162,13 @@ subroutine global2triburger (burg, strike, dip, b)
 !      attached to dlc.)  Order is here set to match Comninou & Dunders
 !      conventions.
   implicit none
-  real(8) :: burg(3), b(3)
-  real(8) :: perp(3), hor(3), dwndip(3)
-  real(8), parameter :: pi=3.14159265358979323846d0
-  real(8), parameter :: deg2rad=pi/180.d0
-  real(8), parameter :: rad2deg=180.d0/pi
-  real(8) :: strike,dip,strikerad,diprad,dipdirrad
+  integer, parameter :: DP=kind(1.d0)
+  real(DP) :: burg(3), b(3)
+  real(DP) :: perp(3), hor(3), dwndip(3)
+  real(DP), parameter :: pi=3.14159265358979323846d0
+  real(DP), parameter :: deg2rad=pi/180.d0
+  real(DP), parameter :: rad2deg=180.d0/pi
+  real(DP) :: strike,dip,strikerad,diprad,dipdirrad
 
 !.....Construct a coordinates system attached to the triangle.
 
@@ -204,21 +208,22 @@ subroutine twoangles (nu,xo,xcorna,xcornb, burg, u,t)
 !     Calculates the effect of a vertical side formed by two angles
 !       located at points xcorna and xcornb.
   implicit none
-  real(8) :: nu, xo(3), xcorna(3), xcornb(3), burg(3), u(3), t(9)
-  real(8) :: xop(3), xca(3), xcb(3), b(3)
-  real(8) :: v(3,3), dv(3,3,3)
-  real(8) :: va(3,3), dva(3,3,3)
-  real(8) :: vb(3,3), dvb(3,3,3)
+ integer, parameter :: DP=kind(1.d0)
+  real(DP) :: nu, xo(3), xcorna(3), xcornb(3), burg(3), u(3), t(9)
+  real(DP) :: xop(3), xca(3), xcb(3), b(3)
+  real(DP) :: v(3,3), dv(3,3,3)
+  real(DP) :: va(3,3), dva(3,3,3)
+  real(DP) :: vb(3,3), dvb(3,3,3)
 
 !     nu     = Poissons ratio
 !     xo(3)  = observation point in x1,x2,x3 = NED coordinates.
 !     xca(3) = x1,x2,x3 coordinates of corner A.
 !     xcb(3) = x1,x2,x3 coordinates of corner B.
-  real(8), parameter :: pi=3.14159265358979323846d0
-  real(8), parameter :: deg2rad=pi/180.d0
-  real(8), parameter :: rad2deg=180.d0/pi
+  real(DP), parameter :: pi=3.14159265358979323846d0
+  real(DP), parameter :: deg2rad=pi/180.d0
+  real(DP), parameter :: rad2deg=180.d0/pi
   integer :: iswitch,j,k,iret
-  real(8) :: theta,strike,dip,rot,deptha,depthb,xlen,betarad,x1,x2,x3
+  real(DP) :: theta,strike,dip,rot,deptha,depthb,xlen,betarad,x1,x2,x3
 
 !.....Copy corners.
   xca(:) = xcorna(:)
@@ -286,14 +291,15 @@ subroutine comdun2 ( nu, x1, x2, x3, a, beta, v, dv, iret )
 !     Performs some checks before calling comdun
 use comdun_module
   implicit none
-  real(8) :: nu,x1,x2,x3,a,beta
+ integer, parameter :: DP=kind(1.d0)
+  real(DP) :: nu,x1,x2,x3,a,beta
   integer :: iret,nwarn
-  real(8) :: v(3,3), dv(3,3,3)
-  real(8) :: vp(3,3), dvp(3,3,3)
-  real(8) :: vm(3,3), dvm(3,3,3)
-  real(8) :: betatol = 1.d-4
-  real(8) :: tol = 1.d-4
-  real(8) :: x2p,x2m,tan2angle
+  real(DP) :: v(3,3), dv(3,3,3)
+  real(DP) :: vp(3,3), dvp(3,3,3)
+  real(DP) :: vm(3,3), dvm(3,3,3)
+  real(DP) :: betatol = 1.d-4
+  real(DP) :: tol = 1.d-4
+  real(DP) :: x2p,x2m,tan2angle
 
   ! nwarn is now a module variable
 
@@ -343,10 +349,11 @@ function inside (x0,y0, px,py,n)
 !                  = +/-1 if point is inside
 !                  = 2 if point is on an edge or vertex.
   implicit none
+  integer, parameter :: DP=kind(1.d0)
   integer :: inside,i, isicr
   integer, intent(in) :: n
-  real(8), intent(in) :: x0, y0
-  real(8), intent(in) :: px(n), py(n)
+  real(DP), intent(in) :: x0, y0
+  real(DP), intent(in) :: px(n), py(n)
 
   inside = 0
   do i=1,n-1
@@ -376,12 +383,13 @@ subroutine undertriangle (xo, tri, iflag)
 !     Returns a flag = 3 if the point xo lies on a triangle edge or corner.
 !     Returns a flag = 0 otherwise.
   implicit none
+ integer, parameter :: DP=kind(1.d0)
   integer :: iflag
-  real(8) :: xo(3), tri(3,4)
-  real(8) :: xc(3), yc(3)
-  real(8) :: side12(3), side13(3), perp(3)
-  real(8) :: tol = 1.d-6
-  real(8) :: xpt,ypt,zpt,zontri,ht
+  real(DP) :: xo(3), tri(3,4)
+  real(DP) :: xc(3), yc(3)
+  real(DP) :: side12(3), side13(3), perp(3)
+  real(DP) :: tol = 1.d-6
+  real(DP) :: xpt,ypt,zpt,zontri,ht
  !  integer :: inside
 
   iflag=0
@@ -429,8 +437,9 @@ end subroutine undertriangle
 
 function ksicr (x1,y1,x2,y2)
   implicit none
+ integer, parameter :: DP=kind(1.d0)
   integer :: ksicr
-  real(8), intent(in) :: x1,x2,y1,y2
+  real(DP), intent(in) :: x1,x2,y1,y2
   
   ! Convert goto-based logic to proper Fortran 90
   if (y1*y2 .gt. 0.0d0) then
@@ -490,13 +499,14 @@ subroutine vector_rot3 (u,phi)
 !     Rotates vector u around the x3 axis in a CW sense
 !        by angle phi in the x1-x2 plane.
   implicit none
-  real(8) :: phi
-  real(8) :: u(3), utmp(3)
-  real(8), parameter :: pi=3.14159265358979323846d0
-  real(8), parameter :: deg2rad=pi/180.d0
-  real(8), parameter :: rad2deg=180.d0/pi
+ integer, parameter :: DP=kind(1.d0)
+  real(DP) :: phi
+  real(DP) :: u(3), utmp(3)
+  real(DP), parameter :: pi=3.14159265358979323846d0
+  real(DP), parameter :: deg2rad=pi/180.d0
+  real(DP), parameter :: rad2deg=180.d0/pi
 
-  real(8) :: phirad,cp,sp
+  real(DP) :: phirad,cp,sp
 
   if (phi.eq.0.0) return
 
@@ -519,14 +529,15 @@ subroutine tensor_rot3 (t,phi)
 !     Rotates a general tensor t by the angle phi around the
 !       x3 axis (within the x1-x2 plane).
   implicit none
+integer, parameter :: DP=kind(1.d0)
   
-  real(8), intent(inout) :: phi
-  real(8), intent(inout) :: t(9)
-  real(8) :: ttmp(9)
-  real(8), parameter :: pi=3.14159265358979323846d0
-  real(8), parameter :: deg2rad=pi/180.d0
-  real(8), parameter :: rad2deg=180.d0/pi
-  real(8) :: phirad,cp,sp
+  real(DP), intent(inout) :: phi
+  real(DP), intent(inout) :: t(9)
+  real(DP) :: ttmp(9)
+  real(DP), parameter :: pi=3.14159265358979323846d0
+  real(DP), parameter :: deg2rad=pi/180.d0
+  real(DP), parameter :: rad2deg=180.d0/pi
+  real(DP) :: phirad,cp,sp
 
   if (phi.eq.0.d0) return
 
@@ -542,8 +553,8 @@ subroutine tensor_rot3 (t,phi)
   t(4) = -sp*cp*ttmp(1)-(sp**2)*ttmp(2)+(cp**2)*ttmp(4)+cp*sp*ttmp(5)
   t(5) =  (sp**2)*ttmp(1)-sp*cp*ttmp(2)-sp*cp*ttmp(4)+(cp**2)*ttmp(5)
   t(6) = -sp*ttmp(3) + cp*ttmp(6)
-  t(7) =  cp*ttmp(7) + sp*ttmp(8)
-  t(8) = -sp*ttmp(7) + cp*ttmp(8)
+  t(7) =  cp*ttmp(7) + sp*ttmp(DP)
+  t(DP) = -sp*ttmp(7) + cp*ttmp(DP)
 
   return
 end subroutine tensor_rot3
@@ -551,7 +562,8 @@ end subroutine tensor_rot3
 subroutine switch (a, b)
 !     Switches real numbers.
   implicit none
-  real(8) :: a,b,temp
+integer, parameter :: DP=kind(1.d0)
+  real(DP) :: a,b,temp
   temp = a
   a = b
   b = temp
@@ -562,7 +574,8 @@ end subroutine switch
 subroutine switch3 (xca, xcb)
 !     Interchanges two vectors
   implicit none
-  real(8) :: xca(3), xcb(3), xtmp(3)
+integer, parameter :: DP=kind(1.d0)
+  real(DP) :: xca(3), xcb(3), xtmp(3)
 
   xtmp(:) = xca(:)
   xca(:) = xcb(:)
@@ -576,7 +589,8 @@ subroutine cross (a,b,acrsb)
 
 !     Calculates the cross product, acrsb, of vectors a and b.
   implicit none
-  real(8) :: a(3), b(3), acrsb(3)
+ integer, parameter :: DP=kind(1.d0)
+  real(DP) :: a(3), b(3), acrsb(3)
 
   acrsb(1)= a(2)*b(3) - a(3)*b(2)
   acrsb(2)= a(3)*b(1) - a(1)*b(3)
@@ -588,8 +602,9 @@ end subroutine cross
 subroutine unit(x)
 !     Makes a unit vector out of x.
   implicit none
-  real(8) :: x(3)
-  real(8) :: d
+ integer, parameter :: DP=kind(1.d0)
+  real(DP) :: x(3)
+  real(DP) :: d
   d = sqrt( dot_product(x,x))
 
  if(d.gt.0.d0) then

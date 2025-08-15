@@ -619,6 +619,68 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
        end do
     end if
 
+! Check for vertical triangle (nv(3) = 0)
+    if (abs(nv(3)) .lt. 1.0d-12) then
+      write(*,*) "WARNING: Vertical triangle detected in calc_local_coordinate2"
+ ! For vertical triangles, construct coordinate system by convention
+      ! a1 = strike direction (along x-axis)
+      a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
+      a1(2) = nv(1)/sqrt(nv(1)**2+nv(2)**2)
+      a1(3) = 0.0
+     
+      a3(1:3) = nv(1:3)
+      ! calc axis 2
+    call vector_product(a1, a3, a2)
+
+
+    call unit_vect(a1)
+    call unit_vect(a2)
+    call unit_vect(a3)
+      
+      ! Set output coordinate system
+      c(1, 1:3) = a1(1:3)  ! Strike axis
+      c(2, 1:3) = a2(1:3)  ! Dip axis  
+      c(3, 1:3) = a3(1:3)  ! Normal axis
+      return
+    end if
+
+    ! Handle horizontal triangles (nv(1) and nv(2) both zero)
+    if (abs(nv(1)) < 1.0d-12 .and. abs(nv(2)) < 1.0d-12) then
+      write(*,*) "INFO: Horizontal triangle detected in calc_local_coordinate2 - using predefined axes"
+      write(*,*) "Triangle vertices: v1=", v1, " v2=", v2, " v3=", v3
+      write(*,*) "Normal vector: nv=", nv
+      
+      ! For horizontal triangles, construct coordinate system by convention
+      ! a1 = strike direction (along x-axis)
+      a1(1) = 1.0d0
+      a1(2) = 0.0d0
+      a1(3) = 0.0d0
+      
+      ! a3 = normal direction (upward z-axis)
+      a3(1) = 0.0d0
+      a3(2) = 0.0d0
+      a3(3) = 1.0d0
+      
+      ! a2 = dip direction (along y-axis, perpendicular to a1 and a3)
+      a2(1) = 0.0d0
+      a2(2) = 1.0d0
+      a2(3) = 0.0d0
+      
+      ! Set output coordinate system
+      c(1, 1:3) = a1(1:3)  ! Strike axis
+      c(2, 1:3) = a2(1:3)  ! Dip axis  
+      c(3, 1:3) = a3(1:3)  ! Normal axis
+      return
+    end if
+
+    !write(6,*) "nv(3)check",nv(3)
+    ! Check for valid ss and ds values
+    if (isnan(ss) .or. isnan(ds)) then
+      write(*,*) "ERROR: Invalid ss or ds in calc_local_coordinate2"
+      write(*,*) "ss =", ss, "ds =", ds
+      c = 0.0d0
+      return
+    end if
     !write(6,*) "nv(3)check",nv(3)
     ! calc axis 1
     a1(1) = ss
@@ -636,13 +698,6 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
     a1(2) = vpl2*rl
 
   a1(3) = gamma
-
- !!!!!!!!!!! modified burger vector only apply to east-north/ normal-parallel coordinates.
-
-    a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
-    a1(2) = nv(1)/sqrt(nv(1)**2+nv(2)**2)
-    a1(3) = 0.0
-
 
     ! calc axis 2
     call vector_product(a1, a3, a2)
