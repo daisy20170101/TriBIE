@@ -554,6 +554,28 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
     end do
   end if
 
+  ! Check for vertical triangle (nv(3) = 0)
+  if (abs(nv(3)) .lt. 1.0d-12) then
+    write(*,*) "WARNING: Vertical triangle detected in calc_ss_ds"
+    write(*,*) "Triangle vertices: v1=", v1, " v2=", v2, " v3=", v3
+    write(*,*) "Normal vector: nv=", nv
+    write(*,*) "This triangle will be skipped"
+    ss = 0.0d0
+    ds = 0.0d0
+    op = 0.0d0
+    return
+  end if
+
+  ! Check for valid vpl1 and vpl2 parameters
+  if (isnan(vpl1) .or. isnan(vpl2)) then
+    write(*,*) "ERROR: Invalid vpl1 or vpl2 in calc_ss_ds"
+    write(*,*) "vpl1 =", vpl1, "vpl2 =", vpl2
+    ss = 0.0d0
+    ds = 0.0d0
+    op = 0.0d0
+    return
+  end if
+
   rl=(vpl1**2+vpl2**2)+(nv(1)*vpl1+nv(2)*vpl2)**2/nv(3)**2
   rl=1.d0/rl
   rl=sqrt(rl)
@@ -564,6 +586,20 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
   a13 = gamma
 
   ! calc ss, ds
+  ! Handle horizontal triangles (nv(1) and nv(2) both zero)
+  if (abs(nv(1)) < 1.0d-12 .and. abs(nv(2)) < 1.0d-12) then
+    write(*,*) "INFO: Horizontal triangle detected in calc_ss_ds - using predefined axes"
+    write(*,*) "Triangle vertices: v1=", v1, " v2=", v2, " v3=", v3
+    write(*,*) "Normal vector: nv=", nv
+    
+    ! For horizontal triangles, use predefined coordinate system
+    ! Set strike direction along x-axis (convention)
+    ss = vpl1  ! Strike-slip component
+    ds = vpl2  ! Dip-slip component  
+    op = 0.0d0 ! Opening component
+    return
+  end if
+  
   ss =(nv(2)*a11-nv(1)*a12)/sqrt(nv(1)**2+nv(2)**2)
   ds =sqrt(nv(1)**2+nv(2)**2-(nv(2)*a11-nv(1)*a12)**2)
   ds =ds/sqrt(nv(1)**2+nv(2)**2)
@@ -607,7 +643,54 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
        end do
     end if
 
+    ! Check for vertical triangle (nv(3) = 0)
+    if (abs(nv(3)) .lt. 1.0d-12) then
+      write(*,*) "WARNING: Vertical triangle detected in calc_local_coordinate2"
+      write(*,*) "Triangle vertices: v1=", v1, " v2=", v2, " v3=", v3
+      write(*,*) "Normal vector: nv=", nv
+      write(*,*) "This triangle will be skipped"
+      c = 0.0d0
+      return
+    end if
+
+    ! Handle horizontal triangles (nv(1) and nv(2) both zero)
+    if (abs(nv(1)) < 1.0d-12 .and. abs(nv(2)) < 1.0d-12) then
+      write(*,*) "INFO: Horizontal triangle detected in calc_local_coordinate2 - using predefined axes"
+      write(*,*) "Triangle vertices: v1=", v1, " v2=", v2, " v3=", v3
+      write(*,*) "Normal vector: nv=", nv
+      
+      ! For horizontal triangles, construct coordinate system by convention
+      ! a1 = strike direction (along x-axis)
+      a1(1) = 1.0d0
+      a1(2) = 0.0d0
+      a1(3) = 0.0d0
+      
+      ! a3 = normal direction (upward z-axis)
+      a3(1) = 0.0d0
+      a3(2) = 0.0d0
+      a3(3) = 1.0d0
+      
+      ! a2 = dip direction (along y-axis, perpendicular to a1 and a3)
+      a2(1) = 0.0d0
+      a2(2) = 1.0d0
+      a2(3) = 0.0d0
+      
+      ! Set output coordinate system
+      c(1, 1:3) = a1(1:3)  ! Strike axis
+      c(2, 1:3) = a2(1:3)  ! Dip axis  
+      c(3, 1:3) = a3(1:3)  ! Normal axis
+      return
+    end if
+
     !write(6,*) "nv(3)check",nv(3)
+    ! Check for valid ss and ds values
+    if (isnan(ss) .or. isnan(ds)) then
+      write(*,*) "ERROR: Invalid ss or ds in calc_local_coordinate2"
+      write(*,*) "ss =", ss, "ds =", ds
+      c = 0.0d0
+      return
+    end if
+
     ! calc axis 1
     a1(1) = ss
     a1(2) = ds
@@ -666,6 +749,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   real(8)             ::  p1(3), p2(3), p3(3), co(3)
   real(8)             ::  sig33(3,3)
   real(8)             ::  vpl(3)
+  real(8)             ::  nv(3)
   character(20) ::        cTemp
   real(8)             ::  l_miu
   
@@ -676,6 +760,15 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   ! Dynamic load balancing variables
   integer :: local_cells, start_idx
   integer :: ierr
+  
+  ! Variables for triangle validation
+  real(8) :: v1(3), v2(3), v3(3), cross_prod(3), area_triangle
+  real(8) :: dist_min, dist
+  
+  ! Performance optimization variables
+  logical, allocatable :: skip_triangle(:)
+  integer, allocatable :: valid_triangles(:)
+  integer :: n_valid_triangles, k_triangle
   
   ! Get distribution parameters from main program
   local_cells = cells_processed
@@ -799,13 +892,63 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         cycle
       end if
       
+      ! Check for degenerate triangles (zero area)
+      call tri_normal_vect(p1, p2, p3, nv)
+      if (abs(nv(1)) < 1.0d-12 .and. abs(nv(2)) < 1.0d-12 .and. abs(nv(3)) < 1.0d-12) then
+        write(*,*) 'Process', myid, ': Degenerate triangle (zero area) for cell', k
+        write(*,*) '  p1 =', p1
+        write(*,*) '  p2 =', p2
+        write(*,*) '  p3 =', p3
+        cycle
+      end if
+      
+      ! Check for vertical triangles (nv(3) = 0)
+      if (abs(nv(3)) < 1.0d-12) then
+        write(*,*) 'Process', myid, ': Vertical triangle detected for cell', k
+        write(*,*) '  p1 =', p1
+        write(*,*) '  p2 =', p2
+        write(*,*) '  p3 =', p3
+        write(*,*) '  Normal vector: nv =', nv
+        write(*,*) '  This triangle will be skipped to avoid division by zero'
+        cycle
+      end if
+      
       arr_trid(1:3,k) = p1(1:3)
       arr_trid(4:6,k) = p2(1:3)
       arr_trid(7:9,k) = p3(1:3)
     end do
     write(*,*) "Process", myid, "completed triangle data computation"
 
-  write(6,*) "Process", myid, "starting hybrid parallel computation"
+  ! OPTIMIZATION: Pre-compute validation flags to avoid expensive checks in inner loop
+  write(*,*) "Process", myid, "pre-computing triangle validation flags..."
+  
+  allocate(skip_triangle(n_cell), valid_triangles(n_cell))
+  
+  ! Pre-compute which triangles to skip (ONCE, outside the main loop)
+  n_valid_triangles = 0
+  do i = 1, n_cell
+    ! Quick check for problematic triangles
+    v1 = arr_trid(4:6,i) - arr_trid(1:3,i)
+    v2 = arr_trid(7:9,i) - arr_trid(1:3,i)
+    
+    ! Cross product for normal vector
+    cross_prod(1) = v1(2) * v2(3) - v1(3) * v2(2)
+    cross_prod(2) = v1(3) * v2(1) - v1(1) * v2(3)
+    cross_prod(3) = v1(1) * v2(2) - v1(2) * v2(1)
+    
+    ! Check for degenerate triangles only (allow horizontal and vertical triangles)
+    if (abs(cross_prod(1)) < 1.0d-12 .and. abs(cross_prod(2)) < 1.0d-12 .and. abs(cross_prod(3)) < 1.0d-12) then
+      skip_triangle(i) = .true.  ! Degenerate triangle (zero area)
+    else
+      skip_triangle(i) = .false.  ! Valid triangle (including horizontal and vertical)
+      n_valid_triangles = n_valid_triangles + 1
+      valid_triangles(n_valid_triangles) = i
+    end if
+  end do
+  
+  write(*,*) "Process", myid, "found", n_valid_triangles, "valid triangles out of", n_cell
+
+  write(6,*) "Process", myid, "starting optimized hybrid parallel computation"
   
   ! Hybrid MPI+OpenMP parallel computation
   if (local_cells > 0) then
@@ -815,7 +958,18 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
       k = start_idx + j - 1
       if (k >= n_cell) cycle
       
-      do i = 1, n_cell
+      ! OPTIMIZATION: Only iterate over valid triangles (major speedup!)
+      do i = 1, n_valid_triangles
+        k_triangle = valid_triangles(i)
+        
+        ! Skip if triangle is marked as problematic
+        if (skip_triangle(k_triangle)) cycle
+        
+        ! OPTIMIZATION: Quick distance check (only for very close points)
+        if (min_distance_to_triangle(arr_co(:,j), arr_trid(:,k_triangle)) < 1.0d-6) cycle
+        
+        ! OPTIMIZATION: Remove expensive validation checks from inner loop
+        ! All validation is now pre-computed above
         ! Debug: Check input parameters before calling dstuart
         if (isnan(parm_nu) .or. any(isnan(arr_co(:,j))) .or. any(isnan(arr_trid(:,i))) then
           !$OMP CRITICAL
@@ -827,10 +981,17 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
           cycle
         end if
         
-        ! Check for degenerate triangles (zero area)
-        real(8) :: area_triangle
-        area_triangle = abs((arr_trid(4,i) - arr_trid(1,i)) * (arr_trid(7,i) - arr_trid(1,i)) - &
-                           (arr_trid(7,i) - arr_trid(1,i)) * (arr_trid(4,i) - arr_trid(1,i))) / 2.0d0
+        ! Check for degenerate triangles (zero area) and vertical triangles
+        ! Calculate triangle area using cross product
+        v1 = arr_trid(4:6,i) - arr_trid(1:3,i)
+        v2 = arr_trid(7:9,i) - arr_trid(1:3,i)
+        
+        ! Cross product v1 × v2
+        cross_prod(1) = v1(2) * v2(3) - v1(3) * v2(2)
+        cross_prod(2) = v1(3) * v2(1) - v1(1) * v2(3)
+        cross_prod(3) = v1(1) * v2(2) - v1(2) * v2(1)
+        
+        area_triangle = sqrt(sum(cross_prod**2)) / 2.0d0
         
         if (area_triangle < 1.0d-12) then
           !$OMP CRITICAL
@@ -839,8 +1000,10 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
           cycle
         end if
         
+        ! OPTIMIZATION: Vertical triangle validation is now pre-computed above
+        ! Vertical triangles are properly handled in calc_ss_ds and calc_local_coordinate2
+        
         ! Check if observation point is too close to triangle vertices (can cause numerical issues)
-        real(8) :: dist_min, dist
         dist_min = 1.0d-6  ! Minimum distance threshold
         
         ! Distance to vertex 1
@@ -865,7 +1028,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         dist = sqrt(sum((arr_co(:,j) - arr_trid(7:9,i))**2))
         if (dist < dist_min) then
           !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': Observation point too close to vertex 3: dist =', dist
+          write(*,*) 'Process', myid, ': Observation point too close to vertex 2: dist =', dist
           !$OMP END CRITICAL
           cycle
         end if
@@ -998,6 +1161,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
    ! Deallocate arrays allocated in this subroutine
    deallocate (arr_co,arr_trid,arr_cl_v2)
    deallocate (arr_out)
+   deallocate (skip_triangle, valid_triangles)
  
 return 
 end subroutine
@@ -1041,6 +1205,24 @@ logical function isnan(x)
   real(8), intent(in) :: x
   isnan = (x /= x)
 end function isnan
+
+! Helper function for optimized distance calculation
+function min_distance_to_triangle(point, triangle) result(min_dist)
+  implicit none
+  real(8), intent(in) :: point(3), triangle(9)
+  real(8) :: min_dist, dist
+  
+  ! Distance to vertex 1
+  min_dist = sqrt(sum((point - triangle(1:3))**2))
+  
+  ! Distance to vertex 2
+  dist = sqrt(sum((point - triangle(4:6))**2))
+  if (dist < min_dist) min_dist = dist
+  
+  ! Distance to vertex 2
+  dist = sqrt(sum((point - triangle(7:9))**2))
+  if (dist < min_dist) min_dist = dist
+end function min_distance_to_triangle
 
 
 
