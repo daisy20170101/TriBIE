@@ -796,7 +796,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   use m_calc_green,only: DP,parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
   use mod_dtrigreen
   implicit none
-  
+  real(DP) :: dealloc_start_time, dealloc_end_time
     integer, intent(in) :: cells_processed,base_cells,extra_cells
    integer, intent(in) :: myid, size, Nt, n_cell, n_vertex
    real(DP), intent(in) :: arr_vertex(n_vertex,3)
@@ -1060,7 +1060,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   close(14)
 
    ! OPTIMIZED: Deallocate arrays with performance monitoring and timing
-   real(DP) :: dealloc_start_time, dealloc_end_time
+   
    call CPU_TIME(dealloc_start_time)
    
    write(*,*) 'Process', myid, ': Starting array deallocation...'
