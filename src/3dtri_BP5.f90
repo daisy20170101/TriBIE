@@ -131,10 +131,10 @@ program main
      
      if (myid < extra_cells) then
         local_cells = base_cells + 1
-        start_idx = myid * (base_cells + 1)
+        start_idx = myid * (base_cells + 1) + 1  ! Fix: Make 1-based indexing
      else
         local_cells = base_cells
-        start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
+        start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells + 1  ! Fix: Make 1-based indexing
      end if
      
      ! Override Nt with the actual local cells for this process
