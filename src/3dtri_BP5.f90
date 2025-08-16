@@ -1102,24 +1102,12 @@ end subroutine rkqs
        tmelse=tmelse+tm2-tm1
        tm1=tm2
 
-       ! OPTIMIZATION: Advanced blocking with cache-aware memory access
-       ! Use multiple block sizes for different cache level
-       block_size = 32  ! L1 cache block size
-       
-       ! OPTIMIZATION: Loop tiling for better cache utilization
-       do i_block=1, Nt, block_size
-          i_end_block = min(i_block + block_size - 1, Nt)
-          do j_block=1, Nt_all, block_size
-             j_end_block = min(j_block + block_size - 1, Nt_all)
-             
-             ! Process blocks to maximize cache hits
-             do i=i_block, i_end_block
-                temp_sum = 0d0
-                do j=j_block, j_end_block
-                   temp_sum = temp_sum + stiff(i,j)*zz_all(j)
-                end do
-                zzfric(i) = zzfric(i) + temp_sum
-             end do
+       ! CORRECT: Simple nested loop for matrix-vector multiplication
+       ! This ensures ALL j values are processed for each i
+       do i=1, Nt
+          zzfric(i) = 0d0  ! Initialize to zero
+          do j=1, Nt_all   ! Sum over all source cells
+             zzfric(i) = zzfric(i) + stiff(i,j)*zz_all(j)
           end do
        end do
  
