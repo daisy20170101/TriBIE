@@ -932,7 +932,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
       
       do i = 1, n_cell
         ! Pre-check input parameters for numerical stability
-        if (isnan(parm_nu) .or. any(isnan(arr_co(:,j))) .or. any(isnan(arr_trid(:,i))) then
+        if (isnan(parm_nu) .or. any(isnan(arr_co(:,j))) .or. any(isnan(arr_trid(:,i))) )then
           write(*,*) 'Process', myid, ': Invalid input parameters to dstuart:'
           write(*,*) '  parm_nu =', parm_nu
           write(*,*) '  arr_co(:,', j, ') =', arr_co(:,j)
