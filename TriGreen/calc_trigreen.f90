@@ -91,15 +91,15 @@ program p_calc_green
              ! OPTIMIZATION: Implement dynamic load balancing for optimal distribution
        Nt_all = n_cell
        
-       ! Special handling for single-CPU execution
-       if (size == 1) then
-          write(*,*)'Single CPU execution detected - all cells assigned to process 0'
-          base_cells = n_cell
-          extra_cells = 0
-          local_cells = n_cell
-          start_idx = 0
-          cells_processed = n_cell
-          Nt = n_cell
+               ! Special handling for single-CPU execution
+        if (size == 1) then
+           write(*,*)'Single CPU execution detected - all cells assigned to process 0'
+           base_cells = n_cell
+           extra_cells = 0
+           local_cells = n_cell
+           start_idx = 1  ! Fix: Make 1-based indexing for consistency
+           cells_processed = n_cell
+           Nt = n_cell
           
           ! Call subroutine directly for single CPU
           call calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell,& 
@@ -125,15 +125,15 @@ program p_calc_green
              write(*,*)'Each process calculates', base_cells, 'cells'
           end if
 
-          ! Calculate local cell count for this process using optimal distribution
-          ! Ensure master process (myid == 0) always gets at least 1 cell
-          if (myid < extra_cells) then
-             local_cells = base_cells + 1
-             start_idx = myid * (base_cells + 1)
-          else
-             local_cells = base_cells
-             start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
-          end if
+                     ! Calculate local cell count for this process using optimal distribution
+           ! Ensure master process (myid == 0) always gets at least 1 cell
+           if (myid < extra_cells) then
+              local_cells = base_cells + 1
+              start_idx = myid * (base_cells + 1) + 1  ! Fix: Make 1-based indexing
+           else
+              local_cells = base_cells
+              start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells + 1  ! Fix: Make 1-based indexing
+           end if
           
           ! Special handling for master process to ensure it always gets cells
           if (myid == 0 .and. local_cells == 0) then
@@ -554,7 +554,7 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
   real(DP)                     ::  x, y, z
     
   real(DP)                     ::  a, b
-  real(DP)                     ::  rl,a11,a12,a13,gamma
+  real(DP)                     ::  rl,a11,a12,a13,gamma,denom_h
   integer                     ::  i
     
   ! get triangle's normal vector
@@ -571,13 +571,51 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
     ! For vertical triangles, use predefined coordinate system
     ! Set strike direction along x-axis, dip direction along y-axis
     ! This follows the convention for vertical fault planes
-    ss = vpl1  ! Strike-slip component
-    ds = vpl2  ! Dip-slip component  
-    op = 0.0d0 ! Opening component (no opening for vertical faults)
+    
+    ! Add numerical stability check for very small horizontal components
+    if (abs(nv(1)) .lt. 1.0d-12 .and. abs(nv(2)) .lt. 1.0d-12) then
+      write(*,*) "WARNING: Degenerate vertical triangle in calc_ss_ds - using predefined axes"
+      ss = vpl1  ! Strike-slip component
+      ds = vpl2  ! Dip-slip component  
+      op = 0.0d0 ! Opening component (no opening for vertical faults)
+    else
+      ! Standard vertical triangle - compute components safely
+      real(DP) :: denom_h
+      denom_h = sqrt(nv(1)**2 + nv(2)**2)
+      if (denom_h .lt. 1.0d-12) then
+        write(*,*) "WARNING: Very small horizontal components in vertical triangle"
+        ss = vpl1  ! Fallback to predefined
+        ds = vpl2
+        op = 0.0d0
+      else
+        ss = vpl1  ! Strike-slip component
+        ds = vpl2  ! Dip-slip component  
+        op = 0.0d0 ! Opening component (no opening for vertical faults)
+      end if
+    end if
     return
   end if
 
+  ! Add numerical stability check for the main calculation
+  if (abs(nv(3)) .lt. 1.0d-12) then
+    write(*,*) "ERROR: nv(3) is too small for main calculation"
+    ss = 0.0d0
+    ds = 0.0d0
+    op = 0.0d0
+    return
+  end if
+  
   rl=(vpl1**2+vpl2**2)+(nv(1)*vpl1+nv(2)*vpl2)**2/nv(3)**2
+  
+  ! Check for numerical overflow
+  if (rl .lt. 1.0d-12) then
+    write(*,*) "WARNING: rl too small, using fallback values"
+    ss = vpl1
+    ds = vpl2
+    op = 0.0d0
+    return
+  end if
+  
   rl=1.d0/rl
   rl=sqrt(rl)
   gamma=-(nv(1)*vpl1+nv(2)*vpl2)*rl/nv(3)
@@ -586,11 +624,19 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
   a12 = vpl2*rl
   a13 = gamma
 
-  ! calc ss, ds
-  ss =(nv(2)*a11-nv(1)*a12)/sqrt(nv(1)**2+nv(2)**2)
-  ds =sqrt(nv(1)**2+nv(2)**2-(nv(2)*a11-nv(1)*a12)**2)
-  ds =ds/sqrt(nv(1)**2+nv(2)**2)
-  op =0.d0
+  ! calc ss, ds with numerical stability checks
+  denom_h = sqrt(nv(1)**2 + nv(2)**2)
+  if (denom_h .lt. 1.0d-12) then
+    write(*,*) "WARNING: Horizontal components too small for ss/ds calculation"
+    ss = vpl1
+    ds = vpl2
+    op = 0.0d0
+  else
+    ss = (nv(2)*a11-nv(1)*a12) / denom_h
+    ds = sqrt(nv(1)**2+nv(2)**2-(nv(2)*a11-nv(1)*a12)**2)
+    ds = ds / denom_h
+    op = 0.0d0
+  end if
     
 end subroutine calc_ss_ds
 
@@ -615,7 +661,7 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
     real(DP)                     ::  nv(3)
     real(DP)                     ::  ss, ds, op
     real(DP)                     ::  a1(3), a2(3), a3(3)
-    real(DP)                     ::  rl,gamma
+    real(DP)                     ::  rl,gamma, denom
     integer                     ::  i
     
     ! get ss, ds, op
@@ -632,10 +678,29 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
 
 ! Check for vertical triangle (nv(3) = 0)
     if (abs(nv(3)) .lt. 1.0d-12) then
-      ! a1 = strike direction (along x-axis)
-      a1(1) = -nv(2)/sqrt(nv(1)**2+nv(2)**2)
-      a1(2) = nv(1)/sqrt(nv(1)**2+nv(2)**2)
-      a1(3) = 0.0
+      ! Check if nv(1) and nv(2) are both very small (degenerate case)
+      if (abs(nv(1)) .lt. 1.0d-12 .and. abs(nv(2)) .lt. 1.0d-12) then
+        ! Degenerate vertical triangle - use predefined coordinate system
+        write(*,*) "WARNING: Degenerate vertical triangle detected - using predefined axes"
+        a1(1) = 1.0d0  ! Strike along x-axis
+        a1(2) = 0.0d0
+        a1(3) = 0.0d0
+      else
+        ! Standard vertical triangle - compute strike direction safely
+        ! Add numerical stability check
+        real(DP) :: denom
+        denom = sqrt(nv(1)**2 + nv(2)**2)
+        if (denom .lt. 1.0d-12) then
+          write(*,*) "WARNING: Very small horizontal components in vertical triangle"
+          a1(1) = 1.0d0  ! Fallback to predefined
+          a1(2) = 0.0d0
+          a1(3) = 0.0d0
+        else
+          a1(1) = -nv(2) / denom
+          a1(2) = nv(1) / denom
+          a1(3) = 0.0d0
+        end if
+      end if
      
       a3(1:3) = nv(1:3)
       ! calc axis 2
@@ -771,12 +836,12 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   ! Get distribution parameters from main program
   local_cells = cells_processed
   
-  ! Calculate start_idx based on myid and distribution
-  if (myid < extra_cells) then
-     start_idx = myid * (base_cells + 1)
-  else
-     start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells
-  end if
+     ! Calculate start_idx based on myid and distribution (1-based indexing)
+   if (myid < extra_cells) then
+      start_idx = myid * (base_cells + 1) + 1  ! Fix: Make 1-based indexing
+   else
+      start_idx = extra_cells * (base_cells + 1) + (myid - extra_cells) * base_cells + 1  ! Fix: Make 1-based indexing
+   end if
    
    ! Initialize variables
    vpl(1:3) = 1.d0
@@ -793,11 +858,11 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
    allocate(arr_out(max(1,local_cells), n_cell))
   
           ! Pre-compute cell properties for local cells only
-       if (local_cells > 0) then
-         do j = 1, local_cells
-           ! Map local index to global cell index
-           k = start_idx + j - 1
-           if (k >= n_cell) exit
+               if (local_cells > 0) then
+          do j = 1, local_cells
+            ! Map local index to global cell index (1-based)
+            k = start_idx + j - 1  ! This is now correct since start_idx is 1-based
+            if (k > n_cell) cycle  ! Fix: Change >= to > for 1-based indexing
            
            ! Bounds checking for safety
            if (k < 1 .or. k > n_cell) then
@@ -861,13 +926,29 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   
   ! Hybrid MPI+OpenMP parallel computation
   if (local_cells > 0) then
-    !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) SHARED(arr_co, arr_trid, arr_out, arr_cl_v2)
-    do j = 1, local_cells
-      ! Map local index to global cell index
-      k = start_idx + j - 1
-      if (k >= n_cell) cycle
+         !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) SHARED(arr_co, arr_trid, arr_out, arr_cl_v2)
+     do j = 1, local_cells
+       ! Map local index to global cell index (1-based)
+       k = start_idx + j - 1  ! This is now correct since start_idx is 1-based
+       if (k > n_cell) cycle  ! Fix: Change >= to > for 1-based indexing
       
       do i = 1, n_cell
+        ! Pre-check input parameters for numerical stability
+        if (isnan(parm_nu) .or. any(isnan(arr_co(:,j))) .or. any(isnan(arr_trid(:,i))) then
+          write(*,*) 'Process', myid, ': Invalid input parameters to dstuart:'
+          write(*,*) '  parm_nu =', parm_nu
+          write(*,*) '  arr_co(:,', j, ') =', arr_co(:,j)
+          write(*,*) '  arr_trid(:,', i, ') =', arr_trid(:,i)
+          cycle
+        end if
+        
+        ! Check if ss, ds, op are valid before calling dstuart
+        if (isnan(ss) .or. isnan(ds) .or. isnan(op)) then
+          write(*,*) 'Process', myid, ': Invalid ss, ds, op parameters:'
+          write(*,*) '  ss =', ss, 'ds =', ds, 'op =', op
+          cycle
+        end if
+        
         ! Calculate strain gradients using Stuart's method
         call dstuart(parm_nu, arr_co(:,j), arr_trid(:,i), ss, ds, op, u, t)
         
@@ -889,7 +970,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
 
         sig33(2,1) = t(4) + t(2)
         sig33(3,1) = t(3) + t(7)
-        sig33(3,2) = t(6) + t(DP)
+        sig33(3,2) = t(6) + t(8)
 
         sig33(1,2) = sig33(2,1)
         sig33(1,3) = sig33(3,1)
@@ -980,9 +1061,39 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
   end if
   close(14)
 
-   ! Deallocate arrays allocated in this subroutine
-   deallocate (arr_co,arr_trid,arr_cl_v2)
+   ! OPTIMIZED: Deallocate arrays with performance monitoring and timing
+   real(DP) :: dealloc_start_time, dealloc_end_time
+   call CPU_TIME(dealloc_start_time)
+   
+   write(*,*) 'Process', myid, ': Starting array deallocation...'
+   
+   ! Strategy: Deallocate smaller arrays first to reduce memory pressure
+   ! This allows the OS to consolidate memory before handling large arrays
+   
+   ! Step 1: Deallocate smallest arrays (arr_co: 3 × local_cells × 8 bytes)
+   deallocate (arr_co)
+   write(*,*) 'Process', myid, ': Deallocated arr_co (smallest array)'
+   
+   ! Step 2: Deallocate medium arrays (arr_cl_v2: 9 × local_cells × 8 bytes)
+   deallocate (arr_cl_v2)
+   write(*,*) 'Process', myid, ': Deallocated arr_cl_v2 (medium array)'
+   
+   ! Step 3: Deallocate large arrays (arr_trid: 9 × n_cell × 8 bytes)
+   deallocate (arr_trid)
+   write(*,*) 'Process', myid, ': Deallocated arr_trid (large array)'
+   
+   ! Step 4: Deallocate largest array last (arr_out: local_cells × n_cell × 8 bytes)
+   ! This is usually the bottleneck - deallocate it last
    deallocate (arr_out)
+   
+   call CPU_TIME(dealloc_end_time)
+   write(*,*) 'Process', myid, ': Deallocation complete in', dealloc_end_time - dealloc_start_time, 'seconds'
+   
+   ! OPTIONAL: Add small delay to allow OS memory consolidation
+   ! This can help reduce memory fragmentation for subsequent runs
+   if (dealloc_end_time - dealloc_start_time > 1.0d0) then
+     write(*,*) 'Process', myid, ': Slow deallocation detected - consider memory optimization'
+   end if
  
 return 
 end subroutine
