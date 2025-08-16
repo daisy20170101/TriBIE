@@ -542,7 +542,7 @@ end subroutine
 !   op              [out] op scale parameter (for perp vector)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
- use m_calc_green 
+ use m_calc_green, only: DP, vpl1, vpl2
  implicit none
     
   real(DP)                     ::  v1(3), v2(3), v3(3)
@@ -579,9 +579,8 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
       ds = vpl2  ! Dip-slip component  
       op = 0.0d0 ! Opening component (no opening for vertical faults)
     else
-      ! Standard vertical triangle - compute components safely
-      real(DP) :: denom_h
-      denom_h = sqrt(nv(1)**2 + nv(2)**2)
+             ! Standard vertical triangle - compute components safely
+       denom_h = sqrt(nv(1)**2 + nv(2)**2)
       if (denom_h .lt. 1.0d-12) then
         write(*,*) "WARNING: Very small horizontal components in vertical triangle"
         ss = vpl1  ! Fallback to predefined
@@ -651,7 +650,7 @@ end subroutine calc_ss_ds
 !   c               [out] local coordinate
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
- use m_calc_green  
+ use m_calc_green, only: DP, vpl1, vpl2
   implicit none
     
     real(DP)                     ::  v1(3), v2(3), v3(3)
@@ -686,10 +685,9 @@ subroutine calc_local_coordinate2(v1, v2, v3, v_pl, c)
         a1(2) = 0.0d0
         a1(3) = 0.0d0
       else
-        ! Standard vertical triangle - compute strike direction safely
-        ! Add numerical stability check
-        real(DP) :: denom
-        denom = sqrt(nv(1)**2 + nv(2)**2)
+                 ! Standard vertical triangle - compute strike direction safely
+         ! Add numerical stability check
+         denom = sqrt(nv(1)**2 + nv(2)**2)
         if (denom .lt. 1.0d-12) then
           write(*,*) "WARNING: Very small horizontal components in vertical triangle"
           a1(1) = 1.0d0  ! Fallback to predefined
@@ -1134,8 +1132,8 @@ end subroutine
 ! isnan function for checking invalid values
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 logical function isnan(x)
-  use m_calc_green,only: DP
   implicit none
+  integer, parameter :: DP = kind(1.0d0)
   real(DP), intent(in) :: x
   isnan = (x /= x)
 end function isnan
