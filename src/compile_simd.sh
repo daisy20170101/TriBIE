@@ -17,11 +17,27 @@ echo "Optimization flags: $FFLAGS"
 echo "OpenMP flags: $OPENMP_FLAGS"
 echo "SIMD flags: $SIMD_FLAGS"
 
-$MPIF90 $FFLAGS $OPENMP_FLAGS $SIMD_FLAGS -o 3dtri_BP5_simd 3dtri_BP5_simd.f90
+# First compile the required module
+echo "Compiling phy3d_module_non..."
+$MPIF90 $FFLAGS $OPENMP_FLAGS $SIMD_FLAGS -c phy3d_module_non.f90
+
+if [ $? -ne 0 ]; then
+    echo "Failed to compile phy3d_module_non.f90"
+    exit 1
+fi
+
+# Then compile the main program and link with the module
+echo "Compiling 3dtri_BP5_simd..."
+$MPIF90 $FFLAGS $OPENMP_FLAGS $SIMD_FLAGS -o 3dtri_BP5_simd 3dtri_BP5_simd.f90 phy3d_module_non.o
 
 if [ $? -eq 0 ]; then
     echo "Successfully compiled 3dtri_BP5_simd"
     echo "Executable: 3dtri_BP5_simd"
+    
+    # Clean up object files
+    echo "Cleaning up object files..."
+    rm -f phy3d_module_non.o
+    
     echo ""
     echo "To run:"
     echo "  mpirun -np <number_of_processes> ./3dtri_BP5_simd"
@@ -35,5 +51,7 @@ if [ $? -eq 0 ]; then
     echo "  - SIMD-optimized physics calculations"
 else
     echo "Compilation failed!"
+    # Clean up object files even on failure
+    rm -f phy3d_module_non.o
     exit 1
 fi
