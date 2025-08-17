@@ -86,7 +86,7 @@ program main
   
   ! SIMD optimization variables
   integer :: L1_block_size, L2_block_size, L3_block_size
-  integer :: i_block, i_end_block, j_block, j_end_block, i_inner
+  integer :: i_block, i_end_block, j_block, j_end_block, i_inner, i_simd, j_inner
   real(DP) :: temp_sum, temp_zzfric
 
   character(len=40) :: cTemp,filename,ct
@@ -297,33 +297,28 @@ end if
   end if
 
   ! SIMD-OPTIMIZED: Advanced loop tiling with cache-aware memory access
-  !$OMP PARALLEL DO PRIVATE(i,j,i_block,i_end_block,j_block,j_end_block) SCHEDULE(STATIC)
+  !$OMP PARALLEL DO PRIVATE(i,j,i_block,i_end_block,j_block,j_end_block,j_inner) SCHEDULE(STATIC)
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
-     ! L3 cache blocking for i dimension
-     do i_block = i, min(i + L3_block_size - 1, local_cells), L3_block_size
-        i_end_block = min(i_block + L3_block_size - 1, local_cells)
+     ! L2 cache blocking for j dimension
+     do j_block = 1, Nt_all, L2_block_size
+        j_end_block = min(j_block + L2_block_size - 1, Nt_all)
         
-        ! L2 cache blocking for j dimension
-        do j_block = 1, Nt_all, L2_block_size
-           j_end_block = min(j_block + L2_block_size - 1, Nt_all)
-           
-           ! L1 cache blocking for fine-grained optimization
-           do j = j_block, j_end_block, L1_block_size
-              ! Process L1 block with SIMD optimization
-              !$OMP SIMD PRIVATE(j_inner)
-              do j_inner = j, min(j + L1_block_size - 1, j_end_block)
-                 read(5, err=999) stiff(i,j_inner)
-                 if(stiff(i,j_inner).lt.-15.d0.or.stiff(i,j_inner).gt.20.d0)then
-                    stiff(i,j_inner) = 0.d0
-                    write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j_inner, ') =', stiff(i,j_inner)
-                 end if
-                 if(stiff(i,j_inner) /= stiff(i,j_inner))then  ! Check for NaN using IEEE standard
-                    stiff(i,j_inner)=0.d0
-                    write(*,*) 'Process', myid, ': NaN detected at position (', i, ',', j_inner, ') - set to 0'
-                 end if
-              end do
-              !$OMP END SIMD
+        ! L1 cache blocking for fine-grained optimization
+        do j = j_block, j_end_block, L1_block_size
+           ! Process L1 block with SIMD optimization
+           !$OMP SIMD PRIVATE(j_inner)
+           do j_inner = j, min(j + L1_block_size - 1, j_end_block)
+              read(5, err=999) stiff(i,j_inner)
+              if(stiff(i,j_inner).lt.-15.d0.or.stiff(i,j_inner).gt.20.d0)then
+                 stiff(i,j_inner) = 0.d0
+                 write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j_inner, ') =', stiff(i,j_inner)
+              end if
+              if(stiff(i,j_inner) /= stiff(i,j_inner))then  ! Check for NaN using IEEE standard
+                 stiff(i,j_inner)=0.d0
+                 write(*,*) 'Process', myid, ': NaN detected at position (', i, ',', j_inner, ') - set to 0'
+              end if
            end do
+           !$OMP END SIMD
         end do
      end do
   end do
@@ -650,7 +645,7 @@ end if
      dt_try = dt_next
 
      ! SIMD-OPTIMIZED: Advanced loop tiling with cache-aware memory access
-     !$OMP PARALLEL DO PRIVATE(i,help,i_block,i_end_block,i_inner) SCHEDULE(STATIC)
+     !$OMP PARALLEL DO PRIVATE(i,help,i_block,i_end_block,i_inner,i_simd) SCHEDULE(STATIC)
      do i=1,local_cells
         ! L2 cache blocking for i dimension
         do i_block = i, min(i + L2_block_size - 1, local_cells), L2_block_size
@@ -1113,6 +1108,10 @@ end subroutine rkqs
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
        real(DP) :: temp_sum
        integer :: request1, request2
+       
+       ! SIMD optimization variables for this subroutine
+       integer :: L1_block_size, L2_block_size, L3_block_size
+       integer :: j_inner
        intrinsic imag,real
 
        !MPI RELATED DEFINITIONS
@@ -1120,6 +1119,11 @@ end subroutine rkqs
        master = 0 
 
        small=1.d-6
+       
+       ! Initialize SIMD optimization parameters for this subroutine
+       L1_block_size = 32   ! L1 cache line size
+       L2_block_size = 256  ! L2 cache block size  
+       L3_block_size = 1024 ! L3 cache block size
         
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        !$OMP SIMD PRIVATE(i)
@@ -1149,28 +1153,23 @@ end subroutine rkqs
        tm1=tm2
 
        ! SIMD-OPTIMIZED: Advanced loop tiling with cache-aware memory access
-       !$OMP PARALLEL DO PRIVATE(i,j,i_block,i_end_block,j_block,j_end_block,temp_sum) SCHEDULE(STATIC)
+       !$OMP PARALLEL DO PRIVATE(i,j,i_block,i_end_block,j_block,j_end_block,temp_sum,j_inner) SCHEDULE(STATIC)
        do i=1, Nt
           zzfric(i) = 0d0  ! Initialize to zero
           
-          ! L3 cache blocking for i dimension
-          do i_block = i, min(i + L3_block_size - 1, Nt), L3_block_size
-             i_end_block = min(i_block + L3_block_size - 1, Nt)
+          ! L2 cache blocking for j dimension
+          do j_block = 1, Nt_all, L2_block_size
+             j_end_block = min(j_block + L2_block_size - 1, Nt_all)
              
-             ! L2 cache blocking for j dimension
-             do j_block = 1, Nt_all, L2_block_size
-                j_end_block = min(j_block + L2_block_size - 1, Nt_all)
-                
-                ! L1 cache blocking for fine-grained optimization
-                do j = j_block, j_end_block, L1_block_size
-                   ! Process L1 block with SIMD optimization
-                   !$OMP SIMD PRIVATE(j_inner,temp_sum)
-                   do j_inner = j, min(j + L1_block_size - 1, j_end_block)
-                      temp_sum = stiff(i,j_inner) * zz_all(j_inner)
-                      zzfric(i) = zzfric(i) + temp_sum
-                   end do
-                   !$OMP END SIMD
+             ! L1 cache blocking for fine-grained optimization
+             do j = j_block, j_end_block, L1_block_size
+                ! Process L1 block with SIMD optimization
+                !$OMP SIMD PRIVATE(j_inner,temp_sum)
+                do j_inner = j, min(j + L1_block_size - 1, j_end_block)
+                   temp_sum = stiff(i,j_inner) * zz_all(j_inner)
+                   zzfric(i) = zzfric(i) + temp_sum
                 end do
+                !$OMP END SIMD
              end do
           end do
        end do
