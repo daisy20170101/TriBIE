@@ -86,6 +86,7 @@ program main
   
   ! SIMD optimization variables
   integer :: L1_block_size, L2_block_size, L3_block_size
+  integer :: j_block, j_end_block, j_inner
   real(DP) :: temp_sum, temp_zzfric
 
   character(len=40) :: cTemp,filename,ct
