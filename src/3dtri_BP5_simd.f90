@@ -296,18 +296,35 @@ end if
     end if
   end if
 
-  ! OPTIMIZED: Advanced loop tiling with cache-aware memory access
-  !$OMP PARALLEL DO PRIVATE(i,j,j_block,j_end_block,j_inner) SCHEDULE(STATIC)
+  ! OPTIMIZED: Sequential file reading with OpenMP post-processing
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
+     do j=1,Nt_all !! source
+        read(5, err=999) stiff(i,j)
+     end do
+  end do
+  
+  ! Jump to error handling if read fails
+  goto 200
+  
+  ! Error handling for file read
+  999 write(*,*) 'Process', myid, ': ERROR reading stiffness matrix from TriGreen file'
+      write(*,*) 'Process', myid, ': File may be corrupted or incomplete'
+      call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+      
+  200 continue
+  
+  ! OPTIMIZED: OpenMP parallel post-processing with cache-aware blocking
+  !$OMP PARALLEL DO PRIVATE(i,j,j_block,j_end_block,j_inner) SCHEDULE(STATIC)
+  do i=1,local_cells
      ! L2 cache blocking for j dimension
      do j_block = 1, Nt_all, L2_block_size
         j_end_block = min(j_block + L2_block_size - 1, Nt_all)
         
         ! L1 cache blocking for fine-grained optimization
         do j = j_block, j_end_block, L1_block_size
-           ! Process L1 block (no SIMD due to read operations)
+           ! Process L1 block with SIMD optimization
+           !$OMP SIMD PRIVATE(j_inner)
            do j_inner = j, min(j + L1_block_size - 1, j_end_block)
-              read(5, err=999) stiff(i,j_inner)
               if(stiff(i,j_inner).lt.-15.d0.or.stiff(i,j_inner).gt.20.d0)then
                  stiff(i,j_inner) = 0.d0
                  write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j_inner, ') =', stiff(i,j_inner)
@@ -317,6 +334,7 @@ end if
                  write(*,*) 'Process', myid, ': NaN detected at position (', i, ',', j_inner, ') - set to 0'
               end if
            end do
+           !$OMP END SIMD
         end do
      end do
   end do
