@@ -1061,7 +1061,7 @@ end subroutine rkqs
        real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
        real (DP) :: psi,help1,help2,help
        real (DP) :: SECNDS
-       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_ds_all(Nt_all),zz_all(Nt_all),zzfric2(Nt)
+       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
        
        ! Local variables for blocking optimization
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
@@ -1079,7 +1079,6 @@ end subroutine rkqs
        !$OMP SIMD PRIVATE(i)
        do i=1,Nt
           zz(i)=yt(2*i-1)*phy1(i)-Vpl
-          zz_ds(i)=yt(2*i-1)*phy2(i)
        end do
        !$OMP END SIMD
 
@@ -1088,11 +1087,9 @@ end subroutine rkqs
        
        ! Start non-blocking communication early
        call MPI_Iallgather(zz,Nt,MPI_Real8,zz_all,Nt,MPI_Real8,MPI_COMM_WORLD,request1,ierr)
-       call MPI_Iallgather(zz_ds,Nt,MPI_Real8,zz_ds_all,Nt,MPI_Real8,MPI_COMM_WORLD,request2,ierr)
        
        ! Wait for communication to complete before using the data
        call MPI_Wait(request1,MPI_STATUS_IGNORE,ierr)
-       call MPI_Wait(request2,MPI_STATUS_IGNORE,ierr)
        
        !----------------------------------------------------------------------
        !    summation of stiffness of all elements in slab
