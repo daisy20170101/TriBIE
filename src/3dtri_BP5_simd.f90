@@ -101,6 +101,10 @@ program main
   ! File existence checking variables
   logical :: trigreen_file_exists
   character(len=256) :: trigreen_filename
+  
+  ! MPI_Scatterv variables for uneven distribution
+  integer, allocatable :: sendcounts(:), displs(:)
+  integer :: i, total_sent
 
   call MPI_Init(ierr)
   CALL MPI_COMM_RANK( MPI_COMM_WORLD, myid, ierr )
@@ -162,6 +166,25 @@ program main
      end if
      
      write(*,*) 'Process', myid, 'gets', local_cells, 'cells starting from index', start_idx
+     
+     ! Allocate MPI_Scatterv arrays for uneven distribution
+     allocate(sendcounts(0:size-1), displs(0:size-1))
+     
+     ! Calculate send counts and displacements for each process
+     call MPI_Allgather(local_cells, 1, MPI_INTEGER, sendcounts, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
+     
+     ! Calculate displacements
+     displs(0) = 0
+     do i = 1, size-1
+        displs(i) = displs(i-1) + sendcounts(i-1)
+     end do
+     
+     if (myid == master) then
+        write(*,*) 'MPI_Scatterv distribution:'
+        do i = 0, size-1
+           write(*,*) '  Process', i, ': sendcount =', sendcounts(i), ', displacement =', displs(i)
+        end do
+     end if
   else
      ! Original logic for even distribution
      if(mod(Nt_all,nprocs)/=0)then
@@ -197,10 +220,10 @@ program main
   end if
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ALLOCATE (phy1(Nt),phy2(Nt),islip1(Nl),islip2(Nl),itran1(Nl),itran2(Nl),zzfric(Nt),zzfric2(Nt),&
-       x(Nt),z(Nt),z_all(Nt_all),xi(Nt),cca(Nt),ccb(Nt),seff(Nt),&
-       xLf(Nt),tau1(Nt),tau2(Nt),tau0(Nt),slipds(Nt),slipdsinc(Nt),slip(Nt),slipinc(Nt), &
-       yt(2*Nt),dydt(2*Nt),yt_scale(2*Nt),yt0(2*Nt),sr(Nt),vi(Nt))
+  ALLOCATE (phy1(local_cells),phy2(local_cells),islip1(Nl),islip2(Nl),itran1(Nl),itran2(Nl),zzfric(local_cells),zzfric2(local_cells),&
+       x(local_cells),z(local_cells),z_all(Nt_all),xi(local_cells),cca(local_cells),ccb(local_cells),seff(local_cells),&
+       xLf(local_cells),tau1(local_cells),tau2(local_cells),tau0(local_cells),slipds(local_cells),slipdsinc(local_cells),slip(local_cells),slipinc(local_cells), &
+       yt(2*local_cells),dydt(2*local_cells),yt_scale(2*local_cells),yt0(2*local_cells),sr(local_cells),vi(local_cells))
 
   ALLOCATE (stiff(local_cells,Nt_all),stiff2(local_cells,Nt_all))   !!! stiffness of Stuart green calculation
 
@@ -369,12 +392,12 @@ end if
 
 
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(cca_all,local_cells,MPI_Real8,cca,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(ccb_all,local_cells,MPI_Real8,ccb,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(xLf_all,local_cells,MPI_Real8,xLf,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(seff_all,local_cells,MPI_Real8,seff,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(vi_all,local_cells,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatter(x_all,local_cells,MPI_Real8,x,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+       call MPI_Scatterv(cca_all,sendcounts,displs,MPI_Real8,cca,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(ccb_all,sendcounts,displs,MPI_Real8,ccb,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(xLf_all,sendcounts,displs,MPI_Real8,xLf,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(seff_all,sendcounts,displs,MPI_Real8,seff,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(vi_all,sendcounts,displs,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(x_all,sendcounts,displs,MPI_Real8,x,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
   call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
@@ -593,9 +616,9 @@ end if
      call MPI_Bcast(dt_try,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(ndt,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(nrec,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatter(yt_all,2*local_cells,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatter(slip_all,local_cells,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatter(slipds_all,local_cells,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(yt_all,sendcounts*2,displs*2,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(slip_all,sendcounts,displs,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(slipds_all,sendcounts,displs,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
 
      ndtnext = ndt
@@ -958,6 +981,12 @@ end if
   DEALLOCATE (islip1,islip2,itran1,itran2,x,z_all,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
   DEALLOCATE (cca,ccb,xLf,seff)
+  
+  ! Clean up MPI_Scatterv arrays
+  if (use_trigreen_format .and. allocated(sendcounts)) then
+     deallocate(sendcounts, displs)
+  end if
+  
   call MPI_finalize(ierr)
 END program main
 
@@ -1096,7 +1125,7 @@ end subroutine rkqs
        real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
        real (DP) :: psi,help1,help2,help
        real (DP) :: SECNDS
-       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_ds_all(Nt_all),zz_all(Nt_all),zzfric2(Nt)
+       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_ds_all(Nt_all),zzfric2(Nt)
        
        ! Local variables for blocking optimization
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
