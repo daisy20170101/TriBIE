@@ -340,15 +340,6 @@ end if
   end do
   !$OMP END PARALLEL DO
   
-  ! Jump to error handling if read fails
-  goto 200
-  
-  ! Error handling for file read
-  999 write(*,*) 'Process', myid, ': ERROR reading stiffness matrix from TriGreen file'
-      write(*,*) 'Process', myid, ': File may be corrupted or incomplete'
-      call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
-      
-  200 continue
   close(5)
   
   ! TriGreen integration summary
