@@ -104,7 +104,7 @@ program main
   
   ! MPI_Scatterv variables for uneven distribution
   integer, allocatable :: sendcounts(:), displs(:)
-  integer :: i, total_sent
+  integer :: total_sent
 
   call MPI_Init(ierr)
   CALL MPI_COMM_RANK( MPI_COMM_WORLD, myid, ierr )
@@ -220,10 +220,14 @@ program main
   end if
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ALLOCATE (phy1(local_cells),phy2(local_cells),islip1(Nl),islip2(Nl),itran1(Nl),itran2(Nl),zzfric(local_cells),zzfric2(local_cells),&
-       x(local_cells),z(local_cells),z_all(Nt_all),xi(local_cells),cca(local_cells),ccb(local_cells),seff(local_cells),&
-       xLf(local_cells),tau1(local_cells),tau2(local_cells),tau0(local_cells),slipds(local_cells),slipdsinc(local_cells),slip(local_cells),slipinc(local_cells), &
-       yt(2*local_cells),dydt(2*local_cells),yt_scale(2*local_cells),yt0(2*local_cells),sr(local_cells),vi(local_cells))
+  ALLOCATE (phy1(local_cells),phy2(local_cells),islip1(Nl),islip2(Nl),itran1(Nl),itran2(Nl),&
+  zzfric(local_cells),zzfric2(local_cells),&
+       x(local_cells),z(local_cells),z_all(Nt_all),xi(local_cells),cca(local_cells),&
+       ccb(local_cells),seff(local_cells),&
+       xLf(local_cells),tau1(local_cells),tau2(local_cells),tau0(local_cells),slipds(local_cells),&
+       slipdsinc(local_cells),slip(local_cells),slipinc(local_cells), &
+       yt(2*local_cells),dydt(2*local_cells),yt_scale(2*local_cells),&
+       yt0(2*local_cells),sr(local_cells),vi(local_cells))
 
   ALLOCATE (stiff(local_cells,Nt_all),stiff2(local_cells,Nt_all))   !!! stiffness of Stuart green calculation
 
@@ -1125,7 +1129,7 @@ end subroutine rkqs
        real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
        real (DP) :: psi,help1,help2,help
        real (DP) :: SECNDS
-       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_ds_all(Nt_all),zzfric2(Nt)
+       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
        
        ! Local variables for blocking optimization
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
