@@ -976,12 +976,12 @@ end if
           v_cos,slip_cos,v_nul,slip_nul)
      DEALLOCATE (intdepz1,intdepz2,intdepz3,ssetime,slipz1_v)
 
-     deallocate(Trup,rup,area,phy1_all,phy2_all,obvs)
+     deallocate(Trup,rup,area,obvs)
      deallocate(pstrk,pdp,obvstrk,obvdp)
   end if
 
 
-  DEALLOCATE (stiff2,stiff,surf1,surf2,surf3,vi,sr)
+  DEALLOCATE (stiff2,stiff,vi,sr)
   DEALLOCATE (islip1,islip2,itran1,itran2,x,z_all,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
   DEALLOCATE (cca,ccb,xLf,seff)
