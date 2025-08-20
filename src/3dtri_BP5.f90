@@ -1133,13 +1133,18 @@ end subroutine rkqs
        tm1=tm2
 
        ! CORRECT: Simple nested loop for matrix-vector multiplication
-       ! This ensures ALL j values are processed for each i
+      !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
        do i=1, Nt
           zzfric(i) = 0d0  ! Initialize to zero
+          
+          !$OMP SIMD PRIVATE(temp_sum)
           do j=1, Nt_all   ! Sum over all source cells
-             zzfric(i) = zzfric(i) + stiff(i,j)*zz_all(j)
+             temp_sum = stiff(i,j) * zz_all(j)
+             zzfric(i) = zzfric(i) + temp_sum
           end do
+          !$OMP END SIMD
        end do
+       !$OMP END PARALLEL DO
  
        call CPU_TIME(tm2)
        if ((tm2-tm1) .lt. 0.03)then
