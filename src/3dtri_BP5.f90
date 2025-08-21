@@ -1192,7 +1192,6 @@ end subroutine rkqs
 
       real (DP) ::a(Nab),tpr(Nab),zp(Nab),b(nab),ab(nab)
 
-      factor = 1.0  !initial value of perturbation 
 
       !----------------------------------------------------------------------------
       !     iseff defines what eff. normal stress down-dip profiles
