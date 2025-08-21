@@ -22,7 +22,7 @@ program main
        Iperb,record,Isnapshot,iz1,iz2,iz3,&
        record_cor
   integer,dimension(:) :: s1(10)
-  real (DP) :: Vint,tmp,accuracy,areatot, epsv,dt_try, dt,dtmin,dt_did,dt_next,dip, &
+  real (DP) :: Vint,tmp,accuracy,areatot, epsv,dt_try, dt,dtmin,dt_did,dt_next, &
        hnucl,&
        t,tprint_inter, tint_out,tout,&
        tmin_out,tint_cos,tint_sse,&   
@@ -359,7 +359,7 @@ end if
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
 
   if(myid==master)then
-     CALL resdep(Nt_all,dip,hnucl, &
+     CALL resdep(Nt_all,hnucl, &
           xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all)
   end if
 
@@ -1173,7 +1173,7 @@ end subroutine rkqs
 !    read parameters: sigma_effective, a,b,D_c
 !----------------------------------------------------------------------------
 
-    subroutine resdep(Nt_all,dip,hnucl, &
+    subroutine resdep(Nt_all,hnucl, &
          xilock1,xilock2,cca_all,ccb_all,xLf_all, &
          seff_all,x_all,z_all,vi_all)
       USE mpi
