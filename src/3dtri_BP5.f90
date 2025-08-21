@@ -284,7 +284,7 @@ end if
   if(myid==master)then
      ! OPTIMIZATION: Vectorize position reading for better performance
      do k=1,Nt_all
-        read(55) xi_all(k),x_all(k),z_all(k) !xi is along the fault-normal  while x is along the strike
+        read(55) x_all(k),xi_all(k),z_all(k) !xi is along the fault-normal  while x is along the strike
         xi_all(k)=xi_all(k)/1000
         x_all(k)=x_all(k)/1000
         z_all(k)=z_all(k)/1000
@@ -316,7 +316,7 @@ end if
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
         read(5, err=999) stiff(i,j)
-        if(stiff(i,j).lt.-15.d0.or.stiff(i,j).gt.20.d0)then
+        if(stiff(i,j).lt.-0.3d0.or.stiff(i,j).gt.0.25d0)then
            stiff(i,j) = 0.d0
            write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
 	end if
