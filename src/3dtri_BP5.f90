@@ -412,16 +412,16 @@ end if
 
 
   if(myid==master)then
-      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,access='append',status='unknown')
-      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,access='append',status='unknown')
-      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,access='append',status='unknown')
-      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,access='append',status='unknown')
-      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,access='append',status='unknown')
-      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,access='append',status='unknown')
-      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,access='append',status='unknown')
-      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,access='append',status='unknown')
-      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,access='append',status='unknown')
-      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,access='append',status='unknown')
+      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,position='append',status='unknown')
+      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,position='append',status='unknown')
+      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,position='append',status='unknown')
+      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,position='append',status='unknown')
+      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,position='append',status='unknown')
+      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,position='append',status='unknown')
+      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,position='append',status='unknown')
+      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,position='append',status='unknown')
+      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,position='append',status='unknown')
+      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,position='append',status='unknown')
 
        do i=311,320
    		write(i,100)'# This is the file header'
@@ -449,7 +449,7 @@ end if
 	end do 
  100	format(A)
 
-       open(30,file=trim(foldername)//'maxvall'//jobname,access='append',status='unknown')
+       open(30,file=trim(foldername)//'maxvall'//jobname,position='append',status='unknown')
         i=30
         write(i,100)'# This is the file header'
         write(i,100)'# problem=SEAS Benchmark No.5'
@@ -471,15 +471,15 @@ end if
          close(j)
       end do
 
-      open(401,file=trim(foldername)//'blkst_strk-16fn+08dp+00'//jobname,access='append',status='unknown')
-      open(402,file=trim(foldername)//'blkst_strk+00fn+08dp+00'//jobname,access='append',status='unknown')
-      open(403,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,access='append',status='unknown')
-      open(404,file=trim(foldername)//'blkst_strk+00fn+16dp+00'//jobname,access='append',status='unknown')
-      open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,access='append',status='unknown')
-      open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,access='append',status='unknown')
-      open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,access='append',status='unknown')
-      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,access='append',status='unknown')
-      open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,access='append',status='unknown')
+      open(401,file=trim(foldername)//'blkst_strk-16fn+08dp+00'//jobname,position='append',status='unknown')
+      open(402,file=trim(foldername)//'blkst_strk+00fn+08dp+00'//jobname,position='append',status='unknown')
+      open(403,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,position='append',status='unknown')
+      open(404,file=trim(foldername)//'blkst_strk+00fn+16dp+00'//jobname,position='append',status='unknown')
+      open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,position='append',status='unknown')
+      open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,position='append',status='unknown')
+      open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,position='append',status='unknown')
+      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,position='append',status='unknown')
+      open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,position='append',status='unknown')
     do i = 401,409
         write(i,100)'# This is the file header'
         write(i,100)'# problem=SEAS Benchmark No.5'
@@ -506,10 +506,10 @@ end if
       close(i)
     end do
 
-   open(501,file=trim(foldername)//'slip_2_depth'//jobname,access='append',status='unknown')
-   open(502,file=trim(foldername)//'slip_2_strike'//jobname,access='append',status='unknown')
-   open(503,file=trim(foldername)//'stress_2_depth'//jobname,access='append',status='unknown')
-   open(504,file=trim(foldername)//'stress_2_strike'//jobname,access='append',status='unknown')
+   open(501,file=trim(foldername)//'slip_2_depth'//jobname,position='append',status='unknown')
+   open(502,file=trim(foldername)//'slip_2_strike'//jobname,position='append',status='unknown')
+   open(503,file=trim(foldername)//'stress_2_depth'//jobname,position='append',status='unknown')
+   open(504,file=trim(foldername)//'stress_2_strike'//jobname,position='append',status='unknown')
 
   do i=501,504
         write(i,100)'# This is the file header'
@@ -1364,17 +1364,17 @@ if(Ioutput == 0)then    !output during run
 
 
    if(imv==nmv)then
-      open(30,file=trim(foldername)//'maxvall'//jobname,access='append',status='unknown')
-      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,access='append',status='unknown')
-      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,access='append',status='unknown')
-      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,access='append',status='unknown')
-      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,access='append',status='unknown')
-      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,access='append',status='unknown')
-      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,access='append',status='unknown')
-      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,access='append',status='unknown')
-      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,access='append',status='unknown')
-      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,access='append',status='unknown')
-      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,access='append',status='unknown')
+      open(30,file=trim(foldername)//'maxvall'//jobname,position='append',status='unknown')
+      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,position='append',status='unknown')
+      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,position='append',status='unknown')
+      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,position='append',status='unknown')
+      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,position='append',status='unknown')
+      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,position='append',status='unknown')
+      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,position='append',status='unknown')
+      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,position='append',status='unknown')
+      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,position='append',status='unknown')
+      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,position='append',status='unknown')
+      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,position='append',status='unknown')
 
       do i=1,nmv
          write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs),moment(i)
@@ -1389,20 +1389,20 @@ if(Ioutput == 0)then    !output during run
          close(j)
       end do 
 
-      open(401,file=trim(foldername)//'blkst_strk-16fn+08dp+00'//jobname,access='append',status='unknown')
-      open(402,file=trim(foldername)//'blkst_strk+00fn+08dp+00'//jobname,access='append',status='unknown')
-      open(403,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,access='append',status='unknown')
-      open(404,file=trim(foldername)//'blkst_strk+00fn+16dp+00'//jobname,access='append',status='unknown')
-      open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,access='append',status='unknown')
-      open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,access='append',status='unknown')
-      open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,access='append',status='unknown')
-      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,access='append',status='unknown')
-      open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,access='append',status='unknown')
+      open(401,file=trim(foldername)//'blkst_strk-16fn+08dp+00'//jobname,position='append',status='unknown')
+      open(402,file=trim(foldername)//'blkst_strk+00fn+08dp+00'//jobname,position='append',status='unknown')
+      open(403,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,position='append',status='unknown')
+      open(404,file=trim(foldername)//'blkst_strk+00fn+16dp+00'//jobname,position='append',status='unknown')
+      open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,position='append',status='unknown')
+      open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,position='append',status='unknown')
+      open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,position='append',status='unknown')
+      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,position='append',status='unknown')
+      open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,position='append',status='unknown')
 
-      open(501,file=trim(foldername)//'slip_2_depth'//jobname,access='append',status='unknown')
-      open(502,file=trim(foldername)//'slip_2_strike'//jobname,access='append',status='unknown')
-      open(503,file=trim(foldername)//'stress_2_depth'//jobname,access='append',status='unknown')
-      open(504,file=trim(foldername)//'stress_2_strike'//jobname,access='append',status='unknown')
+      open(501,file=trim(foldername)//'slip_2_depth'//jobname,position='append',status='unknown')
+      open(502,file=trim(foldername)//'slip_2_strike'//jobname,position='append',status='unknown')
+      open(503,file=trim(foldername)//'stress_2_depth'//jobname,position='append',status='unknown')
+      open(504,file=trim(foldername)//'stress_2_strike'//jobname,position='append',status='unknown')
     
       do i=1,nmv
         do j=401,409
@@ -1426,8 +1426,8 @@ if(Ioutput == 0)then    !output during run
    end if
 
     if(ias==nas)then
-       open(31,form='unformatted',file=trim(foldername)//'slipz1-inter'//jobname,access='append',status='unknown')
-       open(34,file=trim(foldername)//'t-inter'//jobname,access='append',status='unknown')
+       open(31,form='unformatted',file=trim(foldername)//'slipz1-inter'//jobname,position='append',status='unknown')
+       open(34,file=trim(foldername)//'t-inter'//jobname,position='append',status='unknown')
 
        do j=1,nas
           do i=1,Nt_all
@@ -1443,9 +1443,9 @@ if(Ioutput == 0)then    !output during run
 end if
 
     if(icos==ncos)then
-       open(42,form='unformatted',file=trim(foldername)//'slipz1-v'//jobname,access='append',status='unknown')
-       open(45,form='unformatted',file=trim(foldername)//'slipz1-cos'//jobname,access='append',status='unknown')
-       open(48,file=trim(foldername)//'t-cos'//jobname,access='append',status='unknown')
+       open(42,form='unformatted',file=trim(foldername)//'slipz1-v'//jobname,position='append',status='unknown')
+       open(45,form='unformatted',file=trim(foldername)//'slipz1-cos'//jobname,position='append',status='unknown')
+       open(48,file=trim(foldername)//'t-cos'//jobname,position='append',status='unknown')
 
        do j=1,ncos
           do i=1,Nt_all
@@ -1465,8 +1465,8 @@ end if
 
 
 	if(inul == nnul)then
-	open(52,file=trim(foldername)//'vs-nul'//jobname,access='append',status='unknown')
-        open(53,file=trim(foldername)//'nul-time'//jobname,access='append',status='unknown')
+	open(52,file=trim(foldername)//'vs-nul'//jobname,position='append',status='unknown')
+        open(53,file=trim(foldername)//'nul-time'//jobname,position='append',status='unknown')
         do j=1,nnul
            do kk=1,Nt_all
               !              write(52,160)v_nul(kk,j),slip_nul(kk,j)
@@ -1480,9 +1480,9 @@ end if
  
 
    if(isse==nsse)then
-      open(25,form='unformatted',file=trim(foldername)//'slipz1_sse'//jobname,access='append',status='unknown')
-      open(26,form='unformatted',file=trim(foldername)//'slipz1_tau'//jobname,access='append',status='unknown')
-      open(28,file=trim(foldername)//'t_sse'//jobname, access='append', status='unknown')
+      open(25,form='unformatted',file=trim(foldername)//'slipz1_sse'//jobname,position='append',status='unknown')
+      open(26,form='unformatted',file=trim(foldername)//'slipz1_tau'//jobname,position='append',status='unknown')
+      open(28,file=trim(foldername)//'t_sse'//jobname, position='append', status='unknown')
       do j = 1,nsse 
          do i=1,Nt_all
             write(25) slipz1_sse(i,j)
@@ -1505,17 +1505,17 @@ else
 
    if((imv>0).and.(imv<nmv))then
       ! OPTIMIZATION: Use buffered I/O and reduce file operations
-             open(30,file=trim(foldername)//'maxvall'//jobname,access='append',status='unknown')
-              open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,access='append',status='unknown')
-        open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,access='append',status='unknown')
-        open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,access='append',status='unknown')
-        open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,access='append',status='unknown')
-        open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,access='append',status='unknown')
-        open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,access='append',status='unknown')
-        open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,access='append',status='unknown')
-        open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,access='append',status='unknown')
-        open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,access='append',status='unknown')
-        open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,access='append',status='unknown')
+             open(30,file=trim(foldername)//'maxvall'//jobname,position='append',status='unknown')
+              open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,position='append',status='unknown')
+        open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,position='append',status='unknown')
+        open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,position='append',status='unknown')
+        open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,position='append',status='unknown')
+        open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,position='append',status='unknown')
+        open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,position='append',status='unknown')
+        open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,position='append',status='unknown')
+        open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,position='append',status='unknown')
+        open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,position='append',status='unknown')
+        open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,position='append',status='unknown')
 
       ! OPTIMIZATION: Batch writes to reduce I/O overhead
       do i=1,imv
@@ -1530,19 +1530,19 @@ else
          close(j)
        end do
  
-      open(401,file=trim(foldername)//'blkst_strk-16fn+08dp+00'//jobname,access='append',status='unknown')
-      open(402,file=trim(foldername)//'blkst_strk+00fn+08dp+00'//jobname,access='append',status='unknown')
-      open(403,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,access='append',status='unknown')
-      open(404,file=trim(foldername)//'blkst_strk+00fn+16dp+00'//jobname,access='append',status='unknown')
-      open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,access='append',status='unknown')
-      open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,access='append',status='unknown')
-      open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,access='append',status='unknown')
-      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,access='append',status='unknown')
-      open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,access='append',status='unknown')
-      open(501,file=trim(foldername)//'slip_2_depth'//jobname,access='append',status='unknown')
-      open(502,file=trim(foldername)//'slip_2_strike'//jobname,access='append',status='unknown')
-      open(503,file=trim(foldername)//'stress_2_depth'//jobname,access='append',status='unknown')
-      open(504,file=trim(foldername)//'stress_2_strike'//jobname,access='append',status='unknown')
+      open(401,file=trim(foldername)//'blkst_strk-16fn+08dp+00'//jobname,position='append',status='unknown')
+      open(402,file=trim(foldername)//'blkst_strk+00fn+08dp+00'//jobname,position='append',status='unknown')
+      open(403,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,position='append',status='unknown')
+      open(404,file=trim(foldername)//'blkst_strk+00fn+16dp+00'//jobname,position='append',status='unknown')
+      open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,position='append',status='unknown')
+      open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,position='append',status='unknown')
+      open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,position='append',status='unknown')
+      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,position='append',status='unknown')
+      open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,position='append',status='unknown')
+      open(501,file=trim(foldername)//'slip_2_depth'//jobname,position='append',status='unknown')
+      open(502,file=trim(foldername)//'slip_2_strike'//jobname,position='append',status='unknown')
+      open(503,file=trim(foldername)//'stress_2_depth'//jobname,position='append',status='unknown')
+      open(504,file=trim(foldername)//'stress_2_strike'//jobname,position='append',status='unknown')
 
       do i=1,imv
         do j=401,409
@@ -1566,8 +1566,8 @@ else
     end if
 
     if((ias>0).and.(ias<nas))then
-       open(31,form='unformatted',file=trim(foldername)//'slipz1-inter'//jobname,access='append',status='unknown')
-       open(34,file=trim(foldername)//'t-inter'//jobname,access='append',status='unknown')
+       open(31,form='unformatted',file=trim(foldername)//'slipz1-inter'//jobname,position='append',status='unknown')
+       open(34,file=trim(foldername)//'t-inter'//jobname,position='append',status='unknown')
 
        do j=1,ias
           do i=1,Nt_all
@@ -1586,9 +1586,9 @@ else
 
 
    if(isse<nsse.and.isse>0)then
-      open(25,form='unformatted',file=trim(foldername)//'slipz1_sse'//jobname,access='append',status='unknown')
-      open(26,form='unformatted',file=trim(foldername)//'slipz1_tau'//jobname,access='append',status='unknown')
-      open(28,file=trim(foldername)//'t_sse'//jobname, access='append',status='unknown')
+      open(25,form='unformatted',file=trim(foldername)//'slipz1_sse'//jobname,position='append',status='unknown')
+      open(26,form='unformatted',file=trim(foldername)//'slipz1_tau'//jobname,position='append',status='unknown')
+      open(28,file=trim(foldername)//'t_sse'//jobname, position='append',status='unknown')
       do j=1,isse 
          do i=1,Nt_all
             write(25) slipz1_sse(i,j)
@@ -1607,9 +1607,9 @@ else
 
 
      if((icos>0).and.(icos<ncos))then
-       open(45,form='unformatted',file=trim(foldername)//'slipz1-cos'//jobname,access='append',status='unknown')
-      open(42,form='unformatted',file=trim(foldername)//'slipz1-v'//jobname,access='append',status='unknown')
-       open(48,file=trim(foldername)//'t-cos'//jobname,access='append',status='unknown')
+       open(45,form='unformatted',file=trim(foldername)//'slipz1-cos'//jobname,position='append',status='unknown')
+      open(42,form='unformatted',file=trim(foldername)//'slipz1-v'//jobname,position='append',status='unknown')
+       open(48,file=trim(foldername)//'t-cos'//jobname,position='append',status='unknown')
        
        do j=1,icos
           do i=1,Nt_all
@@ -1628,9 +1628,9 @@ else
 
                  
 	if((inul>0).and.(inul<nnul))then
-	open(52,file=trim(foldername)//'vs-nul'//jobname,access='append',status='unknown')
+	open(52,file=trim(foldername)//'vs-nul'//jobname,position='append',status='unknown')
         open(53,file=trim(foldername)//'nul-time'//jobname, &
-             access='append',status='unknown')
+             position='append',status='unknown')
 		do j=1,inul
               do kk=1,Nt_all
      !            write(52,160)v_nul(kk,j),slip_nul(kk,j)
