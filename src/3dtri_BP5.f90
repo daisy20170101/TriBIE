@@ -19,24 +19,21 @@ program main
   logical cyclecont
   integer ::Nt_all,Nt, ndt,ndtnext,kk,ii,n,l,ndt_v,ndt_inter,Itout,&  
        ndtmax,i,j,k,nm,nrec,ihrestart,Ifileout, &
-       Iperb,record,Isnapshot,ix1,ix2,ix3,ix4,iz1,iz2,iz3,&
-       record_cor,s2,s3,s4,s5,s6,s7,s8,s9,s10
+       Iperb,record,Isnapshot,iz1,iz2,iz3,&
+       record_cor
   integer,dimension(:) :: s1(10)
   real (DP) :: Vint,tmp,accuracy,areatot, epsv,dt_try, dt,dtmin,dt_did,dt_next,dip, &
-       hnucl, hstarfactor, &
-       sigmadiff,sefffix,Lffix,xdepth,xlength,&
+       hnucl,&
        t,tprint_inter, tint_out,tout,&
        tmin_out,tint_cos,tint_sse,&   
        tslip_ave,tslipend,tslip_aveint, tmax, &
        tslipsse,tslipcos,tstart1,tend1,tstart2,tend2,tstart3,tend3, &
        tssestart,tsseend, &
-       factor1,factor2,factor3,factor4,vtmp,fr_dummy,&
-       xilock1,xilock2,x1,x2,x3,x4,z1,z2,z3,&
-       xi_dummy,x_dummy,z_dummy,stiff_dummy,help
+       xilock1,xilock2,x4,z1,z2,z3,&
+       help
 
   real (DP) ::  tmbegin,tmrun,tautmp
 
-  integer, DIMENSION(:), ALLOCATABLE :: itran1,itran2,islip1,islip2
 
   real (DP), DIMENSION(:), ALLOCATABLE :: x,z,xi,yt,yt0,dydt,yt_scale, &
        slip,slipinc,slipds,slipdsinc,sr,vi
@@ -211,7 +208,7 @@ program main
   end if
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ALLOCATE (phy1(local_cells),phy2(local_cells),islip1(Nl),islip2(Nl),itran1(Nl),itran2(Nl),&
+  ALLOCATE (phy1(local_cells),phy2(local_cells),&
   zzfric(local_cells),zzfric2(local_cells),&
        x(local_cells),z(local_cells),z_all(Nt_all),xi(local_cells),cca(local_cells),ccb(local_cells),&
        seff(local_cells),&
@@ -363,7 +360,7 @@ end if
 
   if(myid==master)then
      CALL resdep(Nt_all,dip,hnucl,sigmadiff,sefffix,Lffix, &
-          itran1,itran2,islip1,islip2,Iperb,factor1,factor2,factor3,factor4,&
+         factor1,factor2,factor3,factor4,&
           xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all)
   end if
 
@@ -947,7 +944,7 @@ end if
 
 
   DEALLOCATE (stiff2,stiff,vi,sr)
-  DEALLOCATE (islip1,islip2,itran1,itran2,x,z_all,xi,yt,dydt,yt_scale)
+  DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
   DEALLOCATE (cca,ccb,xLf,seff)
   
@@ -1000,7 +997,7 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
      htemp = SAFETY*h*(errmax1**PSHRNK)
      h = dsign(max(dabs(htemp),0.1*dabs(h)),h)
      xnew = x+h
-     if(xnew.eq.x)pause 'stepsize underflow in rkqs'
+     if(xnew.eq.x) write(*,*) 'stepsize underflow in rkqs'
      goto 1
   else
      if(errmax1.gt.ERRCON)then
@@ -1109,11 +1106,10 @@ end subroutine rkqs
        small=1.d-6
         
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
-       !$OMP SIMD PRIVATE(i)
        do i=1,Nt
-          zz(i)=yt(2*i-1)*phy1(i)-Vpl
+         if(x(i).gt.1.69e3.or.x(i).lt.1.12e3) yt(2*i-1)=Vpl
+          zz(i)=yt(2*i-1)-Vpl
        end do
-       !$OMP END SIMD
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
        ! Use non-blocking communication to overlap computation and communication
@@ -1133,7 +1129,6 @@ end subroutine rkqs
        tm1=tm2
 
        ! CORRECT: Simple nested loop for matrix-vector multiplication
-      !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
        do i=1, Nt
           zzfric(i) = 0d0  ! Initialize to zero
           
@@ -1144,7 +1139,6 @@ end subroutine rkqs
           end do
           !$OMP END SIMD
        end do
-       !$OMP END PARALLEL DO
  
        call CPU_TIME(tm2)
        if ((tm2-tm1) .lt. 0.03)then
@@ -1181,7 +1175,6 @@ end subroutine rkqs
 !----------------------------------------------------------------------------
 
     subroutine resdep(Nt_all,dip,hnucl,sigmadiff,sefffix,Lffix, &
-         itran1,itran2,islip1,islip2,Iperb,&
          factor1,factor2,factor3,factor4, &
          xilock1,xilock2,cca_all,ccb_all,xLf_all, &
          seff_all,x_all,z_all,vi_all)
@@ -1191,8 +1184,7 @@ end subroutine rkqs
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer, parameter :: DN=9
-      integer :: k,i,j,kk,Iperb,record,l,m,nn,itran1(Nl),itran2(Nl), &
-           islip1(Nl),islip2(Nl),Nt,Nt_all
+      integer :: k,i,j,kk,Iperb,record,l,m,nn,Nt,Nt_all
 
       real (DP) :: temp(DN),dep(DN),dist(DN),ptemp(Nt_all), &
            ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, & 
