@@ -359,8 +359,7 @@ end if
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
 
   if(myid==master)then
-     CALL resdep(Nt_all,dip,hnucl,sigmadiff,sefffix,Lffix, &
-         factor1,factor2,factor3,factor4,&
+     CALL resdep(Nt_all,dip,hnucl, &
           xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all)
   end if
 
@@ -1097,7 +1096,7 @@ end subroutine rkqs
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
        real(DP) :: temp_sum
        integer :: request1, request2
-       intrinsic imag,real
+       intrinsic real
 
        !MPI RELATED DEFINITIONS
        integer :: ierr,myid,master
@@ -1174,8 +1173,7 @@ end subroutine rkqs
 !    read parameters: sigma_effective, a,b,D_c
 !----------------------------------------------------------------------------
 
-    subroutine resdep(Nt_all,dip,hnucl,sigmadiff,sefffix,Lffix, &
-         factor1,factor2,factor3,factor4, &
+    subroutine resdep(Nt_all,dip,hnucl, &
          xilock1,xilock2,cca_all,ccb_all,xLf_all, &
          seff_all,x_all,z_all,vi_all)
       USE mpi
@@ -1188,8 +1186,7 @@ end subroutine rkqs
 
       real (DP) :: temp(DN),dep(DN),dist(DN),ptemp(Nt_all), &
            ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, & 
-           hnucl,sigmadiff,sefffix,Lffix,dip, &
-           factor,factor1,factor2,factor3,factor4
+           hnucl
       real (DP) :: cca_all(Nt_all),ccb_all(Nt_all),ccab_all(Nt_all), &
            xLf_all(Nt_all),seff_all(Nt_all),x_all(Nt_all),z_all(Nt_all),vi_all(Nt_all)
 
