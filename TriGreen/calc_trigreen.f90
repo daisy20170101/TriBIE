@@ -542,51 +542,56 @@ end subroutine
 !   op              [out] op scale parameter (for perp vector)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
- use m_calc_green, only: DP, vpl1, vpl2
- implicit none
-    
-  real(DP)                     ::  v1(3), v2(3), v3(3)
-  real(DP)                     ::  v_pl(3)
-  real(DP)                     ::  ss, ds, op
+  use m_calc_green, only: DP, vpl1, vpl2
+  implicit none
   
-  real(DP)                     ::  vpl, vpl0, theta
-  real(DP)                     ::  nv(3)
-  real(DP)                     ::  x, y, z
-    
-  real(DP)                     ::  a, b
-  real(DP)                     ::  rl,a11,a12,a13,gamma,denom_h
-  integer                     ::  i
-    
-  ! get triangle's normal vector
-  call tri_normal_vect(v1, v2, v3, nv)
-
-  if ( nv(3) .lt. 0 ) then
-    do i=1, 3
-      nv(i) = -nv(i)
-    end do
+  real(DP), intent(in) :: v1(3), v2(3), v3(3), v_pl(3)
+  real(DP), intent(out) :: ss, ds, op
+  
+  real(DP) :: nv(3), side1(3), side2(3)
+  real(DP) :: a11, a12, a13, rl, gamma, denom_h
+  real(DP), parameter :: EPSILON = 1.0d-12  ! Numerical tolerance
+  
+  ! Calculate triangle normal vector
+  side1 = v2 - v1
+  side2 = v3 - v1
+  nv(1) = side1(2)*side2(3) - side1(3)*side2(2)
+  nv(2) = side1(3)*side2(1) - side1(1)*side2(3)
+  nv(3) = side1(1)*side2(2) - side1(2)*side2(1)
+  
+  ! Normalize the normal vector
+  denom_h = sqrt(nv(1)**2 + nv(2)**2 + nv(3)**2)
+  if (denom_h .lt. EPSILON) then
+    write(*,*) "ERROR: Degenerate triangle - zero area"
+    ss = 0.0d0
+    ds = 0.0d0
+    op = 0.0d0
+    return
   end if
-
-  ! Handle vertical triangle (nv(3) = 0)
-  if (abs(nv(3)) .lt. 1.0d-12) then
-    ! For vertical triangles, use predefined coordinate system
-    ! Set strike direction along x-axis, dip direction along y-axis
-    ! This follows the convention for vertical fault planes
+  
+  nv = nv / denom_h
+  
+  ! Check if this is a vertical fault (normal vector nearly horizontal)
+  if (abs(nv(3)) .lt. EPSILON) then
+    ! PLANAR VERTICAL FAULT - Use predefined coordinate system
+    ! This is the key fix for planar vertical faults
     
-    ! Add numerical stability check for very small horizontal components
-    if (abs(nv(1)) .lt. 1.0d-12 .and. abs(nv(2)) .lt. 1.0d-12) then
-      write(*,*) "WARNING: Degenerate vertical triangle in calc_ss_ds - using predefined axes"
+    ! Check if horizontal components are also very small (degenerate case)
+    if (abs(nv(1)) .lt. EPSILON .and. abs(nv(2)) .lt. EPSILON) then
+      write(*,*) "WARNING: Degenerate vertical triangle - using predefined axes"
       ss = vpl1  ! Strike-slip component
       ds = vpl2  ! Dip-slip component  
       op = 0.0d0 ! Opening component (no opening for vertical faults)
     else
-             ! Standard vertical triangle - compute components safely
-       denom_h = sqrt(nv(1)**2 + nv(2)**2)
-      if (denom_h .lt. 1.0d-12) then
+      ! Standard vertical triangle - compute components safely
+      denom_h = sqrt(nv(1)**2 + nv(2)**2)
+      if (denom_h .lt. EPSILON) then
         write(*,*) "WARNING: Very small horizontal components in vertical triangle"
         ss = vpl1  ! Fallback to predefined
         ds = vpl2
         op = 0.0d0
       else
+        ! For vertical faults, use the horizontal normal components to define strike/dip
         ss = vpl1  ! Strike-slip component
         ds = vpl2  ! Dip-slip component  
         op = 0.0d0 ! Opening component (no opening for vertical faults)
@@ -594,20 +599,14 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
     end if
     return
   end if
-
-  ! Add numerical stability check for the main calculation
-  if (abs(nv(3)) .lt. 1.0d-12) then
-    write(*,*) "ERROR: nv(3) is too small for main calculation"
-    ss = 0.0d0
-    ds = 0.0d0
-    op = 0.0d0
-    return
-  end if
   
-  rl=(vpl1**2+vpl2**2)+(nv(1)*vpl1+nv(2)*vpl2)**2/nv(3)**2
+  ! NON-VERTICAL FAULT - Use standard calculation with improved numerical stability
   
-  ! Check for numerical overflow
-  if (rl .lt. 1.0d-12) then
+  ! Calculate rl with numerical stability checks
+  rl = (vpl1**2 + vpl2**2) + (nv(1)*vpl1 + nv(2)*vpl2)**2 / max(nv(3)**2, EPSILON)
+  
+  ! Check for numerical overflow/underflow
+  if (rl .lt. EPSILON) then
     write(*,*) "WARNING: rl too small, using fallback values"
     ss = vpl1
     ds = vpl2
@@ -615,25 +614,31 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
     return
   end if
   
-  rl=1.d0/rl
-  rl=sqrt(rl)
-  gamma=-(nv(1)*vpl1+nv(2)*vpl2)*rl/nv(3)
-
-  a11 = vpl1*rl
-  a12 = vpl2*rl
+  ! Safe calculation of rl and gamma
+  rl = 1.d0 / rl
+  rl = sqrt(rl)
+  gamma = -(nv(1)*vpl1 + nv(2)*vpl2) * rl / max(nv(3), EPSILON)
+  
+  ! Calculate direction cosines
+  a11 = vpl1 * rl
+  a12 = vpl2 * rl
   a13 = gamma
-
-  ! calc ss, ds with numerical stability checks
+  
+  ! Calculate ss, ds with numerical stability checks
   denom_h = sqrt(nv(1)**2 + nv(2)**2)
-  if (denom_h .lt. 1.0d-12) then
+  if (denom_h .lt. EPSILON) then
     write(*,*) "WARNING: Horizontal components too small for ss/ds calculation"
     ss = vpl1
     ds = vpl2
     op = 0.0d0
   else
-    ss = (nv(2)*a11-nv(1)*a12) / denom_h
-    ds = sqrt(nv(1)**2+nv(2)**2-(nv(2)*a11-nv(1)*a12)**2)
+    ! Safe calculation of ss and ds
+    ss = (nv(2)*a11 - nv(1)*a12) / denom_h
+    
+    ! Calculate ds with numerical stability
+    ds = sqrt(max(nv(1)**2 + nv(2)**2 - (nv(2)*a11 - nv(1)*a12)**2, 0.0d0))
     ds = ds / denom_h
+    
     op = 0.0d0
   end if
     
@@ -947,8 +952,18 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
           !$OMP CRITICAL
           write(*,*) 'Process', myid, ': Invalid ss, ds, op parameters:'
           write(*,*) '  ss =', ss, 'ds =', ds, 'op =', op
+          write(*,*) '  This may indicate a planar vertical fault issue'
           !$OMP END CRITICAL
           cycle
+        end if
+        
+        ! DIAGNOSTIC: Log parameters for planar vertical faults
+        if (abs(ss) .lt. 1.0d-12 .and. abs(ds) .lt. 1.0d-12) then
+          !$OMP CRITICAL
+          write(*,*) 'Process', myid, ': WARNING - Very small ss/ds values detected:'
+          write(*,*) '  ss =', ss, 'ds =', ds, 'op =', op
+          write(*,*) '  This may cause numerical issues in dstuart'
+          !$OMP END CRITICAL
         end if
         
         ! Calculate strain gradients using Stuart's method
@@ -959,7 +974,14 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
           !$OMP CRITICAL
           error_occurred = .true.
           error_message = "Invalid results from dstuart calculation"
-          write(*,*) arr_co(:,j),arr_trid(:,i),ss,ds,op,u,t
+          write(*,*) 'Process', myid, ': dstuart returned NaN values:'
+          write(*,*) '  Input: parm_nu =', parm_nu
+          write(*,*) '  Input: arr_co(:,', j, ') =', arr_co(:,j)
+          write(*,*) '  Input: arr_trid(:,', i, ') =', arr_trid(:,i)
+          write(*,*) '  Input: ss =', ss, 'ds =', ds, 'op =', op
+          write(*,*) '  Output: u =', u
+          write(*,*) '  Output: t =', t
+          write(*,*) '  This may be due to planar vertical fault geometry'
           !$OMP END CRITICAL
           cycle
         end if
