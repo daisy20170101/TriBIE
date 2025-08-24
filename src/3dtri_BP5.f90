@@ -184,7 +184,7 @@ program main
   end if
 
 
-  if(myid == master)then
+  if(myid == master) then
      ALLOCATE(x_all(Nt_all),xi_all(Nt_all),&
           cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),vi_all(Nt_all),&
           tau1_all(Nt_all),tau2_all(Nt_all),slip_all(Nt_all),slipinc_all(Nt_all),slipds_all(Nt_all),slipdsinc_all(Nt_all),&
@@ -312,21 +312,12 @@ end if
   end if
 
   ! OPTIMIZATION: Use OpenMP for parallel stiffness matrix reading and processing
-  !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
+  ! FIRST: Read file sequentially (OUTSIDE OpenMP to avoid file corruption)
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
         read(5, err=999) stiff(i,j)
-        if(stiff(i,j).lt.-0.3d0.or.stiff(i,j).gt.0.25d0)then
-           stiff(i,j) = 0.d0
-           write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
-	end if
-        if(stiff(i,j) /= stiff(i,j))then  ! Check for NaN using IEEE standard
-          stiff(i,j)=0.d0
-          write(*,*) 'Process', myid, ': NaN detected at position (', i, ',', j, ') - set to 0'
-        end if
      end do
   end do
-  !$OMP END PARALLEL DO
   
   ! Jump to error handling if read fails
   goto 200
@@ -338,6 +329,26 @@ end if
       
   200 continue
   close(5)
+  
+  ! SECOND: Process data in parallel (OpenMP for computation only, NO file I/O)
+  !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
+  do i=1,local_cells !! observe (now using local_cells instead of Nt)
+     do j=1,Nt_all !! source
+        if(stiff(i,j).lt.-0.3d0.or.stiff(i,j).gt.0.25d0)then
+           stiff(i,j) = 0.d0
+           !$OMP CRITICAL
+           write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
+           !$OMP END CRITICAL
+	end if
+        if(stiff(i,j) /= stiff(i,j))then  ! Check for NaN using IEEE standard
+          stiff(i,j)=0.d0
+          !$OMP CRITICAL
+          write(*,*) 'Process', myid, ': NaN detected at position (', i, ',', j, ') - set to 0'
+          !$OMP END CRITICAL
+        end if
+     end do
+  end do
+  !$OMP END PARALLEL DO
   
   ! TriGreen integration summary
   if (use_trigreen_format) then
@@ -834,12 +845,16 @@ end if
      !----velocity in mm/yr ; slip in meter, moment in 10^{14} Nm -- 
      if(myid==master)then 
         Ioutput = 0 
+        
+        ! CRITICAL FIX: Ensure only main thread does file I/O
+        !$OMP MASTER
         call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
              tmv,tas,tcos,tnul,tsse,maxv,moment,outs1,maxnum,msse1,msse2, areasse1,areasse2,&
              slipz1_inter,slipz1_tau,slipz1_sse, &
              slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
              xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
              n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2)         
+        !$OMP END MASTER
 
      end if
 
@@ -884,6 +899,9 @@ end if
 
 if(myid==master)then 
      filename='outlast'
+     
+     ! CRITICAL FIX: Ensure only main thread does file I/O
+     !$OMP MASTER
      call restart(1,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
      Ioutput = 1
      call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
@@ -893,6 +911,7 @@ if(myid==master)then
           slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
           xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
           n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2) 
+     !$OMP END MASTER
 
 end if
 
