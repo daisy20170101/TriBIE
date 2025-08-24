@@ -933,17 +933,21 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
       do i = 1, n_cell
         ! Pre-check input parameters for numerical stability
         if (isnan(parm_nu) .or. any(isnan(arr_co(:,j))) .or. any(isnan(arr_trid(:,i))) )then
+          !$OMP CRITICAL
           write(*,*) 'Process', myid, ': Invalid input parameters to dstuart:'
           write(*,*) '  parm_nu =', parm_nu
           write(*,*) '  arr_co(:,', j, ') =', arr_co(:,j)
           write(*,*) '  arr_trid(:,', i, ') =', arr_trid(:,i)
+          !$OMP END CRITICAL
           cycle
         end if
         
         ! Check if ss, ds, op are valid before calling dstuart
         if (isnan(ss) .or. isnan(ds) .or. isnan(op)) then
+          !$OMP CRITICAL
           write(*,*) 'Process', myid, ': Invalid ss, ds, op parameters:'
           write(*,*) '  ss =', ss, 'ds =', ds, 'op =', op
+          !$OMP END CRITICAL
           cycle
         end if
         
@@ -1028,10 +1032,26 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
       write(*,*) "=========================================="
    end if
 
-  ! Write results to file
-  open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
-  
-  ! Only master process writes position data
+  ! Write results to file - OUTSIDE OpenMP region to avoid conflicts
+  ! Only the main thread should write to files when using OpenMP
+  if (local_cells > 0) then
+    open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
+    
+    ! Write local results (only if we have cells to write)
+    do i = 1, local_cells
+      write(14) arr_out(i,:)
+    end do
+    close(14)
+  else
+    ! Write a dummy entry to ensure file is not empty
+    ! This ensures compatibility with 3dtri_BP5.f90 which expects all processes to have files
+    open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
+    write(14) 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0
+    close(14)
+    write(*,*) 'Process', myid, 'wrote dummy entry (no cells assigned)'
+  end if
+
+  ! Only master process writes position data - OUTSIDE OpenMP region
   if(myid == 0) then 
     open(22, file='position.bin', form='unformatted', access='stream')
     do j = 1, n_cell
@@ -1045,19 +1065,6 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
     end do
     close(22)
   endif
-
-  ! Write local results (only if we have cells to write)
-  if (local_cells > 0) then
-    do i = 1, local_cells
-      write(14) arr_out(i,:)
-    end do
-  else
-    ! Write a dummy entry to ensure file is not empty
-    ! This ensures compatibility with 3dtri_BP5.f90 which expects all processes to have files
-    write(14) 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0
-    write(*,*) 'Process', myid, 'wrote dummy entry (no cells assigned)'
-  end if
-  close(14)
 
    ! OPTIMIZED: Deallocate arrays with performance monitoring and timing
    
