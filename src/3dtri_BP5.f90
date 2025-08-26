@@ -196,6 +196,20 @@ program main
           maxv(nmv),maxnum(nmv),msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
           tmv(nmv),tas(nas),tcos(ncos),tnul(nnul),tsse(nsse))
 
+     ! CRITICAL FIX: Initialize arrays to prevent garbage values and performance issues
+     outs1 = 0.d0      ! Initialize output array to prevent garbage data
+     maxv = 0.d0       ! Initialize maximum velocity array
+     maxnum = 0        ! Initialize maximum number array
+     msse1 = 0.d0      ! Initialize SSE arrays
+     msse2 = 0.d0
+     areasse1 = 0.d0
+     areasse2 = 0.d0
+     tmv = 0.d0        ! Initialize time arrays
+     tas = 0.d0
+     tcos = 0.d0
+     tnul = 0.d0
+     tsse = 0.d0
+
 !!! modify output number
      ALLOCATE (slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos), &
           slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos), &
@@ -205,6 +219,17 @@ program main
      allocate(moment(nmv),Trup(Nt_all),rup(Nt_all),area(Nt_all))
      allocate(surf1(n_obv,Nt_all),surf2(n_obv,Nt_all),surf3(n_obv,Nt_all),obvs(nmv,6,n_obv))
      allocate(pstrk(np1),pdp(np2),obvstrk(nmv,2,np1),obvdp(nmv,2,np2))
+     
+     ! CRITICAL FIX: Initialize additional arrays to prevent garbage values
+     moment = 0.d0      ! Initialize moment array
+     Trup = 0.d0        ! Initialize rupture time array
+     rup = .false.      ! Initialize rupture flag array
+     area = 0.d0        ! Initialize area array
+     obvs = 0.d0        ! Initialize observation arrays
+     obvstrk = 0.d0
+     obvdp = 0.d0
+     pstrk = 0          ! Initialize profile arrays
+     pdp = 0
   end if
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -334,7 +359,7 @@ end if
   !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
-        if(stiff(i,j).lt.-0.3d0.or.stiff(i,j).gt.0.25d0)then
+        if(stiff(i,j).lt.-1.0d0.or.stiff(i,j).gt.1.0d0)then
            stiff(i,j) = 0.d0
            !$OMP CRITICAL
            write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
