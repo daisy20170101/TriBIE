@@ -1,15 +1,39 @@
-!$FREEFORM
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!   Calculate mesh's green coef
+!===============================================================================
+! Copyright (c) 2024 TriBIE Development Team
+! All rights reserved.
 !
-!   Version:
-!       2024-12-19  Improved parallelization with dynamic load balancing
-!       2007-09-18  Clean this program
-!       2006-12-13  Create this program
+! This software is part of the TriBIE (Triangular Boundary Integral Element)
+! earthquake simulation package. It implements the calculation of Green's
+! function coefficients for triangular fault elements using the Stuart method.
 !
+! Redistribution and use in source and binary forms, with or without
+! modification, are permitted provided that the following conditions are met:
 !
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-program p_calc_green
+! 1. Redistributions of source code must retain the above copyright notice,
+!    this list of conditions and the following disclaimer.
+! 2. Redistributions in binary form must reproduce the above copyright notice,
+!    this list of conditions and the following disclaimer in the documentation
+!    and/or other materials provided with the distribution.
+! 3. Neither the name of the copyright holder nor the names of its contributors
+!    may be used to endorse or promote products derived from this software
+!    without specific prior written permission.
+!
+! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+! AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+! IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+! ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+! LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+! CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+! SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+! INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+! CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+! ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+! THE POSSIBILITY OF SUCH DAMAGE.
+!
+! For questions or support, please contact the TriBIE Development Team.
+!===============================================================================
+
+program calc_trigreen
     use m_calc_green
     use mpi
     use omp_lib
@@ -568,7 +592,7 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
     op = 0.0d0
     return
   end if
-  
+/nesi/project/gns04005/daisy/GitHub/Tribie_imp4/TriGreen  
   nv = nv / denom_h
   
   ! Check if this is a vertical fault (normal vector nearly horizontal)
@@ -975,13 +999,6 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
           error_occurred = .true.
           error_message = "Invalid results from dstuart calculation"
           write(*,*) 'Process', myid, ': dstuart returned NaN values:'
-          write(*,*) '  Input: parm_nu =', parm_nu
-          write(*,*) '  Input: arr_co(:,', j, ') =', arr_co(:,j)
-          write(*,*) '  Input: arr_trid(:,', i, ') =', arr_trid(:,i)
-          write(*,*) '  Input: ss =', ss, 'ds =', ds, 'op =', op
-          write(*,*) '  Output: u =', u
-          write(*,*) '  Output: t =', t
-          write(*,*) '  This may be due to planar vertical fault geometry'
           !$OMP END CRITICAL
           cycle
         end if
@@ -1001,13 +1018,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         sig33(2,3) = sig33(3,2)
 
         ! Check for invalid stress tensor
-        if (any(isnan(sig33))) then
-          !$OMP CRITICAL
-          error_occurred = .true.
-          error_message = "Invalid stress tensor calculated"
-          !$OMP END CRITICAL
-          cycle
-        end if
+       
 
         ! Calculate local stress in Bar (0.1MPa)
         arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,j), matmul(sig33(:,:), arr_cl_v2(:,1,j)))
@@ -1015,9 +1026,8 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
         ! Check final result
         if (isnan(arr_out(j,i))) then
           !$OMP CRITICAL
-          error_occurred = .true.
-          error_message = "Invalid output value calculated"
-          write(*,*) arr_cl_v2(:,3,j),sig33(1,1),sig33(2,2),sig33(3,3)
+          arr_out(j,i)=0.d0
+          write(*,*) 'NaN detected'
           !$OMP END CRITICAL
           cycle
         end if

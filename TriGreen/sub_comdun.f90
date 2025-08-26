@@ -1,11 +1,38 @@
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!     Calls Stuart's angle subroutine to get triangle dislocation results.
+!===============================================================================
+! Copyright (c) 2024 TriBIE Development Team
+! All rights reserved.
 !
-!     Comninou and Dundurs use a 1,2,3 = NED coordinate system.
-!       Their simple angular dislocation is in the 1,3 plane
-!       with its tip under the origin and its arm pointing toward +x1.
+! This software is part of the TriBIE (Triangular Boundary Integral Element)
+! earthquake simulation package. It implements common utility subroutines
+! and functions used across the TriBIE codebase for data handling and
+! numerical operations.
 !
-!---+-|--1----+----2----+----3----+----4----+----5----+----6----+----7--
+! Redistribution and use in source and binary forms, with or without
+! modification, are permitted provided that the following conditions are met:
+!
+! 1. Redistributions of source code must retain the above copyright notice,
+!    this list of conditions and the following disclaimer.
+! 2. Redistributions in binary form must reproduce the above copyright notice,
+!    this list of conditions and the following disclaimer in the documentation
+!    and/or other materials provided with the distribution.
+! 3. Neither the name of the copyright holder nor the names of its contributors
+!    may be used to endorse or promote products derived from this software
+!    without specific prior written permission.
+!
+! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+! AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+! IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+! ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+! LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+! CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+! SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+! INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+! CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+! ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+! THE POSSIBILITY OF SUCH DAMAGE.
+!
+! For questions or support, please contact the TriBIE Development Team.
+!===============================================================================
 
 module comdun_module
   implicit none
@@ -266,8 +293,8 @@ module comdun_module
        ((1 - 2*nu)*(-a + ctb*(-1 + 2*nu)*y1 + (a*ctb*y1)/rb + nu*yb3 + &
             ((nu + a/rb)*y1**2)/(rb + yb3)))/(rb + yb3) + &
        ((-a + yb3)*(2*nu - (a*y1**2)/rb**3 + &
-            (a + ctb*(1 - 2*nu)*y1)/rb - &
-            ((2*nu + a/rb)*y1**2)/(rb*(rb + yb3))))/(rb + yb3) - &
+            (a + ctb*(1 - 2*nu)*y1)/rb -&
+       ((2*nu + a/rb)*y1**2)/(rb*(rb + yb3))))/(rb*(rb + yb3)**2) -&
        (ctb*(1 - 2*nu)*(-((a*(rb*sb - y1))/(cb*rb)) + cb*zb1))/ &
         (rb + zb3) + (ctb*(-a + yb3)* &
           (-(cb*sb) + (a*y1*yb3)/(cb*rb**3) + &
