@@ -44,6 +44,7 @@
 program main
   USE mpi
   USE phy3d_module_non
+  use hdf5  ! Add HDF5 support
   implicit none
   integer, parameter :: DP=kind(1.d0)
 
@@ -124,6 +125,19 @@ program main
   ! MPI_Scatterv variables for uneven distribution
   integer, allocatable :: sendcounts(:), displs(:)
   integer :: total_sent
+
+  ! Add HDF5 variables
+  integer(HID_T) :: file_id, dset_id, dspace_id
+  integer(HID_T) :: group_id, attr_id, attr_space_id
+  integer(HSIZE_T), dimension(3) :: dims, maxdims
+  integer(HSIZE_T), dimension(2) :: dims_2d, maxdims_2d
+  integer(HSIZE_T), dimension(1) :: dims_1d, maxdims_1d
+  integer :: hdferr
+  logical :: hdf5_initialized = .false.
+  
+  ! HDF5 file naming
+  character(len=256) :: hdf5_filename, xdmf_filename
+  character(len=256) :: time_series_group_name
 
   call MPI_Init(ierr)
   CALL MPI_COMM_RANK( MPI_COMM_WORLD, myid, ierr )
@@ -1514,61 +1528,299 @@ if(Ioutput == 0)then    !output during run
 end if
 
     if(icos==ncos)then
-       open(42,form='unformatted',file=trim(foldername)//'slipz1-v'//jobname,position='append',status='unknown')
-       open(45,form='unformatted',file=trim(foldername)//'slipz1-cos'//jobname,position='append',status='unknown')
-       open(48,file=trim(foldername)//'t-cos'//jobname,position='append',status='unknown')
-
-       do j=1,ncos
-          do i=1,Nt_all
-             write(42) slipz1_v(i,j)
-             write(45) slipz1_cos(i,j)
-          end do
-       end do
-
-       do i=1,ncos
-          write(48,*) tcos(i)
-       end do
-       close(42)
-       close(45)
-       close(48)
+       ! HDF5 output for time-series variables instead of binary files
+       if (myid == master) then
+          ! Initialize HDF5 if not already done
+          if (.not. hdf5_initialized) then
+             call h5open_f(hdferr)
+             hdf5_initialized = .true.
+          end if
+          
+          ! Create HDF5 filename
+          hdf5_filename = trim(foldername)//'timeseries_data'//jobname//'.h5'
+          
+          ! Create or open HDF5 file
+          call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+          
+          ! Create time-series group
+          time_series_group_name = '/time_series'
+          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+          
+          ! Write slipz1_v data (velocity time series)
+          dims_2d = (/Nt_all, ncos/)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+          
+          ! Write slipz1_cos data (cosine slip time series)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+          
+          ! Write time array
+          dims_1d = (/ncos/)
+          call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos, dims_1d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+          
+          ! Add metadata attributes
+          call h5screate_simple_f(1, dims_1d, attr_space_id, hdferr)
+          call h5acreate_f(group_id, 'description', H5T_NATIVE_CHARACTER, attr_space_id, attr_id, hdferr)
+          call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Cosine slip time series data', hdferr)
+          call h5aclose_f(attr_id, hdferr)
+          call h5sclose_f(attr_space_id, hdferr)
+          
+          ! Close group and file
+          call h5gclose_f(group_id, hdferr)
+          call h5fclose_f(file_id, hdferr)
+          
+          ! Create XDMF file for visualization
+          xdmf_filename = trim(foldername)//'timeseries_data'//jobname//'.xdmf'
+          open(99, file=trim(xdmf_filename), status='replace')
+          write(99,*) '<?xml version="1.0" ?>'
+          write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+          write(99,*) '<Xdmf Version="2.0">'
+          write(99,*) '  <Domain>'
+          write(99,*) '    <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+          write(99,*) '      <Time TimeType="List">'
+          write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', ncos, '">'
+          write(99,*) '          ', (tcos(i), i=1, ncos)
+          write(99,*) '        </DataItem>'
+          write(99,*) '      </Time>'
+          write(99,*) '      <Grid Name="slipz1_v" GridType="Uniform">'
+          write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', ncos, '"/>'
+          write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+          write(99,*) '        </Geometry>'
+          write(99,*) '        <Attribute Name="slipz1_v" AttributeType="Scalar" Center="Node">'
+          write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
+          write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_v'
+          write(99,*) '          </DataItem>'
+          write(99,*) '        </Attribute>'
+          write(99,*) '      </Grid>'
+          write(99,*) '      <Grid Name="slipz1_cos" GridType="Uniform">'
+          write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', ncos, '"/>'
+          write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+          write(99,*) '        </Geometry>'
+          write(99,*) '        <Attribute Name="slipz1_cos" AttributeType="Scalar" Center="Node">'
+          write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
+          write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_cos'
+          write(99,*) '          </DataItem>'
+          write(99,*) '        </Attribute>'
+          write(99,*) '      </Grid>'
+          write(99,*) '    </Grid>'
+          write(99,*) '  </Domain>'
+          write(99,*) '</Xdmf>'
+          close(99)
+          
+          write(*,*) 'Time-series data written to HDF5: ', trim(hdf5_filename)
+          write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
+       end if
+       
        icos = 0 
 end if
 
 
 	if(inul == nnul)then
-	open(52,file=trim(foldername)//'vs-nul'//jobname,position='append',status='unknown')
-        open(53,file=trim(foldername)//'nul-time'//jobname,position='append',status='unknown')
-        do j=1,nnul
-           do kk=1,Nt_all
-              !              write(52,160)v_nul(kk,j),slip_nul(kk,j)
-           end do
-        end do
-        do i=52,53
-           close(i)
-        end do
-        inul = 0 
+       ! HDF5 output for null slip time-series variables instead of binary files
+       if (myid == master) then
+          ! Initialize HDF5 if not already done
+          if (.not. hdf5_initialized) then
+             call h5open_f(hdferr)
+             hdf5_initialized = .true.
+          end if
+          
+          ! Create HDF5 filename for null slip data
+          hdf5_filename = trim(foldername)//'null_timeseries_data'//jobname//'.h5'
+          
+          ! Create or open HDF5 file
+          call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+          
+          ! Create null slip time-series group
+          time_series_group_name = '/null_time_series'
+          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+          
+          ! Write v_nul data (null velocity time series)
+          dims_2d = (/Nt_all, nnul/)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'v_nul', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, v_nul, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+          
+          ! Write slip_nul data (null slip time series)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'slip_nul', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slip_nul, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+          
+          ! Add metadata attributes
+          dims_1d = (/nnul/)
+          call h5screate_simple_f(1, dims_1d, attr_space_id, hdferr)
+          call h5acreate_f(group_id, 'description', H5T_NATIVE_CHARACTER, attr_space_id, attr_id, hdferr)
+          call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Null slip time series data', hdferr)
+          call h5aclose_f(attr_id, hdferr)
+          call h5sclose_f(attr_space_id, hdferr)
+          
+          ! Close group and file
+          call h5gclose_f(group_id, hdferr)
+          call h5fclose_f(file_id, hdferr)
+          
+          ! Create XDMF file for null slip visualization
+          xdmf_filename = trim(foldername)//'null_timeseries_data'//jobname//'.xdmf'
+          open(99, file=trim(xdmf_filename), status='replace')
+          write(99,*) '<?xml version="1.0" ?>'
+          write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+          write(99,*) '<Xdmf Version="2.0">'
+          write(99,*) '  <Domain>'
+          write(99,*) '    <Grid Name="NullTimeSeries" GridType="Collection" CollectionType="Temporal">'
+          write(99,*) '      <Grid Name="v_nul" GridType="Uniform">'
+          write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nnul, '"/>'
+          write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+          write(99,*) '        </Geometry>'
+          write(99,*) '        <Attribute Name="v_nul" AttributeType="Scalar" Center="Node">'
+          write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nnul, '">'
+          write(99,*) '            ', trim(hdf5_filename), ':/null_time_series/v_nul'
+          write(99,*) '          </DataItem>'
+          write(99,*) '        </Attribute>'
+          write(99,*) '      </Grid>'
+          write(99,*) '      <Grid Name="slip_nul" GridType="Uniform">'
+          write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nnul, '"/>'
+          write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+          write(99,*) '        </Geometry>'
+          write(99,*) '        <Attribute Name="slip_nul" AttributeType="Scalar" Center="Node">'
+          write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nnul, '">'
+          write(99,*) '            ', trim(hdf5_filename), ':/null_time_series/slip_nul'
+          write(99,*) '          </DataItem>'
+          write(99,*) '        </Attribute>'
+          write(99,*) '      </Grid>'
+          write(99,*) '    </Grid>'
+          write(99,*) '  </Domain>'
+          write(99,*) '</Xdmf>'
+          close(99)
+          
+          write(*,*) 'Null slip time-series data written to HDF5: ', trim(hdf5_filename)
+          write(*,*) 'Null slip XDMF visualization file created: ', trim(xdmf_filename)
+       end if
+       
+       inul = 0 
 	end if
  
 
    if(isse==nsse)then
-      open(25,form='unformatted',file=trim(foldername)//'slipz1_sse'//jobname,position='append',status='unknown')
-      open(26,form='unformatted',file=trim(foldername)//'slipz1_tau'//jobname,position='append',status='unknown')
-      open(28,file=trim(foldername)//'t_sse'//jobname, position='append', status='unknown')
-      do j = 1,nsse 
-         do i=1,Nt_all
-            write(25) slipz1_sse(i,j)
-            write(26) slipz1_tau(i,j)
-         end do
-      end do
-
-      do i=1,nsse
-         write(28,*) tsse(i)
-      end do
-
+      ! HDF5 output for SSE time-series variables instead of binary files
+      if (myid == master) then
+         ! Initialize HDF5 if not already done
+         if (.not. hdf5_initialized) then
+            call h5open_f(hdferr)
+            hdf5_initialized = .true.
+         end if
+         
+         ! Create HDF5 filename for SSE data
+         hdf5_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.h5'
+         
+         ! Create or open HDF5 file
+         call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+         
+         ! Create SSE time-series group
+         time_series_group_name = '/sse_time_series'
+         call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+         
+         ! Write slipz1_sse data (SSE slip time series)
+         dims_2d = (/Nt_all, nsse/)
+         call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+         call h5dcreate_f(group_id, 'slipz1_sse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse, dims_2d, hdferr)
+         call h5dclose_f(dset_id, hdferr)
+         call h5sclose_f(dspace_id, hdferr)
+         
+         ! Write slipz1_tau data (SSE tau time series)
+         call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+         call h5dcreate_f(group_id, 'slipz1_tau', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau, dims_2d, hdferr)
+         call h5dclose_f(dset_id, hdferr)
+         call h5sclose_f(dspace_id, hdferr)
+         
+         ! Write time array
+         dims_1d = (/nsse/)
+         call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+         call h5dcreate_f(group_id, 'tsse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tsse, dims_1d, hdferr)
+         call h5dclose_f(dset_id, hdferr)
+         call h5sclose_f(dspace_id, hdferr)
+         
+         ! Add metadata attributes
+         call h5screate_simple_f(1, dims_1d, attr_space_id, hdferr)
+         call h5acreate_f(group_id, 'description', H5T_NATIVE_CHARACTER, attr_space_id, attr_id, hdferr)
+         call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Slow Slip Event (SSE) time series data', hdferr)
+         call h5aclose_f(attr_id, hdferr)
+         call h5sclose_f(attr_space_id, hdferr)
+         
+         ! Close group and file
+         call h5gclose_f(group_id, hdferr)
+         call h5fclose_f(file_id, hdferr)
+         
+         ! Create XDMF file for SSE visualization
+         xdmf_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.xdmf'
+         open(99, file=trim(xdmf_filename), status='replace')
+         write(99,*) '<?xml version="1.0" ?>'
+         write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+         write(99,*) '<Xdmf Version="2.0">'
+         write(99,*) '  <Domain>'
+         write(99,*) '    <Grid Name="SSETimeSeries" GridType="Collection" CollectionType="Temporal">'
+         write(99,*) '      <Time TimeType="List">'
+         write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', nsse, '">'
+         write(99,*) '          ', (tsse(i), i=1, nsse)
+         write(99,*) '        </DataItem>'
+         write(99,*) '      </Time>'
+         write(99,*) '      <Grid Name="slipz1_sse" GridType="Uniform">'
+         write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nsse, '"/>'
+         write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+         write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+         write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+         write(99,*) '        </Geometry>'
+         write(99,*) '        <Attribute Name="slipz1_sse" AttributeType="Scalar" Center="Node">'
+         write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
+         write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_sse'
+         write(99,*) '          </DataItem>'
+         write(99,*) '        </Attribute>'
+         write(99,*) '      </Grid>'
+         write(99,*) '      <Grid Name="slipz1_tau" GridType="Uniform">'
+         write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nsse, '"/>'
+         write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+         write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+         write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+         write(99,*) '        </Geometry>'
+         write(99,*) '        <Attribute Name="slipz1_tau" AttributeType="Scalar" Center="Node">'
+         write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
+         write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_tau'
+         write(99,*) '          </DataItem>'
+         write(99,*) '        </Attribute>'
+         write(99,*) '      </Grid>'
+         write(99,*) '    </Grid>'
+         write(99,*) '  </Domain>'
+         write(99,*) '</Xdmf>'
+         close(99)
+         
+         write(*,*) 'SSE time-series data written to HDF5: ', trim(hdf5_filename)
+         write(*,*) 'SSE XDMF visualization file created: ', trim(xdmf_filename)
+      end if
+      
       isse = 0
-      close(25)
-      close(26)
-      close(28)
   end if
 
 
@@ -1659,7 +1911,7 @@ else
    if(isse<nsse.and.isse>0)then
       open(25,form='unformatted',file=trim(foldername)//'slipz1_sse'//jobname,position='append',status='unknown')
       open(26,form='unformatted',file=trim(foldername)//'slipz1_tau'//jobname,position='append',status='unknown')
-      open(28,file=trim(foldername)//'t_sse'//jobname, position='append',status='unknown')
+      open(28,file=trim(foldername)//'t_sse'//jobname, position='append', status='unknown')
       do j=1,isse 
          do i=1,Nt_all
             write(25) slipz1_sse(i,j)
@@ -1712,7 +1964,97 @@ else
 			close(i)
 		end do 
 		inul = 0 
-end if
+	end if
+
+    if(inul == nnul)then
+       ! HDF5 output for null slip time-series variables instead of binary files
+       if (myid == master) then
+          ! Initialize HDF5 if not already done
+          if (.not. hdf5_initialized) then
+             call h5open_f(hdferr)
+             hdf5_initialized = .true.
+          end if
+          
+          ! Create HDF5 filename for null slip data
+          hdf5_filename = trim(foldername)//'null_timeseries_data'//jobname//'.h5'
+          
+          ! Create or open HDF5 file
+          call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+          
+          ! Create null slip time-series group
+          time_series_group_name = '/null_time_series'
+          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+          
+          ! Write v_nul data (null velocity time series)
+          dims_2d = (/Nt_all, nnul/)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'v_nul', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, v_nul, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+          
+          ! Write slip_nul data (null slip time series)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'slip_nul', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slip_nul, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+          
+          ! Add metadata attributes
+          dims_1d = (/nnul/)
+          call h5screate_simple_f(1, dims_1d, attr_space_id, hdferr)
+          call h5acreate_f(group_id, 'description', H5T_NATIVE_CHARACTER, attr_space_id, attr_id, hdferr)
+          call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Null slip time series data', hdferr)
+          call h5aclose_f(attr_id, hdferr)
+          call h5sclose_f(attr_space_id, hdferr)
+          
+          ! Close group and file
+          call h5gclose_f(group_id, hdferr)
+          call h5fclose_f(file_id, hdferr)
+          
+          ! Create XDMF file for null slip visualization
+          xdmf_filename = trim(foldername)//'null_timeseries_data'//jobname//'.xdmf'
+          open(99, file=trim(xdmf_filename), status='replace')
+          write(99,*) '<?xml version="1.0" ?>'
+          write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+          write(99,*) '<Xdmf Version="2.0">'
+          write(99,*) '  <Domain>'
+          write(99,*) '    <Grid Name="NullTimeSeries" GridType="Collection" CollectionType="Temporal">'
+          write(99,*) '      <Grid Name="v_nul" GridType="Uniform">'
+          write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nnul, '"/>'
+          write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+          write(99,*) '        </Geometry>'
+          write(99,*) '        <Attribute Name="v_nul" AttributeType="Scalar" Center="Node">'
+          write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nnul, '">'
+          write(99,*) '            ', trim(hdf5_filename), ':/null_time_series/v_nul'
+          write(99,*) '          </DataItem>'
+          write(99,*) '        </Attribute>'
+          write(99,*) '      </Grid>'
+          write(99,*) '      <Grid Name="slip_nul" GridType="Uniform">'
+          write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nnul, '"/>'
+          write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+          write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+          write(99,*) '        </Geometry>'
+          write(99,*) '        <Attribute Name="slip_nul" AttributeType="Scalar" Center="Node">'
+          write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nnul, '">'
+          write(99,*) '            ', trim(hdf5_filename), ':/null_time_series/slip_nul'
+          write(99,*) '          </DataItem>'
+          write(99,*) '        </Attribute>'
+          write(99,*) '      </Grid>'
+          write(99,*) '    </Grid>'
+          write(99,*) '  </Domain>'
+          write(99,*) '</Xdmf>'
+          close(99)
+          
+          write(*,*) 'Null slip time-series data written to HDF5: ', trim(hdf5_filename)
+          write(*,*) 'Null slip XDMF visualization file created: ', trim(xdmf_filename)
+       end if
+       
+       inul = 0 
+	end if
 
 end if 
 
