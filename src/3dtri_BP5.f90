@@ -404,7 +404,8 @@ end if
   !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
-        if(stiff(i,j).lt.-1.0d0.or.stiff(i,j).gt.1.0d0)then
+        if(stiff(i,j).lt.-1.6d0.or.stiff(i,j).gt.1.6d0)then
+           write(*,*)'stiff',stiff(i,j)
            stiff(i,j) = 0.d0
            !$OMP CRITICAL
            write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
@@ -656,37 +657,6 @@ if(myid==master)then
      !$OMP END PARALLEL DO
   end if
 
-  ! Initialize arrays to prevent NaN values
-  if(myid == master) then
-     yt_all = 0.d0
-     yt0_all = 0.d0
-     slip_all = 0.d0
-     slipinc_all = 0.d0
-     slipds_all = 0.d0
-     slipdsinc_all = 0.d0
-     tau1_all = 0.d0
-     tau2_all = 0.d0
-     phy1_all = 0.d0
-     phy2_all = 0.d0
-  end if
-
-  ! Initialize local arrays
-  yt = 0.d0
-  yt0 = 0.d0
-  slip = 0.d0
-  slipinc = 0.d0
-  slipds = 0.d0
-  slipdsinc = 0.d0
-  tau1 = 0.d0
-  tau2 = 0.d0
-
-  ! Set initial conditions
-  do i=1,local_cells
-     yt(2*i-1) = Vpl  ! Initial velocity
-     yt(2*i) = 1.d0   ! Initial state variable
-     yt0(2*i-1) = yt(2*i-1)
-     yt0(2*i) = yt(2*i)
-  end do
 !------------------------------------------------------------------
   if(IDin.eq.1) then               !if this is a restart job
      if(myid==master)then
@@ -719,34 +689,6 @@ if(myid==master)then
   end if
 
   ! ! set plate convergence
-  if(IDin.eq.0)then
-     disp1 = 0d0
-     disp2 = 0d0
-     disp3= 0d0
-
-     ! OPTIMIZATION: Use OpenMP for parallel initialization
-     !$OMP PARALLEL DO PRIVATE(j,help) SCHEDULE(STATIC)
-     do j=1,Nt
-        yt(2*j-1)=vi(j)
-        if(vi(j).gt.1e-4) yt(2*j-1)=3*vi(j)
-
-        phy1(j)=1.0
-        phy2(j)=0.0
-
-        help=(yt(2*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
-        tau1(j)=seff(j)*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(2*j-1)
-        tau2(j) = 0.0
-        phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
-        phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
-
-        yt(2*j) = xLf(j)/Vint
-        slip(j)=0.d0
-        slipds(j)=0.d0
-        yt0(2*j-1)=yt(2*j-1)
-        yt0(2*j) = yt(2*j)
-     end do
-     !$OMP END PARALLEL DO
-  end if
 
   !----------------------------------------------
   !      Start of Basic Cycle:
@@ -912,6 +854,8 @@ if(myid==master)then
            tslipcos = tslipcos+dt
            if(tslipcos.ge.tint_cos)then
               write(*,130) t,dlog10(maxv(imv)*1d-3/yrs),moment(imv)
+
+130 format(E20.13,2(1X,E15.7))
 
               icos = icos +1
               tcos(icos) = t 
