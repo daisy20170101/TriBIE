@@ -1453,7 +1453,6 @@ end if
        ! Read cell connectivity (indices start from 0 in GTS, need to add 1 for Fortran)
        do i = 1, n_cells
           read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
-          cell_connectivity(i, :) = cell_connectivity(i, :) + 1  ! Convert to 1-based indexing
        end do
        close(98)
        
@@ -1490,36 +1489,36 @@ end if
        write(99,*) '<?xml version="1.0" ?>'
        write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
        write(99,*) '<Xdmf Version="2.0">'
-       write(99,*) '  <Domain>'
-       write(99,*) '    <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
-       write(99,*) '      <Time TimeType="List">'
-       write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', ncos, '">'
-       write(99,*) '          ', (tcos(i), i=1, ncos)
-       write(99,*) '        </DataItem>'
-       write(99,*) '      </Time>'
-       write(99,*) '      <Grid Name="FaultMesh" GridType="Uniform">'
-       write(99,*) '        <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
-       write(99,*) '          <DataItem Format="HDF" NumberType="Int" Dimensions="', n_cells, ' 3">'
-       write(99,*) '            ', trim(hdf5_filename), ':/mesh/topology'
-       write(99,*) '          </DataItem>'
-       write(99,*) '        </Topology>'
-       write(99,*) '        <Geometry GeometryType="XYZ">'
-       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', n_vertices, ' 3">'
-       write(99,*) '            ', trim(hdf5_filename), ':/mesh/geometry'
-       write(99,*) '          </DataItem>'
-       write(99,*) '        </Geometry>'
-       write(99,*) '        <Attribute Name="slipz1_v" AttributeType="Scalar" Center="Node">'
-       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
-       write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_v'
-       write(99,*) '          </DataItem>'
-       write(99,*) '        </Attribute>'
-       write(99,*) '        <Attribute Name="slipz1_cos" AttributeType="Scalar" Center="Node">'
-       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
-       write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_cos'
-       write(99,*) '          </DataItem>'
-       write(99,*) '      </Grid>'
-       write(99,*) '    </Grid>'
-       write(99,*) '  </Domain>'
+       write(99,*) ' <Domain>'
+       write(99,*) '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+       
+       ! Write a Grid for each completed time step
+       do i = 1, icos
+          write(99,*) '   <Grid Name="step_', trim(adjustl('000000000')), i, '" GridType="Uniform">'
+          write(99,*) '    <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
+          write(99,*) '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="', n_cells, ' 3">', trim(hdf5_filename), ':/mesh/topology</DataItem>'
+          write(99,*) '    </Topology>'
+          write(99,*) '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="', n_vertices, '">'
+          write(99,*) '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="', n_vertices, ' 3">', trim(hdf5_filename), ':/mesh/geometry</DataItem>'
+          write(99,*) '    </Geometry>'
+          write(99,*) '    <Time Value="', tcos(i), '"/>'
+          write(99,*) '    <Attribute Name="slipz1_v" Center="Cell">'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">', trim(hdf5_filename), ':/time_series/slipz1_v</DataItem>'
+          write(99,*) '     </DataItem>'
+          write(99,*) '    </Attribute>'
+          write(99,*) '    <Attribute Name="slipz1_cos" Center="Cell">'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">', trim(hdf5_filename), ':/time_series/slipz1_cos</DataItem>'
+          write(99,*) '     </DataItem>'
+          write(99,*) '    </Attribute>'
+          write(99,*) '   </Grid>'
+       end do
+       
+       write(99,*) '  </Grid>'
+       write(99,*) ' </Domain>'
        write(99,*) '</Xdmf>'
        close(99)
        
@@ -1657,7 +1656,6 @@ end if
       ! Read cell connectivity (indices start from 0 in GTS, need to add 1 for Fortran)
       do i = 1, n_cells
          read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
-         cell_connectivity(i, :) = cell_connectivity(i, :) + 1  ! Convert to 1-based indexing
       end do
       close(98)
       
@@ -1694,37 +1692,36 @@ end if
       write(99,*) '<?xml version="1.0" ?>'
       write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
       write(99,*) '<Xdmf Version="2.0">'
-      write(99,*) '  <Domain>'
-      write(99,*) '    <Grid Name="SSETimeSeries" GridType="Collection" CollectionType="Temporal">'
-      write(99,*) '      <Time TimeType="List">'
-      write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', nsse, '">'
-      write(99,*) '          ', (tsse(i), i=1, nsse)
-      write(99,*) '        </DataItem>'
-      write(99,*) '      </Time>'
-      write(99,*) '      <Grid Name="FaultMesh" GridType="Uniform">'
-      write(99,*) '        <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
-      write(99,*) '          <DataItem Format="HDF" NumberType="Int" Dimensions="', n_cells, ' 3">'
-      write(99,*) '            ', trim(hdf5_filename), ':/mesh/topology'
-      write(99,*) '          </DataItem>'
-      write(99,*) '        </Topology>'
-      write(99,*) '        <Geometry GeometryType="XYZ">'
-      write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', n_vertices, ' 3">'
-      write(99,*) '            ', trim(hdf5_filename), ':/mesh/geometry'
-      write(99,*) '          </DataItem>'
-      write(99,*) '        </Geometry>'
-      write(99,*) '        <Attribute Name="slipz1_sse" AttributeType="Scalar" Center="Node">'
-      write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
-      write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_sse'
-      write(99,*) '          </DataItem>'
-      write(99,*) '        </Attribute>'
-      write(99,*) '        <Attribute Name="slipz1_tau" AttributeType="Scalar" Center="Node">'
-      write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
-      write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_tau'
-      write(99,*) '          </DataItem>'
-      write(99,*) '        </Attribute>'
-      write(99,*) '      </Grid>'
-      write(99,*) '    </Grid>'
-      write(99,*) '  </Domain>'
+      write(99,*) ' <Domain>'
+      write(99,*) '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+      
+      ! Write a Grid for each completed time step
+      do i = 1, nsse
+         write(99,*) '   <Grid Name="step_', trim(adjustl('000000000')), i, '" GridType="Uniform">'
+         write(99,*) '    <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
+         write(99,*) '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="', n_cells, ' 3">', trim(hdf5_filename), ':/mesh/topology</DataItem>'
+         write(99,*) '    </Topology>'
+         write(99,*) '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="', n_vertices, '">'
+         write(99,*) '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="', n_vertices, ' 3">', trim(hdf5_filename), ':/mesh/geometry</DataItem>'
+         write(99,*) '    </Geometry>'
+         write(99,*) '    <Time Value="', tsse(i), '"/>'
+         write(99,*) '    <Attribute Name="slipz1_sse" Center="Cell">'
+         write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
+         write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
+         write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">', trim(hdf5_filename), ':/sse_time_series/slipz1_sse</DataItem>'
+         write(99,*) '     </DataItem>'
+         write(99,*) '    </Attribute>'
+         write(99,*) '    <Attribute Name="slipz1_tau" Center="Cell">'
+         write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
+         write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
+         write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">', trim(hdf5_filename), ':/sse_time_series/slipz1_tau</DataItem>'
+         write(99,*) '     </DataItem>'
+         write(99,*) '    </Attribute>'
+         write(99,*) '   </Grid>'
+      end do
+      
+      write(99,*) '  </Grid>'
+      write(99,*) ' </Domain>'
       write(99,*) '</Xdmf>'
       close(99)
       
@@ -1759,37 +1756,36 @@ end if
        write(99,*) '<?xml version="1.0" ?>'
        write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
        write(99,*) '<Xdmf Version="2.0">'
-       write(99,*) '  <Domain>'
-       write(99,*) '    <Grid Name="SSETimeSeries" GridType="Collection" CollectionType="Temporal">'
-       write(99,*) '      <Time TimeType="List">'
-       write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', isse, '">'
-       write(99,*) '          ', (tsse(i), i=1, isse)
-       write(99,*) '        </DataItem>'
-       write(99,*) '      </Time>'
-       write(99,*) '      <Grid Name="FaultMesh" GridType="Uniform">'
-       write(99,*) '        <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
-       write(99,*) '          <DataItem Format="HDF" NumberType="Int" Dimensions="', n_cells, ' 3">'
-       write(99,*) '            ', trim(hdf5_filename), ':/mesh/topology'
-       write(99,*) '          </DataItem>'
-       write(99,*) '        </Topology>'
-       write(99,*) '        <Geometry GeometryType="XYZ">'
-       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', n_vertices, ' 3">'
-       write(99,*) '            ', trim(hdf5_filename), ':/mesh/geometry'
-       write(99,*) '          </DataItem>'
-       write(99,*) '        </Geometry>'
-       write(99,*) '        <Attribute Name="slipz1_sse" AttributeType="Scalar" Center="Node">'
-       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', isse, '">'
-       write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_sse'
-       write(99,*) '          </DataItem>'
-       write(99,*) '        </Attribute>'
-       write(99,*) '        <Attribute Name="slipz1_tau" AttributeType="Scalar" Center="Node">'
-       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', isse, '">'
-       write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_tau'
-       write(99,*) '          </DataItem>'
-       write(99,*) '        </Attribute>'
-       write(99,*) '      </Grid>'
-       write(99,*) '    </Grid>'
-       write(99,*) '  </Domain>'
+       write(99,*) ' <Domain>'
+       write(99,*) '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+       
+       ! Write a Grid for each completed time step
+       do i = 1, isse
+          write(99,*) '   <Grid Name="step_', trim(adjustl('000000000')), i, '" GridType="Uniform">'
+          write(99,*) '    <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
+          write(99,*) '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="', n_cells, ' 3">', trim(hdf5_filename), ':/mesh/topology</DataItem>'
+          write(99,*) '    </Topology>'
+          write(99,*) '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="', n_vertices, '">'
+          write(99,*) '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="', n_vertices, ' 3">', trim(hdf5_filename), ':/mesh/geometry</DataItem>'
+          write(99,*) '    </Geometry>'
+          write(99,*) '    <Time Value="', tsse(i), '"/>'
+          write(99,*) '    <Attribute Name="slipz1_sse" Center="Cell">'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">', trim(hdf5_filename), ':/sse_time_series/slipz1_sse</DataItem>'
+          write(99,*) '     </DataItem>'
+          write(99,*) '    </Attribute>'
+          write(99,*) '    <Attribute Name="slipz1_tau" Center="Cell">'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">', trim(hdf5_filename), ':/sse_time_series/slipz1_tau</DataItem>'
+          write(99,*) '     </DataItem>'
+          write(99,*) '    </Attribute>'
+          write(99,*) '   </Grid>'
+       end do
+       
+       write(99,*) '  </Grid>'
+       write(99,*) ' </Domain>'
        write(99,*) '</Xdmf>'
        close(99)
        
