@@ -1454,6 +1454,7 @@ end if
        do i = 1, n_cells
           read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
           ! Keep 0-based indexing for Paraview compatibility
+          cell_connectivity(i, :) = cell_connectivity(i, :) -1
        end do
        close(98)
        
@@ -1657,7 +1658,8 @@ end if
       ! Read cell connectivity (indices start from 0 in GTS, which is correct for Paraview)
       do i = 1, n_cells
          read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
-         ! Keep 0-based indexing for Paraview compatibility
+         ! change 1-based to 0-based indexing for Paraview compatibility
+         cell_connectivity(i, :) = cell_connectivity(i, :) -1
       end do
       close(98)
       
