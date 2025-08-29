@@ -1195,7 +1195,6 @@ end subroutine rkqs
         
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
-         if(x(i).gt.1.69e3.or.x(i).lt.1.12e3) yt(2*i-1)=Vpl
           zz(i)=yt(2*i-1)-Vpl
        end do
 
