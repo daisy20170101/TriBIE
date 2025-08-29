@@ -490,6 +490,172 @@ end if
   dt_try=dtmin
   Vint = Vpl
 
+if(myid==master)then
+      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,position='append',status='unknown')
+      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,position='append',status='unknown')
+      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,position='append',status='unknown')
+      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,position='append',status='unknown')
+      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,position='append',status='unknown')
+      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,position='append',status='unknown')
+      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,position='append',status='unknown')
+      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,position='append',status='unknown')
+      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,position='append',status='unknown')
+      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,position='append',status='unknown')
+
+       do i=311,320
+                write(i,100)'# This is the file header'
+                write(i,100)'# problem=SEAS Benchmark No.5'
+                write(i,100)'# author=D.Li'
+        write(i,100)'# code=TriBIE'
+                write(i,100)'# date=2021/5/11'
+                write(i,100)'# element_size = 500 m'
+                write(i,100)'# minimum_time_step = 1e-3'
+                write(i,100)'# maximum_time_step = 2e+7'
+                write(i,100)'# location = on fault: file name'
+                write(i,100)'# Column #1 = Time (s)'
+                write(i,100)'# Column #2 = slip_2 (m)'
+        write(i,100)'# Column #3 = slip_3 (m)'
+                write(i,100)'# Column #4 = Slip_rate_2(log10 m/s)'
+        write(i,100)'# Column #5 = Slip_rate_3(log10 m/s)'
+                write(i,100)'# Column #6 = Shear stress 2 (MPa)'
+                write(i,100)'# Column #7 = shear stress 3 (MPa)'
+                write(i,100)'# Column #8 = State (log10 s)'
+                write(i,100)'# '
+                write(i,100)'# The line below lists the names of the data fields:'
+                write(i,'(A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A)')'t','slip_2','slip_3','slip_rate_2',&
+      'slip_rate_3','shear_stress_2','shear_stress_3','state'
+                write(i,100)'# Below is the time-series data.'          
+        end do
+ 100    format(A)
+     open(30,file=trim(foldername)//'maxvall'//jobname,position='append',status='unknown')
+        i=30
+        write(i,100)'# This is the file header'
+        write(i,100)'# problem=SEAS Benchmark No.5'
+        write(i,100)'# author=D.Li'
+        write(i,100)'# code=TriBIE'
+        write(i,100)'# date=2021/5/11'
+        write(i,100)'# element_size = 500 m'
+        write(i,100)'# minimum_time_step = 1e-3'
+        write(i,100)'# maximum_time_step = 2e+7'
+        write(i,100)'# Column #1 = Time (s)'
+        write(i,100)'# Column #2 = max_slip_rate (logV m/s)'
+        write(i,100)'# Column #3 = moment rate(N-m/s)'
+        write(i,100)'# The line below lists the names of the data fields:'
+        write(i,'(A,1x,A,1x,A)')'t','max_slip_rate','moment_rate'
+        write(i,100)'# Below is the time-series data.'
+
+      close(30)
+      do j=311,320
+         close(j)
+      end do
+
+      open(401,file=trim(foldername)//'blkst_strk-16fn+08dp+00'//jobname,position='append',status='unknown')
+      open(402,file=trim(foldername)//'blkst_strk+00fn+08dp+00'//jobname,position='append',status='unknown')
+      open(403,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,position='append',status='unknown')
+      open(404,file=trim(foldername)//'blkst_strk+00fn+16dp+00'//jobname,position='append',status='unknown')
+      open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,position='append',status='unknown')
+      open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,position='append',status='unknown')
+      open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,position='append',status='unknown')
+      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,position='append',status='unknown')
+      open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,position='append',status='unknown')
+    do i = 401,409
+        write(i,100)'# This is the file header'
+        write(i,100)'# problem=SEAS Benchmark No.5'
+        write(i,100)'# author=D.Li'
+        write(i,100)'# code=TriBIE'
+        write(i,100)'# date=2021/5/11'
+        write(i,100)'# element_size = 1000 m'
+        write(i,100)'# minimum_time_step = 1e-3'
+        write(i,100)'# maximum_time_step = 2e+7'
+        write(i,100)'# location = off fault: file name'
+        write(i,100)'# Column #1 = Time (s)'
+        write(i,100)'# Column #2 = displacement 1 (m)'
+        write(i,100)'# Column #3 = displacement 2 (m)'
+        write(i,100)'# Column #4 = displacement 3 (m)'
+        write(i,100)'# Column #5 = velocity_1 (m/s)'
+        write(i,100)'# Column #6 = velocity_2 (m/s)'
+        write(i,100)'# Column #7 = velocity_3 (m/s)'
+        write(i,100)'# The line below lists the names of the data fields:'
+        write(i,'(A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A)')'t','disp_1','disp_2','disp_3','vel_1','vel_2','vel_3'
+        write(i,100)'# Below is the time-series data.'
+    end do
+
+    do i = 401,409
+      close(i)
+    end do
+
+   open(501,file=trim(foldername)//'slip_2_depth'//jobname,position='append',status='unknown')
+   open(502,file=trim(foldername)//'slip_2_strike'//jobname,position='append',status='unknown')
+   open(503,file=trim(foldername)//'stress_2_depth'//jobname,position='append',status='unknown')
+   open(504,file=trim(foldername)//'stress_2_strike'//jobname,position='append',status='unknown')
+
+  do i=501,504
+        write(i,100)'# This is the file header'
+        write(i,100)'# problem=SEAS Benchmark No.5'
+        write(i,100)'# author=D.Li'
+        write(i,100)'# code=TriBIE'
+        write(i,100)'# date=2021/5/11'
+        write(i,100)'# element_size = 1000 m'
+        write(i,100)'# Row #1 strike/dip with two zeros'
+        write(i,100)'# Column #1 = Time (s)'
+        write(i,100)'# Column #2 = max slip rate (log10 m/s)'
+        write(i,100)'# Column #3-83 = slip (m)or shear stress (Mpa)'
+        write(i,100)'# The line below lists the names of the data fields:'
+        write(i,100)'x2'
+        write(i,100)'t'
+        write(i,100)'max_slip_rate'
+        write(i,100)'slip_2'
+        write(i,100)'# Below is the time-series data.'
+  end do
+122 format(80(E15.7,1X))
+      write(501,122) 0d0,0d0, z_all(pdp(:))*1e3
+      write(502,122) 0d0,0d0, x_all(pstrk(:))*1e3
+      write(503,122) 0d0,0d0, z_all(pdp(:))*1e3
+      write(504,122) 0d0,0d0, x_all(pstrk(:))*1e3
+
+    do i=501,504
+      close(i)
+    end do
+
+     open(1,file=trim(foldername)//'phypara'//jobname, status='unknown')
+     write(1,*)'procs num = ', nprocs
+
+  end if
+
+  Ifileout = 60   !file index, after 47
+
+  !----Initial values of velocity, state variable, shear stress and slip--
+  !--SET INITIAL VPL FOR THE LOCKED PART TO BE 0 
+  ! ! set plate convergence
+  if(IDin.eq.0)then
+     disp1 = 0d0
+     disp2 = 0d0
+     disp3= 0d0
+
+     ! OPTIMIZATION: Use OpenMP for parallel initialization
+     !$OMP PARALLEL DO PRIVATE(j,help) SCHEDULE(STATIC)
+     do j=1,Nt
+        yt(2*j-1)=vi(j)
+        if(vi(j).gt.1e-4) yt(2*j-1)=3*vi(j)
+
+        phy1(j)=1.0
+        phy2(j)=0.0
+
+        help=(yt(2*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
+        tau1(j)=seff(j)*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(2*j-1)
+        tau2(j) = 0.0
+        phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
+        phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
+
+        yt(2*j) = xLf(j)/Vint
+        slip(j)=0.d0
+        slipds(j)=0.d0
+        yt0(2*j-1)=yt(2*j-1)
+        yt0(2*j) = yt(2*j)
+     end do
+     !$OMP END PARALLEL DO
+  end if
+
   ! Initialize arrays to prevent NaN values
   if(myid == master) then
      yt_all = 0.d0
@@ -521,7 +687,83 @@ end if
      yt0(2*i-1) = yt(2*i-1)
      yt0(2*i) = yt(2*i)
   end do
+!------------------------------------------------------------------
+  if(IDin.eq.1) then               !if this is a restart job
+     if(myid==master)then
+        call restart(0,'out',4,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
+        write(1,*)'This is a restart job. Start time ',t,' yr'
+     end if
+     call MPI_Barrier(MPI_COMM_WORLD,ierr)
+     call MPI_Bcast(t,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Bcast(dt,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Bcast(dt_try,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Bcast(ndt,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
+     call MPI_Bcast(nrec,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(yt_all,sendcounts*2,displs*2,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(slip_all,sendcounts,displs,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(slipds_all,sendcounts,displs,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
+
+     ndtnext = ndt
+     tprint_inter = t
+     tslip_ave=t        
+     tout = t
+
+  else
+     if(myid==master)then
+        write(1,*)'Start time ',t,' yr'
+     end if
+  end if
+  if(myid==master)then
+     close(1)
+  end if
+
+  ! ! set plate convergence
+  if(IDin.eq.0)then
+     disp1 = 0d0
+     disp2 = 0d0
+     disp3= 0d0
+
+     ! OPTIMIZATION: Use OpenMP for parallel initialization
+     !$OMP PARALLEL DO PRIVATE(j,help) SCHEDULE(STATIC)
+     do j=1,Nt
+        yt(2*j-1)=vi(j)
+        if(vi(j).gt.1e-4) yt(2*j-1)=3*vi(j)
+
+        phy1(j)=1.0
+        phy2(j)=0.0
+
+        help=(yt(2*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
+        tau1(j)=seff(j)*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(2*j-1)
+        tau2(j) = 0.0
+        phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
+        phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
+
+        yt(2*j) = xLf(j)/Vint
+        slip(j)=0.d0
+        slipds(j)=0.d0
+        yt0(2*j-1)=yt(2*j-1)
+        yt0(2*j) = yt(2*j)
+     end do
+     !$OMP END PARALLEL DO
+  end if
+
+  !----------------------------------------------
+  !      Start of Basic Cycle:
+  !----------------------------------------------
+  cyclecont=.true.
+
+  ! Set communication parameters
+  comm_count = 2*local_cells
+  comm_tag = 0
+
+  ! Initialize blocking parameters
+  block_size = 64  ! Optimal block size for cache
+
+  if(myid == master) then
+     allocate(send_buffer(2*Nt_all))
+     allocate(recv_buffer(2*Nt_all))
+  end if
   ! Main simulation loop
   do while(cyclecont) 
 
