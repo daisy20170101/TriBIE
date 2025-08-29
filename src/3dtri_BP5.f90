@@ -1499,7 +1499,7 @@ if(Ioutput == 0)then    !output during run
       open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,position='append',status='unknown')
       open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,position='append',status='unknown')
       open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,position='append',status='unknown')
-      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,position='append',status='unknown')
+      open(408,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,position='append',status='unknown')
       open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,position='append',status='unknown')
 
       open(501,file=trim(foldername)//'slip_2_depth'//jobname,position='append',status='unknown')
@@ -1508,8 +1508,8 @@ if(Ioutput == 0)then    !output during run
       open(504,file=trim(foldername)//'stress_2_strike'//jobname,position='append',status='unknown')
     
       do i=1,nmv
-        do j=1,min(n_obv,9)  ! Only loop over available observation points
-         write(400+j,110) tmv(i),obvs(i,1,j),obvs(i,2,j),obvs(i,3,j),obvs(i,4,j),obvs(i,5,j),obvs(i,6,j)
+        do j=401,409
+         write(j,110) tmv(i),obvs(i,1,j-400),obvs(i,2,j-400),obvs(i,3,j-400),obvs(i,4,j-400),obvs(i,5,j-400),obvs(i,6,j-400)
         end do
         write(501,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvdp(i,1,:)
         write(503,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvdp(i,2,:)
@@ -1547,99 +1547,93 @@ end if
 
     if(icos==ncos)then
        ! HDF5 output for time-series variables instead of binary files
-       if (myid == master) then
-          ! Initialize HDF5 if not already done
-          if (.not. hdf5_initialized) then
-             call h5open_f(hdferr)
-             hdf5_initialized = .true.
-          end if
-          
-          ! Create HDF5 filename
-          hdf5_filename = trim(foldername)//'timeseries_data'//jobname//'.h5'
-          
-          ! Create or open HDF5 file
-          call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
-          
-          ! Create time-series group
-          time_series_group_name = '/time_series'
-          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
-          
-          ! Write slipz1_v data (velocity time series)
-          dims_2d = (/Nt_all, ncos/)
-          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-          call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v, dims_2d, hdferr)
-          call h5dclose_f(dset_id, hdferr)
-          call h5sclose_f(dspace_id, hdferr)
-          
-          ! Write slipz1_cos data (cosine slip time series)
-          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-          call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos, dims_2d, hdferr)
-          call h5dclose_f(dset_id, hdferr)
-          call h5sclose_f(dspace_id, hdferr)
-          
-          ! Write time array
-          dims_1d = (/ncos/)
-          call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
-          call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos, dims_1d, hdferr)
-          call h5dclose_f(dset_id, hdferr)
-          call h5sclose_f(dspace_id, hdferr)
-          
-          ! Add metadata attributes (simplified - no character attributes for now)
-          ! Note: Character attributes can cause issues with HDF5 Fortran interface
-          ! The data itself provides sufficient information for analysis
-          
-          ! Close group and file
-          call h5gclose_f(group_id, hdferr)
-          call h5fclose_f(file_id, hdferr)
-          
-          ! Create XDMF file for visualization
-          xdmf_filename = trim(foldername)//'timeseries_data'//jobname//'.xdmf'
-          open(99, file=trim(xdmf_filename), status='replace')
-          write(99,*) '<?xml version="1.0" ?>'
-          write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-          write(99,*) '<Xdmf Version="2.0">'
-          write(99,*) '  <Domain>'
-          write(99,*) '    <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
-          write(99,*) '      <Time TimeType="List">'
-          write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', ncos, '">'
-          write(99,*) '          ', (tcos(i), i=1, ncos)
-          write(99,*) '        </DataItem>'
-          write(99,*) '      </Time>'
-          write(99,*) '      <Grid Name="slipz1_v" GridType="Uniform">'
-          write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', ncos, '"/>'
-          write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
-          write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
-          write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
-          write(99,*) '        </Geometry>'
-          write(99,*) '        <Attribute Name="slipz1_v" AttributeType="Scalar" Center="Node">'
-          write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
-          write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_v'
-          write(99,*) '          </DataItem>'
-          write(99,*) '        </Attribute>'
-          write(99,*) '      </Grid>'
-          write(99,*) '      <Grid Name="slipz1_cos" GridType="Uniform">'
-          write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', ncos, '"/>'
-          write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
-          write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
-          write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
-          write(99,*) '        </Geometry>'
-          write(99,*) '        <Attribute Name="slipz1_cos" AttributeType="Scalar" Center="Node">'
-          write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
-          write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_cos'
-          write(99,*) '          </DataItem>'
-          write(99,*) '        </Attribute>'
-          write(99,*) '      </Grid>'
-          write(99,*) '    </Grid>'
-          write(99,*) '  </Domain>'
-          write(99,*) '</Xdmf>'
-          close(99)
-          
-          write(*,*) 'Time-series data written to HDF5: ', trim(hdf5_filename)
-          write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
+       ! Initialize HDF5 if not already done
+       if (.not. hdf5_initialized) then
+          call h5open_f(hdferr)
+          hdf5_initialized = .true.
        end if
+       
+       ! Create HDF5 filename
+       hdf5_filename = trim(foldername)//'timeseries_data'//jobname//'.h5'
+       
+       ! Create or open HDF5 file
+       call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+       
+       ! Create time-series group
+       time_series_group_name = '/time_series'
+       call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+       
+       ! Write slipz1_v data (velocity time series)
+       dims_2d = (/Nt_all, ncos/)
+       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+       call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v, dims_2d, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       call h5sclose_f(dspace_id, hdferr)
+       
+       ! Write slipz1_cos data (cosine slip time series)
+       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+       call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos, dims_2d, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       call h5sclose_f(dspace_id, hdferr)
+       
+       ! Write time array
+       dims_1d = (/ncos/)
+       call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+       call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos, dims_1d, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       call h5sclose_f(dspace_id, hdferr)
+       
+       ! Close group and file
+       call h5gclose_f(group_id, hdferr)
+       call h5fclose_f(file_id, hdferr)
+       
+       ! Create XDMF file for visualization
+       xdmf_filename = trim(foldername)//'timeseries_data'//jobname//'.xdmf'
+       open(99, file=trim(xdmf_filename), status='replace')
+       write(99,*) '<?xml version="1.0" ?>'
+       write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+       write(99,*) '<Xdmf Version="2.0">'
+       write(99,*) '  <Domain>'
+       write(99,*) '    <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+       write(99,*) '      <Time TimeType="List">'
+       write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', ncos, '">'
+       write(99,*) '          ', (tcos(i), i=1, ncos)
+       write(99,*) '        </DataItem>'
+       write(99,*) '      </Time>'
+       write(99,*) '      <Grid Name="slipz1_v" GridType="Uniform">'
+       write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', ncos, '"/>'
+       write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+       write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+       write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+       write(99,*) '        </Geometry>'
+       write(99,*) '        <Attribute Name="slipz1_v" AttributeType="Scalar" Center="Node">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
+       write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_v'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Attribute>'
+       write(99,*) '      </Grid>'
+       write(99,*) '      <Grid Name="slipz1_cos" GridType="Uniform">'
+       write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', ncos, '"/>'
+       write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+       write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+       write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+       write(99,*) '        </Geometry>'
+       write(99,*) '        <Attribute Name="slipz1_cos" AttributeType="Scalar" Center="Node">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
+       write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_cos'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Attribute>'
+       write(99,*) '      </Grid>'
+       write(99,*) '    </Grid>'
+       write(99,*) '  </Domain>'
+       write(99,*) '</Xdmf>'
+       close(99)
+       
+       write(*,*) 'Time-series data written to HDF5: ', trim(hdf5_filename)
+       write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
        
        icos = 0 
 end if
@@ -1652,99 +1646,93 @@ end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
-      if (myid == master) then
-         ! Initialize HDF5 if not already done
-         if (.not. hdf5_initialized) then
-            call h5open_f(hdferr)
-            hdf5_initialized = .true.
-         end if
-         
-         ! Create HDF5 filename for SSE data
-         hdf5_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.h5'
-         
-         ! Create or open HDF5 file
-         call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
-         
-         ! Create SSE time-series group
-         time_series_group_name = '/sse_time_series'
-         call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
-         
-         ! Write slipz1_sse data (SSE slip time series)
-         dims_2d = (/Nt_all, nsse/)
-         call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-         call h5dcreate_f(group_id, 'slipz1_sse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse, dims_2d, hdferr)
-         call h5dclose_f(dset_id, hdferr)
-         call h5sclose_f(dspace_id, hdferr)
-         
-         ! Write slipz1_tau data (SSE tau time series)
-         call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-         call h5dcreate_f(group_id, 'slipz1_tau', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau, dims_2d, hdferr)
-         call h5dclose_f(dset_id, hdferr)
-         call h5sclose_f(dspace_id, hdferr)
-         
-         ! Write time array
-         dims_1d = (/nsse/)
-         call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
-         call h5dcreate_f(group_id, 'tsse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tsse, dims_1d, hdferr)
-         call h5dclose_f(dset_id, hdferr)
-         call h5sclose_f(dspace_id, hdferr)
-         
-         ! Add metadata attributes (simplified - no character attributes for now)
-         ! Note: Character attributes can cause issues with HDF5 Fortran interface
-         ! The data itself provides sufficient information for analysis
-         
-         ! Close group and file
-         call h5gclose_f(group_id, hdferr)
-         call h5fclose_f(file_id, hdferr)
-         
-         ! Create XDMF file for SSE visualization
-         xdmf_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.xdmf'
-         open(99, file=trim(xdmf_filename), status='replace')
-         write(99,*) '<?xml version="1.0" ?>'
-         write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-         write(99,*) '<Xdmf Version="2.0">'
-         write(99,*) '  <Domain>'
-         write(99,*) '    <Grid Name="SSETimeSeries" GridType="Collection" CollectionType="Temporal">'
-         write(99,*) '      <Time TimeType="List">'
-         write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', nsse, '">'
-         write(99,*) '          ', (tsse(i), i=1, nsse)
-         write(99,*) '        </DataItem>'
-         write(99,*) '      </Time>'
-         write(99,*) '      <Grid Name="slipz1_sse" GridType="Uniform">'
-         write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nsse, '"/>'
-         write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
-         write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
-         write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
-         write(99,*) '        </Geometry>'
-         write(99,*) '        <Attribute Name="slipz1_sse" AttributeType="Scalar" Center="Node">'
-         write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
-         write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_sse'
-         write(99,*) '          </DataItem>'
-         write(99,*) '        </Attribute>'
-         write(99,*) '      </Grid>'
-         write(99,*) '      <Grid Name="slipz1_tau" GridType="Uniform">'
-         write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nsse, '"/>'
-         write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
-         write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
-         write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
-         write(99,*) '        </Geometry>'
-         write(99,*) '        <Attribute Name="slipz1_tau" AttributeType="Scalar" Center="Node">'
-         write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
-         write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_tau'
-         write(99,*) '          </DataItem>'
-         write(99,*) '        </Attribute>'
-         write(99,*) '      </Grid>'
-         write(99,*) '    </Grid>'
-         write(99,*) '  </Domain>'
-         write(99,*) '</Xdmf>'
-         close(99)
-         
-         write(*,*) 'SSE time-series data written to HDF5: ', trim(hdf5_filename)
-         write(*,*) 'SSE XDMF visualization file created: ', trim(xdmf_filename)
+      ! Initialize HDF5 if not already done
+      if (.not. hdf5_initialized) then
+         call h5open_f(hdferr)
+         hdf5_initialized = .true.
       end if
+      
+      ! Create HDF5 filename for SSE data
+      hdf5_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.h5'
+      
+      ! Create or open HDF5 file
+      call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+      
+      ! Create SSE time-series group
+      time_series_group_name = '/sse_time_series'
+      call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+      
+      ! Write slipz1_sse data (SSE slip time series)
+      dims_2d = (/Nt_all, nsse/)
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'slipz1_sse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse, dims_2d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      
+      ! Write slipz1_tau data (SSE tau time series)
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'slipz1_tau', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau, dims_2d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      
+      ! Write time array
+      dims_1d = (/nsse/)
+      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'tsse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tsse, dims_1d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      
+      ! Close group and file
+      call h5gclose_f(group_id, hdferr)
+      call h5fclose_f(file_id, hdferr)
+      
+      ! Create XDMF file for SSE visualization
+      xdmf_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.xdmf'
+      open(99, file=trim(xdmf_filename), status='replace')
+      write(99,*) '<?xml version="1.0" ?>'
+      write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+      write(99,*) '<Xdmf Version="2.0">'
+      write(99,*) '  <Domain>'
+      write(99,*) '    <Grid Name="SSETimeSeries" GridType="Collection" CollectionType="Temporal">'
+      write(99,*) '      <Time TimeType="List">'
+      write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', nsse, '">'
+      write(99,*) '          ', (tsse(i), i=1, nsse)
+      write(99,*) '        </DataItem>'
+      write(99,*) '      </Time>'
+      write(99,*) '      <Grid Name="slipz1_sse" GridType="Uniform">'
+      write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nsse, '"/>'
+      write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+      write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+      write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+      write(99,*) '        </Geometry>'
+      write(99,*) '        <Attribute Name="slipz1_sse" AttributeType="Scalar" Center="Node">'
+      write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
+      write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_sse'
+      write(99,*) '          </DataItem>'
+      write(99,*) '        </Attribute>'
+      write(99,*) '      </Grid>'
+      write(99,*) '      <Grid Name="slipz1_tau" GridType="Uniform">'
+      write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nsse, '"/>'
+      write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
+      write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
+      write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+      write(99,*) '        </Geometry>'
+      write(99,*) '        <Attribute Name="slipz1_tau" AttributeType="Scalar" Center="Node">'
+      write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
+      write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_tau'
+      write(99,*) '          </DataItem>'
+      write(99,*) '        </Attribute>'
+      write(99,*) '      </Grid>'
+      write(99,*) '    </Grid>'
+      write(99,*) '  </Domain>'
+      write(99,*) '</Xdmf>'
+      close(99)
+      
+      write(*,*) 'SSE time-series data written to HDF5: ', trim(hdf5_filename)
+      write(*,*) 'SSE XDMF visualization file created: ', trim(xdmf_filename)
       
       isse = 0
   end if
@@ -1753,20 +1741,18 @@ end if
 else
 
    if((imv>0).and.(imv<nmv))then
-      ! OPTIMIZATION: Use buffered I/O and reduce file operations
-             open(30,file=trim(foldername)//'maxvall'//jobname,position='append',status='unknown')
-              open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,position='append',status='unknown')
-        open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,position='append',status='unknown')
-        open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,position='append',status='unknown')
-        open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,position='append',status='unknown')
-        open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,position='append',status='unknown')
-        open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,position='append',status='unknown')
-        open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,position='append',status='unknown')
-        open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,position='append',status='unknown')
-        open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,position='append',status='unknown')
-        open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,position='append',status='unknown')
+      open(30,file=trim(foldername)//'maxvall'//jobname,position='append',status='unknown')
+      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,position='append',status='unknown')
+      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,position='append',status='unknown')
+      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,position='append',status='unknown')
+      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,position='append',status='unknown')
+      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,position='append',status='unknown')
+      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,position='append',status='unknown')
+      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,position='append',status='unknown')
+      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,position='append',status='unknown')
+      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,position='append',status='unknown')
+      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,position='append',status='unknown')
 
-      ! OPTIMIZATION: Batch writes to reduce I/O overhead
       do i=1,imv
          write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs),moment(i)
         do j=311,320
@@ -1786,7 +1772,7 @@ else
       open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,position='append',status='unknown')
       open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,position='append',status='unknown')
       open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,position='append',status='unknown')
-      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,position='append',status='unknown')
+      open(408,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,position='append',status='unknown')
       open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,position='append',status='unknown')
       open(501,file=trim(foldername)//'slip_2_depth'//jobname,position='append',status='unknown')
       open(502,file=trim(foldername)//'slip_2_strike'//jobname,position='append',status='unknown')
@@ -1836,109 +1822,96 @@ else
 
    if(isse<nsse.and.isse>0)then
       ! Write partial SSE data to the same HDF5 file as main SSE output
-      if (myid == master) then
-         ! Initialize HDF5 if not already done
-         if (.not. hdf5_initialized) then
-            call h5open_f(hdferr)
-            hdf5_initialized = .true.
-         end if
-         
-         ! Open existing HDF5 file for SSE data (append mode)
-         hdf5_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.h5'
-         call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
-         
-         ! Open existing SSE time-series group
-         time_series_group_name = '/sse_time_series'
-         call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
-         
-         ! Write partial slipz1_sse data (SSE slip time series)
-         dims_2d = (/Nt_all, isse/)
-         call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-         call h5dcreate_f(group_id, 'slipz1_sse_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse(:,1:isse), dims_2d, hdferr)
-         call h5dclose_f(dset_id, hdferr)
-         call h5sclose_f(dspace_id, hdferr)
-         
-         ! Write partial slipz1_tau data (SSE tau time series)
-         call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-         call h5dcreate_f(group_id, 'slipz1_tau_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau(:,1:isse), dims_2d, hdferr)
-         call h5dclose_f(dset_id, hdferr)
-         call h5sclose_f(dspace_id, hdferr)
-         
-         ! Write partial time array
-         dims_1d = (/isse/)
-         call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
-         call h5dcreate_f(group_id, 'tsse_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tsse(1:isse), dims_1d, hdferr)
-         call h5dclose_f(dset_id, hdferr)
-         call h5sclose_f(dspace_id, hdferr)
-         
-         ! Add metadata attributes for partial data (simplified - no character attributes for now)
-         ! Note: Character attributes can cause issues with HDF5 Fortran interface
-         ! The data itself provides sufficient information for analysis
-         
-         ! Close group and file
-         call h5gclose_f(group_id, hdferr)
-         call h5fclose_f(file_id, hdferr)
-         
-         write(*,*) 'Partial SSE data written to HDF5: ', trim(hdf5_filename)
+      ! Initialize HDF5 if not already done
+      if (.not. hdf5_initialized) then
+         call h5open_f(hdferr)
+         hdf5_initialized = .true.
       end if
+      
+      ! Open existing HDF5 file for SSE data (append mode)
+      hdf5_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.h5'
+      call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+      
+      ! Open existing SSE time-series group
+      time_series_group_name = '/sse_time_series'
+      call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
+      
+      ! Write partial slipz1_sse data (SSE slip time series)
+      dims_2d = (/Nt_all, isse/)
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'slipz1_sse_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse(:,1:isse), dims_2d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      
+      ! Write partial slipz1_tau data (SSE tau time series)
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'slipz1_tau_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau(:,1:isse), dims_2d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      
+      ! Write partial time array
+      dims_1d = (/isse/)
+      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'tsse_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tsse(1:isse), dims_1d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      
+      ! Close group and file
+      call h5gclose_f(group_id, hdferr)
+      call h5fclose_f(file_id, hdferr)
+      
+      write(*,*) 'Partial SSE data written to HDF5: ', trim(hdf5_filename)
       
       isse = 0
   end if
 
-
      if((icos>0).and.(icos<ncos))then
        ! Write partial cosine slip data to the same HDF5 file as main cosine slip output
-       if (myid == master) then
-          ! Initialize HDF5 if not already done
-          if (.not. hdf5_initialized) then
-             call h5open_f(hdferr)
-             hdf5_initialized = .true.
-          end if
-          
-          ! Open existing HDF5 file for cosine slip data (append mode)
-          hdf5_filename = trim(foldername)//'timeseries_data'//jobname//'.h5'
-          call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
-          
-          ! Open existing time-series group
-          time_series_group_name = '/time_series'
-          call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
-          
-          ! Write partial slipz1_cos data (cosine slip time series)
-          dims_2d = (/Nt_all, icos/)
-          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-          call h5dcreate_f(group_id, 'slipz1_cos_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr)
-          call h5dclose_f(dset_id, hdferr)
-          call h5sclose_f(dspace_id, hdferr)
-          
-          ! Write partial slipz1_v data (velocity time series)
-          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-          call h5dcreate_f(group_id, 'slipz1_v_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr)
-          call h5dclose_f(dset_id, hdferr)
-          call h5sclose_f(dspace_id, hdferr)
-          
-          ! Write partial time array
-          dims_1d = (/icos/)
-          call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
-          call h5dcreate_f(group_id, 'tcos_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr)
-          call h5dclose_f(dset_id, hdferr)
-          call h5sclose_f(dspace_id, hdferr)
-          
-          ! Add metadata attributes for partial data (simplified - no character attributes for now)
-          ! Note: Character attributes can cause issues with HDF5 Fortran interface
-          ! The data itself provides sufficient information for analysis
-          
-          ! Close group and file
-          call h5gclose_f(group_id, hdferr)
-          call h5fclose_f(file_id, hdferr)
-          
-          write(*,*) 'Partial cosine slip data written to HDF5: ', trim(hdf5_filename)
+       ! Initialize HDF5 if not already done
+       if (.not. hdf5_initialized) then
+          call h5open_f(hdferr)
+          hdf5_initialized = .true.
        end if
+       
+       ! Open existing HDF5 file for cosine slip data (append mode)
+       hdf5_filename = trim(foldername)//'timeseries_data'//jobname//'.h5'
+       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+       
+       ! Open existing time-series group
+       time_series_group_name = '/time_series'
+       call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
+       
+       ! Write partial slipz1_cos data (cosine slip time series)
+       dims_2d = (/Nt_all, icos/)
+       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+       call h5dcreate_f(group_id, 'slipz1_cos_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       call h5sclose_f(dspace_id, hdferr)
+       
+       ! Write partial slipz1_v data (velocity time series)
+       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+       call h5dcreate_f(group_id, 'slipz1_v_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       call h5sclose_f(dspace_id, hdferr)
+       
+       ! Write partial time array
+       dims_1d = (/icos/)
+       call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+       call h5dcreate_f(group_id, 'tcos_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       call h5sclose_f(dspace_id, hdferr)
+       
+       ! Close group and file
+       call h5gclose_f(group_id, hdferr)
+       call h5fclose_f(file_id, hdferr)
+       
+       write(*,*) 'Partial cosine slip data written to HDF5: ', trim(hdf5_filename)
        
        icos = 0 
       end if
@@ -1972,7 +1945,7 @@ end if
  130    format(E22.14,2(1X,E15.7))
  140    format(E20.13)
  150    format(E22.14,3(1X,E15.7))
- 160    format(E20.13,1x,E20.13)
+ 160    format(E22.14,1x,E20.13)
  500    format(E15.8,1X,E20.13)
  600    format(E15.4,1X,E13.6,1X,E15.8)
  700    format(E13.6)
