@@ -1430,6 +1430,7 @@ subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
 USE mpi
 USE phy3d_module_non, only: xmu,nmv,nas,ncos,nnul,nsse,yrs,Vpl,Nl, &
 		foldername,jobname
+use hdf5  ! Add HDF5 support
 implicit none
 integer, parameter :: DP = kind(1.0d0)
 integer :: Nt,Nt_all,i,j,k,l,kk,inul,imv,ias,icos,isse,Ioutput,Isnapshot,ix1,ix2,ix3,ix4,n_obv,np1,np2
@@ -1444,6 +1445,24 @@ real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),slipave_inter(Nt_a
       slipz1_v(Nt_all,ncos)
 integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
 integer :: intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all)
+
+! HDF5 variables for time-series output
+integer(HID_T) :: file_id, dset_id, dspace_id
+integer(HID_T) :: group_id, attr_id, attr_space_id
+integer(HSIZE_T), dimension(3) :: dims, maxdims
+integer(HSIZE_T), dimension(2) :: dims_2d, maxdims_2d
+integer(HSIZE_T), dimension(1) :: dims_1d, maxdims_1d
+integer :: hdferr
+logical :: hdf5_initialized = .false.
+
+! HDF5 file naming
+character(len=256) :: hdf5_filename, xdmf_filename
+character(len=256) :: time_series_group_name
+
+! MPI variables
+integer :: myid, master
+master = 0
+call MPI_COMM_RANK(MPI_COMM_WORLD, myid, hdferr)
 
 if(Ioutput == 0)then    !output during run 
 
