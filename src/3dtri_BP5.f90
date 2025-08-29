@@ -1591,7 +1591,7 @@ end if
           ! Add metadata attributes
           call h5screate_simple_f(1, dims_1d, attr_space_id, hdferr)
           call h5acreate_f(group_id, 'description', H5T_NATIVE_CHARACTER, attr_space_id, attr_id, hdferr)
-          call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Cosine slip time series data', hdferr)
+          call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Cosine slip time series data', (/1/), (/1/), hdferr)
           call h5aclose_f(attr_id, hdferr)
           call h5sclose_f(attr_space_id, hdferr)
           
@@ -1699,7 +1699,7 @@ end if
          ! Add metadata attributes
          call h5screate_simple_f(1, dims_1d, attr_space_id, hdferr)
          call h5acreate_f(group_id, 'description', H5T_NATIVE_CHARACTER, attr_space_id, attr_id, hdferr)
-         call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Slow Slip Event (SSE) time series data', hdferr)
+         call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Slow Slip Event (SSE) time series data', (/1/), (/1/), hdferr)
          call h5aclose_f(attr_id, hdferr)
          call h5sclose_f(attr_space_id, hdferr)
          
@@ -1884,7 +1884,7 @@ else
          ! Add metadata attributes for partial data
          call h5screate_simple_f(1, dims_1d, attr_space_id, hdferr)
          call h5acreate_f(group_id, 'partial_description', H5T_NATIVE_CHARACTER, attr_space_id, attr_id, hdferr)
-         call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Partial SSE time series data (before completion)', hdferr)
+         call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Partial SSE time series data (before completion)', (/1/), (/1/), hdferr)
          call h5aclose_f(attr_id, hdferr)
          call h5sclose_f(attr_space_id, hdferr)
          
@@ -1942,7 +1942,7 @@ else
           ! Add metadata attributes for partial data
           call h5screate_simple_f(1, dims_1d, attr_space_id, hdferr)
           call h5acreate_f(group_id, 'partial_description', H5T_NATIVE_CHARACTER, attr_space_id, attr_id, hdferr)
-          call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Partial cosine slip time series data (before completion)', hdferr)
+          call h5awrite_f(attr_id, H5T_NATIVE_CHARACTER, 'Partial cosine slip time series data (before completion)', (/1/), (/1/), hdferr)
           call h5aclose_f(attr_id, hdferr)
           call h5sclose_f(attr_space_id, hdferr)
           
