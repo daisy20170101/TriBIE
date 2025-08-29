@@ -1453,6 +1453,7 @@ end if
        ! Read cell connectivity (indices start from 0 in GTS, need to add 1 for Fortran)
        do i = 1, n_cells
           read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+          cell_connectivity(i, :) = cell_connectivity(i, :) + 1  ! Convert to 1-based indexing
        end do
        close(98)
        
@@ -1526,7 +1527,68 @@ end if
        write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
        
        icos = 0 
-end if
+    else if (mod(icos, 10) == 0 .and. icos > 0) then
+       ! Iterative output: Append data every 10 iterations for real-time visualization
+       if (.not. hdf5_initialized) then
+          call h5open_f(hdferr)
+          hdf5_initialized = .true.
+       end if
+       
+       ! Open existing HDF5 file for appending
+       hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
+       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+       
+       ! Open existing time-series group
+       time_series_group_name = '/time_series'
+       call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
+       
+       ! Append new data to existing datasets
+       ! Note: This requires extending the dataset dimensions
+       ! For now, we'll just update the XDMF to show progress
+       call h5gclose_f(group_id, hdferr)
+       call h5fclose_f(file_id, hdferr)
+       
+       ! Update XDMF file to show current progress
+       xdmf_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.xdmf'
+       open(99, file=trim(xdmf_filename), status='replace')
+       write(99,*) '<?xml version="1.0" ?>'
+       write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+       write(99,*) '<Xdmf Version="2.0">'
+       write(99,*) '  <Domain>'
+       write(99,*) '    <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+       write(99,*) '      <Time TimeType="List">'
+       write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', icos, '">'
+       write(99,*) '          ', (tcos(i), i=1, icos)
+       write(99,*) '        </DataItem>'
+       write(99,*) '      </Time>'
+       write(99,*) '      <Grid Name="FaultMesh" GridType="Uniform">'
+       write(99,*) '        <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Int" Dimensions="', n_cells, ' 3">'
+       write(99,*) '            ', trim(hdf5_filename), ':/mesh/topology'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Topology>'
+       write(99,*) '        <Geometry GeometryType="XYZ">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', n_vertices, ' 3">'
+       write(99,*) '            ', trim(hdf5_filename), ':/mesh/geometry'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Geometry>'
+       write(99,*) '        <Attribute Name="slipz1_v" AttributeType="Scalar" Center="Node">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', icos, '">'
+       write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_v'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Attribute>'
+       write(99,*) '        <Attribute Name="slipz1_cos" AttributeType="Scalar" Center="Node">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', icos, '">'
+       write(99,*) '            ', trim(hdf5_filename), ':/time_series/slipz1_cos'
+       write(99,*) '          </DataItem>'
+       write(99,*) '      </Grid>'
+       write(99,*) '    </Grid>'
+       write(99,*) '  </Domain>'
+       write(99,*) '</Xdmf>'
+       close(99)
+       
+       write(*,*) 'Progress update: XDMF updated for', icos, 'iterations'
+    end if
 
 
 	if(inul == nnul)then
@@ -1670,6 +1732,68 @@ end if
       write(*,*) 'SSE XDMF visualization file created: ', trim(xdmf_filename)
       
       isse = 0
+   else if (mod(isse, 10) == 0 .and. isse > 0) then
+      ! Iterative output: Append data every 10 iterations for real-time visualization
+      if (.not. hdf5_initialized) then
+         call h5open_f(hdferr)
+         hdf5_initialized = .true.
+       end if
+       
+       ! Open existing HDF5 file for appending
+       hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
+       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+       
+       ! Open existing SSE time-series group
+       time_series_group_name = '/sse_time_series'
+       call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
+       
+       ! Append new data to existing datasets
+       ! Note: This requires extending the dataset dimensions
+       ! For now, we'll just update the XDMF to show progress
+       call h5gclose_f(group_id, hdferr)
+       call h5fclose_f(file_id, hdferr)
+       
+       ! Update XDMF file to show current progress
+       xdmf_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.xdmf'
+       open(99, file=trim(xdmf_filename), status='replace')
+       write(99,*) '<?xml version="1.0" ?>'
+       write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+       write(99,*) '<Xdmf Version="2.0">'
+       write(99,*) '  <Domain>'
+       write(99,*) '    <Grid Name="SSETimeSeries" GridType="Collection" CollectionType="Temporal">'
+       write(99,*) '      <Time TimeType="List">'
+       write(99,*) '        <DataItem Format="XML" NumberType="Float" Dimensions="', isse, '">'
+       write(99,*) '          ', (tsse(i), i=1, isse)
+       write(99,*) '        </DataItem>'
+       write(99,*) '      </Time>'
+       write(99,*) '      <Grid Name="FaultMesh" GridType="Uniform">'
+       write(99,*) '        <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Int" Dimensions="', n_cells, ' 3">'
+       write(99,*) '            ', trim(hdf5_filename), ':/mesh/topology'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Topology>'
+       write(99,*) '        <Geometry GeometryType="XYZ">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', n_vertices, ' 3">'
+       write(99,*) '            ', trim(hdf5_filename), ':/mesh/geometry'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Geometry>'
+       write(99,*) '        <Attribute Name="slipz1_sse" AttributeType="Scalar" Center="Node">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', isse, '">'
+       write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_sse'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Attribute>'
+       write(99,*) '        <Attribute Name="slipz1_tau" AttributeType="Scalar" Center="Node">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', isse, '">'
+       write(99,*) '            ', trim(hdf5_filename), ':/sse_time_series/slipz1_tau'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Attribute>'
+       write(99,*) '      </Grid>'
+       write(99,*) '    </Grid>'
+       write(99,*) '  </Domain>'
+       write(99,*) '</Xdmf>'
+       close(99)
+       
+       write(*,*) 'SSE Progress update: XDMF updated for', isse, 'iterations'
   end if
 
 
