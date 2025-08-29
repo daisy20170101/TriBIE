@@ -139,6 +139,14 @@ program main
   character(len=256) :: hdf5_filename, xdmf_filename
   character(len=256) :: time_series_group_name
 
+  ! Mesh variables for GTS file reading
+  integer :: n_vertices, n_edges_dummy, n_cells
+  real(DP), allocatable :: vertex_coords(:,:)
+  integer, allocatable :: cell_connectivity(:,:)
+
+  ! MPI variables
+  integer :: myid, master
+
   call MPI_Init(ierr)
   CALL MPI_COMM_RANK( MPI_COMM_WORLD, myid, ierr )
   CALL MPI_COMM_SIZE( MPI_COMM_WORLD, size, ierr )
@@ -1293,6 +1301,11 @@ logical :: hdf5_initialized = .false.
 character(len=256) :: hdf5_filename, xdmf_filename
 character(len=256) :: time_series_group_name
 
+! Mesh variables for GTS file reading
+integer :: n_vertices, n_edges_dummy, n_cells
+real(DP), allocatable :: vertex_coords(:,:)
+integer, allocatable :: cell_connectivity(:,:)
+
 ! MPI variables
 integer :: myid, master
 master = 0
@@ -1389,7 +1402,7 @@ end if
        end if
        
        ! Create HDF5 filename
-       hdf5_filename = trim(foldername)//'timeseries_data'//jobname//'.h5'
+       hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
        
        ! Create or open HDF5 file
        call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
@@ -1421,12 +1434,59 @@ end if
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
-       ! Close group and file
+       ! Close time-series group
        call h5gclose_f(group_id, hdferr)
+       
+       ! Add mesh data to HDF5
+       ! Read GTS file and store mesh information
+       open(98, file='triangular_mesh.gts', status='old', action='read')
+       read(98,*) n_vertices, n_edges_dummy, n_cells
+       
+       ! Allocate temporary arrays
+       allocate(vertex_coords(n_vertices, 3))
+       allocate(cell_connectivity(n_cells, 3))
+       
+       ! Read vertex coordinates
+       do i = 1, n_vertices
+          read(98,*) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+       end do
+       
+       ! Read cell connectivity (indices start from 0 in GTS, need to add 1 for Fortran)
+       do i = 1, n_cells
+          read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+          cell_connectivity(i, :) = cell_connectivity(i, :) + 1  ! Convert to 1-based indexing
+       end do
+       close(98)
+       
+       ! Write mesh data to HDF5
+       call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
+       
+       ! Write vertex coordinates
+       dims_2d = (/n_vertices, 3/)
+       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+       call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords, dims_2d, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       call h5sclose_f(dspace_id, hdferr)
+       
+       ! Write cell connectivity
+       dims_2d = (/n_cells, 3/)
+       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+       call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INTEGER, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, cell_connectivity, dims_2d, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       call h5sclose_f(dspace_id, hdferr)
+       
+       call h5gclose_f(group_id, hdferr)
+       
+       ! Deallocate temporary arrays
+       deallocate(vertex_coords, cell_connectivity)
+       
+       ! Close HDF5 file
        call h5fclose_f(file_id, hdferr)
        
        ! Create XDMF file for visualization
-       xdmf_filename = trim(foldername)//'timeseries_data'//jobname//'.xdmf'
+       xdmf_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.xdmf'
        open(99, file=trim(xdmf_filename), status='replace')
        write(99,*) '<?xml version="1.0" ?>'
        write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
@@ -1439,10 +1499,15 @@ end if
        write(99,*) '        </DataItem>'
        write(99,*) '      </Time>'
        write(99,*) '      <Grid Name="slipz1_v" GridType="Uniform">'
-       write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', ncos, '"/>'
-       write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
-       write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
-       write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+       write(99,*) '        <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Int" Dimensions="', n_cells, ' 3">'
+       write(99,*) '            ', trim(hdf5_filename), ':/mesh/topology'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Topology>'
+       write(99,*) '        <Geometry GeometryType="XYZ">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', n_vertices, ' 3">'
+       write(99,*) '            ', trim(hdf5_filename), ':/mesh/geometry'
+       write(99,*) '          </DataItem>'
        write(99,*) '        </Geometry>'
        write(99,*) '        <Attribute Name="slipz1_v" AttributeType="Scalar" Center="Node">'
        write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
@@ -1451,10 +1516,15 @@ end if
        write(99,*) '        </Attribute>'
        write(99,*) '      </Grid>'
        write(99,*) '      <Grid Name="slipz1_cos" GridType="Uniform">'
-       write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', ncos, '"/>'
-       write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
-       write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
-       write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+       write(99,*) '        <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Int" Dimensions="', n_cells, ' 3">'
+       write(99,*) '            ', trim(hdf5_filename), ':/mesh/topology'
+       write(99,*) '          </DataItem>'
+       write(99,*) '        </Topology>'
+       write(99,*) '        <Geometry GeometryType="XYZ">'
+       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', n_vertices, ' 3">'
+       write(99,*) '            ', trim(hdf5_filename), ':/mesh/geometry'
+       write(99,*) '          </DataItem>'
        write(99,*) '        </Geometry>'
        write(99,*) '        <Attribute Name="slipz1_cos" AttributeType="Scalar" Center="Node">'
        write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', ncos, '">'
@@ -1488,7 +1558,7 @@ end if
       end if
       
       ! Create HDF5 filename for SSE data
-      hdf5_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.h5'
+      hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
       
       ! Create or open HDF5 file
       call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
@@ -1520,12 +1590,59 @@ end if
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
-      ! Close group and file
+      ! Close SSE time-series group
       call h5gclose_f(group_id, hdferr)
+      
+      ! Add mesh data to HDF5
+      ! Read GTS file and store mesh information
+      open(98, file='triangular_mesh.gts', status='old', action='read')
+      read(98,*) n_vertices, n_edges_dummy, n_cells
+      
+      ! Allocate temporary arrays
+      allocate(vertex_coords(n_vertices, 3))
+      allocate(cell_connectivity(n_cells, 3))
+      
+      ! Read vertex coordinates
+      do i = 1, n_vertices
+         read(98,*) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+      end do
+      
+      ! Read cell connectivity (indices start from 0 in GTS, need to add 1 for Fortran)
+      do i = 1, n_cells
+         read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+         cell_connectivity(i, :) = cell_connectivity(i, :) + 1  ! Convert to 1-based indexing
+      end do
+      close(98)
+      
+      ! Write mesh data to HDF5
+      call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
+      
+      ! Write vertex coordinates
+      dims_2d = (/n_vertices, 3/)
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords, dims_2d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      
+      ! Write cell connectivity
+      dims_2d = (/n_cells, 3/)
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INTEGER, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, cell_connectivity, dims_2d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      
+      call h5gclose_f(group_id, hdferr)
+      
+      ! Deallocate temporary arrays
+      deallocate(vertex_coords, cell_connectivity)
+      
+      ! Close HDF5 file
       call h5fclose_f(file_id, hdferr)
       
       ! Create XDMF file for SSE visualization
-      xdmf_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.xdmf'
+      xdmf_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.xdmf'
       open(99, file=trim(xdmf_filename), status='replace')
       write(99,*) '<?xml version="1.0" ?>'
       write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
@@ -1538,10 +1655,15 @@ end if
       write(99,*) '        </DataItem>'
       write(99,*) '      </Time>'
       write(99,*) '      <Grid Name="slipz1_sse" GridType="Uniform">'
-      write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nsse, '"/>'
-      write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
-      write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
-      write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+      write(99,*) '        <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
+      write(99,*) '          <DataItem Format="HDF" NumberType="Int" Dimensions="', n_cells, ' 3">'
+      write(99,*) '            ', trim(hdf5_filename), ':/mesh/topology'
+      write(99,*) '          </DataItem>'
+      write(99,*) '        </Topology>'
+      write(99,*) '        <Geometry GeometryType="XYZ">'
+      write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', n_vertices, ' 3">'
+      write(99,*) '            ', trim(hdf5_filename), ':/mesh/geometry'
+      write(99,*) '          </DataItem>'
       write(99,*) '        </Geometry>'
       write(99,*) '        <Attribute Name="slipz1_sse" AttributeType="Scalar" Center="Node">'
       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
@@ -1550,10 +1672,15 @@ end if
       write(99,*) '        </Attribute>'
       write(99,*) '      </Grid>'
       write(99,*) '      <Grid Name="slipz1_tau" GridType="Uniform">'
-      write(99,*) '        <Topology TopologyType="2DCoRectMesh" Dimensions="', Nt_all, ' ', nsse, '"/>'
-      write(99,*) '        <Geometry GeometryType="ORIGIN_DXDY">'
-      write(99,*) '          <DataItem Format="XML" Dimensions="2">0.0 0.0</DataItem>'
-      write(99,*) '          <DataItem Format="XML" Dimensions="2">1.0 1.0</DataItem>'
+      write(99,*) '        <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
+      write(99,*) '          <DataItem Format="HDF" NumberType="Int" Dimensions="', n_cells, ' 3">'
+      write(99,*) '            ', trim(hdf5_filename), ':/mesh/topology'
+      write(99,*) '          </DataItem>'
+      write(99,*) '        </Topology>'
+      write(99,*) '        <Geometry GeometryType="XYZ">'
+      write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', n_vertices, ' 3">'
+      write(99,*) '            ', trim(hdf5_filename), ':/mesh/geometry'
+      write(99,*) '          </DataItem>'
       write(99,*) '        </Geometry>'
       write(99,*) '        <Attribute Name="slipz1_tau" AttributeType="Scalar" Center="Node">'
       write(99,*) '          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="', Nt_all, ' ', nsse, '">'
