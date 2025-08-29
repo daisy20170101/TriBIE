@@ -142,7 +142,7 @@ program main
   ! Mesh variables for GTS file reading
   integer :: n_vertices, n_edges_dummy, n_cells
   real(DP), allocatable :: vertex_coords(:,:)
-  integer, allocatable :: cell_connectivity(:,:)
+  integer*4, allocatable :: cell_connectivity(:,:)
 
   call MPI_Init(ierr)
   CALL MPI_COMM_RANK( MPI_COMM_WORLD, myid, ierr )
@@ -1301,7 +1301,7 @@ character(len=256) :: time_series_group_name
 ! Mesh variables for GTS file reading
 integer :: n_vertices, n_edges_dummy, n_cells
 real(DP), allocatable :: vertex_coords(:,:)
-integer, allocatable :: cell_connectivity(:,:)
+integer*4, allocatable :: cell_connectivity(:,:)
 
 ! MPI variables
 integer :: myid, master
@@ -1468,8 +1468,8 @@ end if
        ! Write cell connectivity
        dims_2d = (/n_cells, 3/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-       call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity, dims_2d, hdferr)
+       call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INTEGER, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, cell_connectivity, dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
@@ -1624,8 +1624,8 @@ end if
       ! Write cell connectivity
       dims_2d = (/n_cells, 3/)
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-      call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity, dims_2d, hdferr)
+      call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INTEGER, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, cell_connectivity, dims_2d, hdferr)
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
