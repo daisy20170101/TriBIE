@@ -144,9 +144,6 @@ program main
   real(DP), allocatable :: vertex_coords(:,:)
   integer, allocatable :: cell_connectivity(:,:)
 
-  ! MPI variables
-  integer :: myid, master
-
   call MPI_Init(ierr)
   CALL MPI_COMM_RANK( MPI_COMM_WORLD, myid, ierr )
   CALL MPI_COMM_SIZE( MPI_COMM_WORLD, size, ierr )
@@ -1454,7 +1451,6 @@ end if
        ! Read cell connectivity (indices start from 0 in GTS, need to add 1 for Fortran)
        do i = 1, n_cells
           read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
-          cell_connectivity(i, :) = cell_connectivity(i, :) + 1  ! Convert to 1-based indexing
        end do
        close(98)
        
@@ -1472,8 +1468,8 @@ end if
        ! Write cell connectivity
        dims_2d = (/n_cells, 3/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-       call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INTEGER, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, cell_connectivity, dims_2d, hdferr)
+       call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INT, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_INT, cell_connectivity, dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
@@ -1628,8 +1624,8 @@ end if
       ! Write cell connectivity
       dims_2d = (/n_cells, 3/)
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-      call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INTEGER, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, cell_connectivity, dims_2d, hdferr)
+      call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INT, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_INT, cell_connectivity, dims_2d, hdferr)
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
