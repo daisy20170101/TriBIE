@@ -551,948 +551,14 @@ end if
          close(j)
       end do
 
-      open(401,file=trim(foldername)//'blkst_strk-16fn+08dp+00'//jobname,position='append',status='unknown')
-      open(402,file=trim(foldername)//'blkst_strk+00fn+08dp+00'//jobname,position='append',status='unknown')
-      open(403,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,position='append',status='unknown')
-      open(404,file=trim(foldername)//'blkst_strk+00fn+16dp+00'//jobname,position='append',status='unknown')
-      open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,position='append',status='unknown')
-      open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,position='append',status='unknown')
-      open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,position='append',status='unknown')
-      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,position='append',status='unknown')
-      open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,position='append',status='unknown')
-    do i = 401,409
-        write(i,100)'# This is the file header'
-        write(i,100)'# problem=SEAS Benchmark No.5'
-        write(i,100)'# author=D.Li'
-        write(i,100)'# code=TriBIE'
-        write(i,100)'# date=2021/5/11'
-        write(i,100)'# element_size = 1000 m'
-        write(i,100)'# minimum_time_step = 1e-3'
-        write(i,100)'# maximum_time_step = 2e+7'
-        write(i,100)'# location = off fault: file name'
-        write(i,100)'# Column #1 = Time (s)'
-        write(i,100)'# Column #2 = displacement 1 (m)'
-        write(i,100)'# Column #3 = displacement 2 (m)'
-        write(i,100)'# Column #4 = displacement 3 (m)'
-        write(i,100)'# Column #5 = velocity_1 (m/s)'
-        write(i,100)'# Column #6 = velocity_2 (m/s)'
-        write(i,100)'# Column #7 = velocity_3 (m/s)'
-        write(i,100)'# The line below lists the names of the data fields:'
-        write(i,'(A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A)')'t','disp_1','disp_2','disp_3','vel_1','vel_2','vel_3'
-        write(i,100)'# Below is the time-series data.'  
-    end do
-     
-    do i = 401,409
-      close(i)
-    end do
-
-   open(501,file=trim(foldername)//'slip_2_depth'//jobname,position='append',status='unknown')
-   open(502,file=trim(foldername)//'slip_2_strike'//jobname,position='append',status='unknown')
-   open(503,file=trim(foldername)//'stress_2_depth'//jobname,position='append',status='unknown')
-   open(504,file=trim(foldername)//'stress_2_strike'//jobname,position='append',status='unknown')
-
-  do i=501,504
-        write(i,100)'# This is the file header'
-        write(i,100)'# problem=SEAS Benchmark No.5'
-        write(i,100)'# author=D.Li'
-        write(i,100)'# code=TriBIE'
-        write(i,100)'# date=2021/5/11'
-        write(i,100)'# element_size = 1000 m'
-        write(i,100)'# Row #1 strike/dip with two zeros'
-        write(i,100)'# Column #1 = Time (s)'
-        write(i,100)'# Column #2 = max slip rate (log10 m/s)'
-        write(i,100)'# Column #3-83 = slip (m)or shear stress (Mpa)'
-        write(i,100)'# The line below lists the names of the data fields:'
-        write(i,100)'x2'
-        write(i,100)'t'
-        write(i,100)'max_slip_rate'
-        write(i,100)'slip_2'
-        write(i,100)'# Below is the time-series data.'     
-  end do
-122 format(80(E15.7,1X))
-      write(501,122) 0d0,0d0, z_all(pdp(:))*1e3
-      write(502,122) 0d0,0d0, x_all(pstrk(:))*1e3
-      write(503,122) 0d0,0d0, z_all(pdp(:))*1e3
-      write(504,122) 0d0,0d0, x_all(pstrk(:))*1e3
-    
-    do i=501,504
-      close(i)
-    end do
-
-     open(1,file=trim(foldername)//'phypara'//jobname, status='unknown')
-     write(1,*)'procs num = ', nprocs
-
-  end if
-
-  Ifileout = 60   !file index, after 47
-
-  !----Initial values of velocity, state variable, shear stress and slip--
-  !--SET INITIAL VPL FOR THE LOCKED PART TO BE 0 
-  ! ! set plate convergence
-  if(IDin.eq.0)then 
-     disp1 = 0d0
-     disp2 = 0d0
-     disp3= 0d0
-     
-     ! OPTIMIZATION: Use OpenMP for parallel initialization
-     !$OMP PARALLEL DO PRIVATE(j,help) SCHEDULE(STATIC)
-     do j=1,Nt
-        yt(2*j-1)=vi(j)
-        if(vi(j).gt.1e-4) yt(2*j-1)=3*vi(j)
-
-        phy1(j)=1.0
-        phy2(j)=0.0
-
-        help=(yt(2*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
-        tau1(j)=seff(j)*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(2*j-1)
-        tau2(j) = 0.0
-        phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
-        phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
-
-        yt(2*j) = xLf(j)/Vint
-        slip(j)=0.d0
-        slipds(j)=0.d0
-        yt0(2*j-1)=yt(2*j-1)
-        yt0(2*j) = yt(2*j)
-     end do
-     !$OMP END PARALLEL DO
-  end if
-
-  !------------------------------------------------------------------
-  if(IDin.eq.1) then               !if this is a restart job
-     if(myid==master)then
-        call restart(0,'out',4,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
-        write(1,*)'This is a restart job. Start time ',t,' yr'
-     end if
-     call MPI_Barrier(MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(t,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(dt,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(dt_try,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(ndt,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(nrec,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatterv(yt_all,sendcounts*2,displs*2,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatterv(slip_all,sendcounts,displs,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatterv(slipds_all,sendcounts,displs,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
-
-     ndtnext = ndt
-     tprint_inter = t
-     tslip_ave=t 	
-     tout = t
-
-  else
-     if(myid==master)then
-        write(1,*)'Start time ',t,' yr'
-     end if
-  end if
-  if(myid==master)then
-     close(1)
-  end if
-
-  !----------------------------------------------
-  !      Start of Basic Cycle:
-  !----------------------------------------------
-  cyclecont=.true.
-
-  ! Set communication parameters
-  comm_count = 2*local_cells
-  comm_tag = 0
-  
-  ! Initialize blocking parameters
-  block_size = 64  ! Optimal block size for cache
-  
-  if(myid == master) then
-     allocate(send_buffer(2*Nt_all))
-     allocate(recv_buffer(2*Nt_all))
-  end if
-
-  do while(cyclecont) 
-
-     call derivs(myid,dydt,2*local_cells,Nt_all,local_cells,t,yt,z_all,x) 
-
-     do j=1,2*local_cells
-        yt_scale(j)=dabs(yt(j))+dabs(dt_try*dydt(j))
-        yt0(j) = yt(j)
-     end do
-     CALL rkqs(myid,yt,dydt,2*local_cells,Nt_all,local_cells,t,dt_try,accuracy,yt_scale, &
-          dt_did,dt_next,z_all,x)
-
-     dt = dt_did
-     dt_try = dt_next
-
-     ! OPTIMIZATION: Use OpenMP for parallel physics calculations
-     !$OMP PARALLEL DO PRIVATE(i,help) SCHEDULE(STATIC)
-     do i=1,local_cells
-        tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(2*i-1)*phy1(i)
-        help=(yt(2*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(2*i)/xLf(i)))/cca(i))
-        tau1(i) = seff(i)*cca(i)*dlog(help+dsqrt(1+help**2))
-        tau2(i) = tau1(i)/phy1(i)*phy2(i)
-
-        slipinc(i) = 0.5*(yt0(2*i-1)+yt(2*i-1))*dt
-        slipdsinc(i)=0.5*(yt0(2*i-1)+yt(2*i-1))*dt*phy2(i)/phy1(i)
-        slip(i) = slip(i) + slipinc(i)
-        slipds(i)=slipds(i)+slipdsinc(i)
-     end do
-     !$OMP END PARALLEL DO
-
-     ndt = ndt + 1
-
-     ! OPTIMIZATION: Batch all MPI communications to reduce overhead
-     call MPI_Barrier(MPI_COMM_WORLD,ierr)
-     
-     ! Use non-blocking communications where possible for better overlap
-     if(myid == master) then
-        ! Gather all data in one operation per array type
-        call MPI_Gather(yt,2*local_cells,MPI_Real8,yt_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(yt0,2*local_cells,MPI_Real8,yt0_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipinc,local_cells,MPI_Real8,slipinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slip,local_cells,MPI_Real8,slip_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipds,local_cells,MPI_Real8,slipds_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau1,local_cells,MPI_Real8,tau1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau2,local_cells,MPI_Real8,tau2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy1,local_cells,MPI_Real8,phy1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy2,local_cells,MPI_Real8,phy2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     else
-        ! Non-master processes just send their data
-        call MPI_Gather(yt,2*local_cells,MPI_Real8,yt_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(yt0,2*local_cells,MPI_Real8,yt0_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipinc,local_cells,MPI_Real8,slipinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slip,local_cells,MPI_Real8,slip_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipds,local_cells,MPI_Real8,slipds_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau1,local_cells,MPI_Real8,tau1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau2,local_cells,MPI_Real8,tau2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy1,local_cells,MPI_Real8,phy1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy2,local_cells,MPI_Real8,phy2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     end if
-
-     !-------------------
-     !      Output:     (a single thread will do the writing while others 
-     !      proceed 
-     !-------------------
-
-     if(myid==master)then
-        imv=imv+1
-        tmv(imv)=t*yrs
-        maxv(imv) = 0.d0
-        moment(imv) =0.d0
-        
-        ! Find max velocity and calculate moment
-        do i=1,Nt_all      !!!!!!!!!!!!!!!!! find max velocity
-           if(yt_all(2*i-1).ge.maxv(imv))then
-              maxv(imv)=yt_all(2*i-1)
-              maxnum(imv)=i
-           end if
-   
-          if(.not.rup(i).and.yt_all(2*i-1)/yrs.ge.vcos)then
-             Trup(i)=t*yrs
-             rup(i)=.true.
-          end if
-           moment(imv) = moment(imv)+0.5*(yt0_all(2*i-1)+yt_all(2*i-1))/yrs*1d-3*area(i)*xmu*1d6*1d5
-        end do
-!!!!!  SEAS output variables
-       
-       do i = 1,10
-        outs1(imv,1,i) = slip_all(s1(i))*1.d-3 ! meter
-        outs1(imv,2,i) = slipds_all(s1(i))*1.d-3
-        outs1(imv,3,i) =  dlog10(yt_all(2*s1(i)-1)*1.d-3/yrs) ! log10(V) m/s
-        outs1(imv,4,i) =  dlog10(max(yt_all(2*s1(i)-1)*1.d-3/yrs*phy2_all(s1(i))/phy1_all(s1(i)),1d-20))
-        outs1(imv,5,i) = tau1_all(s1(i))/10 ! MPa
-        outs1(imv,6,i) = tau2_all(s1(i))/10
-        outs1(imv,7,i) = dlog10(yt_all(2*s1(i))*yrs) ! log10(theta)
-       end do
-
-       do i=1,np1
-        obvstrk(imv,1,i)=slip_all(pstrk(i))*1d-3
-        obvstrk(imv,2,i)=tau1_all(pstrk(i))/10
-       end do
-       do i=1,np2
-        obvdp(imv,1,i)=slip_all(pdp(i))*1d-3
-        obvdp(imv,2,i)=tau1_all(pdp(i))/10
-       end do
-
-      ! OPTIMIZATION: Use OpenMP for parallel surface Green's function calculations
-      !$OMP PARALLEL DO PRIVATE(i,vel1,vel2,vel3,disp1,disp2,disp3,j) SCHEDULE(STATIC)
-      do i = 1,n_obv
-          vel1=0d0
-          vel2=0d0
-          vel3=0d0
-          disp1=0d0
-          disp2=0d0
-          disp3=0d0
-         do j=1,Nt_all
-            vel1 = vel1 + surf1(i,j)*(yt0_all(2*j-1)+yt_all(2*j-1))*0.5
-            vel2 = vel2 + surf2(i,j)*(yt0_all(2*j-1)+yt_all(2*j-1))*0.5
-            vel3 = vel3 + surf3(i,j)*(yt0_all(2*j-1)+yt_all(2*j-1))*0.5
-         
-          disp1=disp1+surf1(i,j)*slip_all(j)
-          disp2=disp2+surf2(i,j)*slip_all(j)
-          disp3=disp3+surf3(i,j)*slip_all(j)
-         end do
-       obvs(imv,4,i) = -vel1/1d3/yrs 
-       obvs(imv,5,i) = vel2/1d3/yrs
-       obvs(imv,6,i) = -vel3/1d3/yrs
-       obvs(imv,1,i) = -disp1/1d3
-       obvs(imv,2,i) = disp2/1d3
-       obvs(imv,3,i) = -disp3/1d3
-     end do
-     !$OMP END PARALLEL DO
-
-        !-----Interseismic slip every ? years----
-
-        if (t.ge.tslip_ave)then
-           ias = ias + 1 
-           tas(ias)=t
-
-           ! Calculate interseismic slip
-           do i=1,Nt_all
-              slipz1_inter(i,ias) = slip_all(i)*1.d-3           
-           end do
-
-            tslip_ave = tslip_ave + tslip_aveint
-        end if
-
-        !------velocity and slip of eq nucleation process -- 
-
-
-        !----SSE slip ------
-        if(t.ge.tssestart.and.t.le.tsseend)then
-        end if
-
-        !------coseismic Slip   -------------------
-
-        if((maxv(imv)/yrs).ge.vcos)then
-           tslipcos = tslipcos+dt
-           if(tslipcos.ge.tint_cos)then    !!!!tint_cos: every 5s output 
-		write(*,130) t,dlog10(maxv(imv)*1d-3/yrs),moment(imv)
-
-130 format(E20.13,2(1X,E15.7))
-
-              icos = icos +1
-              tcos(icos) = t 
-
-              if(.not.end1.and.t - teve1.lt.2*tint_cos) then
-                 teve1 = t !! to determine rupture contour output
-                else
-                 end1=.true.
-              end if
-
-              ! OPTIMIZATION: Use OpenMP for parallel coseismic slip calculations
-              !$OMP PARALLEL DO PRIVATE(i) SCHEDULE(STATIC)
-              do i=1,Nt_all
-                 slipz1_cos(i,icos) = slip_all(i)*1.d-3
-                 slipz1_v(i,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
-              end do
-              !$OMP END PARALLEL DO
-
-              tslipcos = 0.d0
-           end if
-        end if
-     end if
-
-     !----Output restart files -------------
-     if(myid==master)then
-        if(mod(ndt,1000).eq.0)ihrestart=1
-        if(IDout.eq.1.and.ihrestart.eq.1)then
-	   filename='out0'
-           call restart(1,filename,4,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)  
-           ihrestart=0
-        end if
-        if(abs(t-tout).le.tmin_out)then
-           ihrestart = 1
-           Itout=int(tout)
-           write(ct,*)Itout
-           ct=adjustl(ct)
-           filename='out'//trim(ct)
-           call restart(1,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
-           ihrestart = 0
-           tout = tout+tint_out 
-        end if
-     end if
-
-     !----Output velocity and slip records --- 
-     !----velocity in mm/yr ; slip in meter, moment in 10^{14} Nm -- 
-     if(myid==master)then 
-        Ioutput = 0 
-        
-        ! CRITICAL FIX: Ensure only main thread does file I/O
-        !$OMP MASTER
-        call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
-             tmv,tas,tcos,tnul,tsse,maxv,moment,outs1,maxnum,msse1,msse2, areasse1,areasse2,&
-             slipz1_inter,slipz1_tau,slipz1_sse, &
-             slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
-             xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-             n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2)         
-        !$OMP END MASTER
-
-     end if
-
-     !      end of output 
-     !----------------------------------------------------
-     !   End of output conmmands.
-     !----------------------------------------------------  
-
-     !----------------------------------------------------
-     !   Go to next cycle if t < tmax or ndt > ndtmax 
-     !---------------------------------------------------
-
-     if (t>tmax)cyclecont = .false.
-
-  end do
-
-  !--- Final output ------- 
- if(myid==master)then
-        i=410
-        open(i,file=trim(foldername)//'rupture'//jobname,status='unknown')
-        write(i,100)'# This is the file header'
-        write(i,100)'# problem=SEAS Benchmark No.5'
-        write(i,100)'# author=D.Li '
-        write(i,100)'# code=TriBIE'
-        write(i,100)'# date=2021/5/11'
-        write(i,100)'# element_size = 500 m'
-        write(i,100)'# Column #1 = x2 (m)'
-        write(i,100)'# Column #2 = x3 (m)'
-        write(i,100)'# Column #3 = t (s)'
-        write(i,100)'# '
-        write(i,100)'# The line below lists the names of the data fields:'
-        write(i,'(A,1x,A,1x,A)')'x2','x3','t'
-        write(i,100)'# Below is the time-series data.'
-
-       do j=1,Nt_all
-          write(i,111) x_all(j)*1d3,z_all(j)*1d3,Trup(j)
-        end do
-        close(i)
-111 format(E22.14,2(1X,E22.14))
-end if
-
-
-if(myid==master)then 
-     filename='outlast'
-     
-     ! CRITICAL FIX: Ensure only main thread does file I/O
-     !$OMP MASTER
-     call restart(1,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
-     Ioutput = 1
-     call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
-          tmv,tas,tcos,tnul,tsse,maxv,moment,outs1, &
-          maxnum,msse1,msse2, areasse1,areasse2, &
-          slipz1_inter,slipz1_tau,slipz1_sse, &
-          slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
-          xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-          n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2) 
-     !$OMP END MASTER
-
-end if
-
-
-  !---End of final output ----
-
-  call CPU_TIME(tmrun)
-  tmrun = tmmidn*tmday + tmrun - tmbegin
-  tmmult = tmmult/tmrun*100.
-  tmelse = tmelse/tmrun*100.
-  if(myid==master)then
-     open(10,file=trim(foldername)//'summary'//jobname,status='unknown')
-
-     write(10,*)'processor',myid
-     write(10,*)'      PARTS OF RUNNING TIME     '
-     write(10,'(T9,A,T40,F10.5)')'message passing (percent)', tmmult
-     write(10,'(T9,A,T40,F10.5)')'everything else (percent)', tmelse
-     write(10,*)
-     write(10,'(T9,A,T45,F20.1)')'total running time(min)',tmrun*0.016667
-     write(10,'(T9,A,T45,F20.1)')'total running time(hr)',tmrun*0.016667*0.016667
-     write(10,*)
-     write(10,*)'       INFORMATION ABOUT THE END OF THE RUN      '
-     write(10,'(T9,A,I7)')'ndtend = ', ndt
-     write(10,'(T9,A,D20.13)')'tend = ',t
-     write(10,'(T9,A,I7)')'nrec = ',nrec
-     write(10,*)       
-     write(10,*)'Nprocs=', nprocs
-     close(10)
-  end if
-
-
-  if(myid==master)then 
-     DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
-                phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
-          slip_all,slipinc_all,slipds_all,slipdsinc_all,&
-           cca_all,ccb_all,xLf_all,seff_all, &
-          maxnum,maxv,moment,outs1,&
-          msse1,msse2,areasse1,areasse2,tmv,tcos,tas,tnul,tsse)
-
-     DEALLOCATE (slipz1_inter,slipz1_tau,slipz1_sse, &
-          slipz1_cos,slipave_inter,slipave_cos, &
-          v_cos,slip_cos,v_nul,slip_nul)
-     DEALLOCATE (intdepz1,intdepz2,intdepz3,ssetime,slipz1_v)
-
-     deallocate(Trup,rup,area,obvs)
-     deallocate(pstrk,pdp,obvstrk,obvdp)
-  end if
-
-
-  DEALLOCATE (stiff2,stiff,vi,sr)
-  DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale)
-  deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
-  DEALLOCATE (cca,ccb,xLf,seff)
-  
-  ! Clean up MPI_Scatterv arrays
-  if (use_trigreen_format .and. allocated(sendcounts)) then
-     deallocate(sendcounts, displs)
-  end if
-  
-  call MPI_finalize(ierr)
-END program main
-
-!------------------------------------------------------------------------------
-!------------------------------------------------------------------------------
-subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
-  Use mpi
-  USE phy3d_module_non, only : nprocs
-  implicit none
-  integer, parameter :: DP = kind(1.0d0)   
-  integer :: n,i,j,k,NMAX,Nt,Nt_all
-  real (DP) :: eps,hdid,hnext,htry,x
-  real (DP) :: dydx(n),y(n),yscal(n),z_all(Nt_all),p(Nt) !p is position
-  external derivs
-  real (DP) :: errmax,errmax1,h,htemp,xnew,errmax_all(nprocs)
-  real (DP), dimension(:), allocatable :: yerr,ytemp
-  real (DP), parameter :: SAFETY=0.9, PGROW=-.2,PSHRNK=-.25,ERRCON=1.89e-4
-
-  !MPI RELATED DEFINITIONS
-  integer :: ierr,myid,master
-  master = 0 
-
-  nmax=n
-  h=htry
-  allocate (yerr(nmax),ytemp(nmax))
-  
-  ! OPTIMIZATION: Use more efficient error calculation
-1 call rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,ytemp,x,derivs,z_all,p)
-  
-  ! OPTIMIZATION: Vectorize error calculation for better performance
-  errmax=0.
-  do i=1,nmax
-     j = int(ceiling(real(i)/2)) ! position within central part
-     errmax = max(errmax,dabs(yerr(i)/yscal(i)))
-  end do
-  errmax=errmax/eps
-  
-  ! OPTIMIZATION: Use Allreduce instead of Gather+Bcast for better performance
-  call MPI_Allreduce(errmax, errmax1, 1, MPI_Real8, MPI_MAX, MPI_COMM_WORLD, ierr)
-
-  if(errmax1.gt.1.)then
-     htemp = SAFETY*h*(errmax1**PSHRNK)
-     h = dsign(max(dabs(htemp),0.1*dabs(h)),h)
-     xnew = x+h
-     if(xnew.eq.x) write(*,*) 'stepsize underflow in rkqs'
-     goto 1
-  else
-     if(errmax1.gt.ERRCON)then
-        hnext=SAFETY*h*(errmax1**PGROW)
-     else
-        hnext=5.*h
-     end if
-     hdid=h
-     x=x+h 
-     ! OPTIMIZATION: Vectorize array copy
-     do i=1,nmax
-        y(i)=ytemp(i)
-     end do
-  end if
-
-  deallocate (yerr,ytemp)
-
-  RETURN
-end subroutine rkqs
-!-----------------------------------------------------------------------------
-!-----------------------------------------------------------------------------
-     subroutine rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,yout,x,derivs,z_all,p)
-       USE phy3d_module_non, only :nprocs
-       implicit none
-       integer, parameter :: DP = kind(1.0d0)   
-       integer :: n,i,NMAX,myid,Nt_all,Nt
-       external derivs
-       real (DP) :: h,x,dydx(n),y(n),yerr(n),yout(n),z_all(Nt_all),p(Nt)
-       real (DP), dimension(:), ALLOCATABLE :: ak2,ak3,ak4,ak5,ak6,ytemp
-       REAL (DP),  parameter :: A2=.2,A3=.3,A4=.6,A5=1.,A6=.875, &
-            B21=.2,B31=3./40.,B32=9./40.,B41=.3,&
-            B42=-.9,B43=1.2,B51=-11./54.,B52=2.5, &
-            B53=-70./27.,B54=35./27., B61=1631./55296., &
-            B62=175./512.,B63=575./13824.,B64=44275./110592., &
-            B65=253./4096.,C1=37./378., C3=250./621.,  &
-            C4=125./594.,C6=512./1771.,DC1=C1-2825./27648., &
-            DC3=C3-18575./48384.,DC4=C4-13525./55296.,  &
-            DC5=-277./14336.,DC6=C6-.25
-
-       nmax = n
-       ALLOCATE (ak2(nmax),ak3(NMAX),ak4(NMAX),ak5(NMAX),ak6(NMAX),ytemp(NMAX))
-
-       ! OPTIMIZATION: Vectorize RK4 coefficient calculations for better performance
-       do i=1,n
-          ytemp(i)=y(i)+B21*h*dydx(i)
-       end do
-       call derivs(myid,ak2,n,Nt_all,Nt,x+A2*h,ytemp,z_all,p)
-       
-       do i=1,n
-          ytemp(i)=y(i)+h*(B31*dydx(i)+B32*ak2(i))
-       end do
-       call derivs(myid,ak3,n,Nt_all,Nt,x+A3*h,ytemp,z_all,p)
-       
-       do i=1,n
-          ytemp(i)=y(i)+h*(B41*dydx(i)+B42*ak2(i)+B43*ak3(i))
-       end do
-       call derivs(myid,ak4,n,Nt_all,Nt,x+A4*h,ytemp,z_all,p)
-       
-       do i=1,n
-          ytemp(i)=y(i)+h*(B51*dydx(i)+B52*ak2(i)+B53*ak3(i)+B54*ak4(i))
-       end do
-       call derivs(myid,ak5,n,Nt_all,Nt,x+A5*h,ytemp,z_all,p)
-       
-       do i=1,n
-          ytemp(i)=y(i)+h*(B61*dydx(i)+B62*ak2(i)+B63*ak3(i)+B64*ak4(i)+B65*ak5(i))
-       end do
-       call derivs(myid,ak6,n,Nt_all,Nt,x+A6*h,ytemp,z_all,p)
-       
-       ! OPTIMIZATION: Vectorize final RK4 calculations
-       do i=1,n
-          yout(i)=y(i)+h*(C1*dydx(i)+C3*ak3(i)+C4*ak4(i)+C6*ak6(i))
-       end do
-       
-       do i=1,n
-          yerr(i)=h*(DC1*dydx(i)+DC3*ak3(i)+DC4*ak4(i)+DC5*ak5(i)+DC6*ak6(i))
-       end do
-       
-       DEALLOCATE (ak2,ak3,ak4,ak5,ak6,ytemp)
-       return
-     end subroutine rkck
-!------------------------------------------------------------------------------
-!------------------------------------------------------------------------------
-     subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
-       USE mpi
-       USE phy3d_module_non, only: phy1,phy2,tau1,tau2, stiff2,stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
-            tm1,tm2,tmday,tmelse,tmmidn,tmmult
-       implicit none
-       integer, parameter :: DP = kind(1.0d0)
-       integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
-       real (DP) :: t,yt(nv),dydt(nv)   
-       real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
-       real (DP) :: psi,help1,help2,help
-       real (DP) :: SECNDS
-       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
-       
-       ! Local variables for blocking optimization
-       integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
-       real(DP) :: temp_sum
-       integer :: request1, request2
-       intrinsic real
-
-       !MPI RELATED DEFINITIONS
-       integer :: ierr,myid,master
-       master = 0 
-
-       small=1.d-6
-        
-       ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
-       do i=1,Nt
-         if(x(i).gt.1.69e3.or.x(i).lt.1.12e3) yt(2*i-1)=Vpl
-          zz(i)=yt(2*i-1)-Vpl
-       end do
-
-       ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
-       ! Use non-blocking communication to overlap computation and communication
-       
-       ! Start non-blocking communication early
-       call MPI_Iallgather(zz,Nt,MPI_Real8,zz_all,Nt,MPI_Real8,MPI_COMM_WORLD,request1,ierr)
-       
-       ! Wait for communication to complete before using the data
-       call MPI_Wait(request1,MPI_STATUS_IGNORE,ierr)
-       
-       !----------------------------------------------------------------------
-       !    summation of stiffness of all elements in slab
-       !----------------------------------------------------------------------
-       ! initilize zzfric
-       call CPU_TIME(tm2)
-       tmelse=tmelse+tm2-tm1
-       tm1=tm2
-
-       ! CORRECT: Simple nested loop for matrix-vector multiplication
-       do i=1, Nt
-          zzfric(i) = 0d0  ! Initialize to zero
-          
-          !$OMP SIMD PRIVATE(temp_sum)
-          do j=1, Nt_all   ! Sum over all source cells
-             temp_sum = stiff(i,j) * zz_all(j)
-             zzfric(i) = zzfric(i) + temp_sum
-          end do
-          !$OMP END SIMD
-       end do
- 
-       call CPU_TIME(tm2)
-       if ((tm2-tm1) .lt. 0.03)then
-          tmmult=tmmult+tm2-tm1
-       else
-          tmmidn=tmmidn+1
-          tmmult=tmmult+tm2-tm1+tmday
-       end if
-       tm1=tm2
-
-       ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
-       !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
-       do i=1,Nt
-          psi = dlog(V0*yt(2*i)/xLf(i))
-          help1 = yt(2*i-1)/(2*V0)
-          help2 = (f0+ccb(i)*psi)/cca(i)
-          help = dsqrt(1+(help1*dexp(help2))**2)
-
-          deriv1 = (seff(i)*ccb(i)/yt(2*i))*help1*dexp(help2)/help
-          deriv2 = (seff(i)*cca(i)/(2*V0))*dexp(help2)/help
-!aging             
-	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
-!slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
-          dydt(2*i-1) = -(zzfric(i)+deriv1*deriv3)/(eta+deriv2) ! total shear traction
-          dydt(2*i)=deriv3     
-       end do
-       !$OMP END SIMD
-
-       RETURN
-     END subroutine derivs
-
-!-----------------------------------------------------------------------------
-!    read parameters: sigma_effective, a,b,D_c
-!----------------------------------------------------------------------------
-
-    subroutine resdep(Nt_all,hnucl, &
-         xilock1,xilock2,cca_all,ccb_all,xLf_all, &
-         seff_all,x_all,z_all,vi_all)
-      USE mpi
-      USE phy3d_module_non, only: yrs,p18,Nl,Nd,Nab,xmu,xnu,gamma, &
-           Iprofile,foldername,jobname,profile
-      implicit none
-      integer, parameter :: DP = kind(1.0d0)
-      integer, parameter :: DN=9
-      integer :: k,i,j,kk,Iperb,record,l,m,nn,Nt,Nt_all
-
-      real (DP) :: temp(DN),dep(DN),dist(DN),ptemp(Nt_all), &
-           ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, & 
-           hnucl
-      real (DP) :: cca_all(Nt_all),ccb_all(Nt_all),ccab_all(Nt_all), &
-           xLf_all(Nt_all),seff_all(Nt_all),x_all(Nt_all),z_all(Nt_all),vi_all(Nt_all)
-
-      real (DP) ::a(Nab),tpr(Nab),zp(Nab),b(nab),ab(nab)
-
-
-      !----------------------------------------------------------------------------
-      !     iseff defines what eff. normal stress down-dip profiles
-      !     1:     linearly increase to sigmadiff and keep constant
-      !     2:     linearly increase to sigmadiff, followed by a sudden drop
-      !               to a much lower level of Lffix
-      !     3:     linearly increase to sigmadiff, followed by a sudden drop
-      !               to Lffix over certain range, then resume sigmadiff at downdip
-      !     4:     other profiles to be defined (?)
-      !-----------------------------------------------------------------------------
-
-      !     PIVITOL TEMPERATURE POINTS AT WHICH A-B VALUES CHANGE
-      if(Iprofile.eq.1)then   !web granite  used in Liu&Rice(2009)
-         tpr(1)=0
-         tpr(2)=100
-         tpr(3)=350
-         tpr(4)=450
-         tpr(5)=500
-         a(1) = 0.015
-         a(2) = 0.015
-         a(3) = 0.015
-         a(4) = 0.015
-         a(5) = 0.025
-         ab(1)=0.004
-         ab(2)=-0.004
-         ab(3)=-0.004
-         ab(4)=0.004
-         ab(5)=0.005
-      end if
-
-      if(Iprofile.eq.2)then   !LSB dry granite 
-         tpr(1) = 0.0
-         tpr(2) = 100.0
-         tpr(3) = 200.0
-         tpr(4) = 270.0
-         tpr(5) = 565.0
-         a(1) = 0.0101
-         a(2) = 0.0138
-         a(3) = 0.0175
-         a(4) = 0.0201
-         a(5) = 0.0310
-         ab(1) = 0.0025
-         ab(2) = 0.0
-         ab(3) = -0.0025
-         ab(4) = -0.0025
-         ab(5) = 0.004
-      end if
-
-      if(Iprofile.eq.3)then      !Modified gabbro, a increases with temp.
-         tpr(1) = 0.0
-         tpr(2) = 100.0
-         tpr(3) = 300.0
-         tpr(4) = 416.0
-         tpr(5) = 520.0
-         a(1) = 0.01
-         a(2) = 0.01
-         a(3) = 0.01
-         a(4) = 0.01    
-         a(5) = 0.01
-         ab(1) = 0.0035
-         ab(2) = -0.0035
-         ab(3) = -0.0035
-         ab(4) = -0.0035
-         ab(5) = 0.001
-      end if
-
-!!! check for minimum Dc
-!!! set SSE depth effective normal stress and Dc
-!!!! add perturbation and buffer zone at both ends.
-
- !need to address when j=1 and j=Nd_all!! same in the old openmp f90 file!
-
-      open(444,file='var'//jobname,status='old')
-       do i=1,Nt_all
-        read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
-        ccab_all(i) = cca_all(i) - ccb_all(i)
-        vi_all(i) = vi_all(i)*yrs*1d3
-       end do
-      close(444)
-
-
-      !     To save info about some of the quantities
-      open(2,file=trim(foldername)//'vardep'//jobname,status='unknown')
-      !	write(2,300)'z','seff','Lf','ccab','cca'
-      do i=1,Nt_all
-         write(2,'(6(1x,e20.13))')z_all(i),seff_all(i),xLf_all(i), &
-              ccab_all(i),cca_all(i),vi_all(i)
-      end do
-      close(2)
-300   format(5(1x,A20))
-      RETURN
-    END subroutine resdep
-!       
-!------------------------------------------------------------------------------
-! restart file
-!------------------------------------------------------------------------------
-
-      subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
-USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
-                        tm1,tm2,tmday,tmelse,tmmidn,tmmult
-      implicit none
-      integer, parameter :: DP = kind(1.0d0)
-      integer :: inout,i,ndt,nrec,Ifileout,Nt,Nt_all
-      real (DP) :: t,dt,dt_try
-      real (DP) ::  yt(2*Nt_all),slip(Nt_all)
-character(len=40) :: filename
-
-      if(inout.eq.0) then
-         open(Ifileout,file=trim(restartname),status='old')
-          read(Ifileout,*)t,ndt,nrec
-          read(Ifileout,*)dt,dt_try
-          do i=1,2*Nt_all
-             read(Ifileout,*)yt(i)
-          end do
-
-          do i=1,Nt_all
-             read(Ifileout,*)slip(i)
-          end do
-	  close(Ifileout)
-      else
-         open(Ifileout,file=trim(foldername)//trim(filename)//jobname,status='unknown')
-         write(Ifileout,*)t,ndt,nrec
-         write(Ifileout,*)dt,dt_try
-         do i=1,2*Nt_all
-              write(Ifileout,*)yt(i)
-         end do
-         do i=1,Nt_all
-              write(Ifileout,*)slip(i)
-         end do
-         close(Ifileout)
-        end if
-
-      RETURN
-      END
-
-!------Output -------------------------------------------
-!--------------------------------------------------------
-subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
-    tmv,tas,tcos,tnul,tsse,maxv,moment,outs1,&
-    maxnum,msse1,msse2,areasse1,areasse2, &
-     slipz1_inter,slipz1_tau,slipz1_sse,&
-     slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
-     xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-    n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2) 
-
-
-USE mpi
-USE phy3d_module_non, only: xmu,nmv,nas,ncos,nnul,nsse,yrs,Vpl,Nl, &
-		foldername,jobname
-use hdf5  ! Add HDF5 support
-implicit none
-integer, parameter :: DP = kind(1.0d0)
-integer :: Nt,Nt_all,i,j,k,l,kk,inul,imv,ias,icos,isse,Ioutput,Isnapshot,ix1,ix2,ix3,ix4,n_obv,np1,np2
-
-real (DP) :: x(Nt),maxnum(nmv),moment(nmv),maxv(nmv),outs1(nmv,7,10),&
-        msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
-	tmv(nmv),tas(nas),tcos(ncos),tnul(nnul),tsse(nsse),obvs(nmv,6,n_obv),obvstrk(nmv,2,np1),obvdp(nmv,2,np2)
-
-real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),&
-        v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse), &
-     v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),xi_all(Nt_all),x_all(Nt_all),&
-      slipz1_v(Nt_all,ncos)
-integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
-integer :: intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all)
-
-! HDF5 variables for time-series output
-integer(HID_T) :: file_id, dset_id, dspace_id
-integer(HID_T) :: group_id, attr_id, attr_space_id
-integer(HSIZE_T), dimension(3) :: dims, maxdims
-integer(HSIZE_T), dimension(2) :: dims_2d, maxdims_2d
-integer(HSIZE_T), dimension(1) :: dims_1d, maxdims_1d
-integer :: hdferr
-logical :: hdf5_initialized = .false.
-
-! HDF5 file naming
-character(len=256) :: hdf5_filename, xdmf_filename
-character(len=256) :: time_series_group_name
-
-! MPI variables
-integer :: myid, master
-master = 0
-call MPI_COMM_RANK(MPI_COMM_WORLD, myid, hdferr)
-
-if(Ioutput == 0)then    !output during run 
-
-
-   if(imv==nmv)then
-      open(30,file=trim(foldername)//'maxvall'//jobname,position='append',status='unknown')
-      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,position='append',status='unknown')
-      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,position='append',status='unknown')
-      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,position='append',status='unknown')
-      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,position='append',status='unknown')
-      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,position='append',status='unknown')
-      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,position='append',status='unknown')
-      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,position='append',status='unknown')
-      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,position='append',status='unknown')
-      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,position='append',status='unknown')
-      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,position='append',status='unknown')
-
-      do i=1,nmv
-         write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs),moment(i)
-        do j=311,320
-         write(j,110) tmv(i),outs1(i,1,j-310),outs1(i,2,j-310),outs1(i,3,j-310),outs1(i,4,j-310), &
-           outs1(i,5,j-310),outs1(i,6,j-310),outs1(i,7,j-310)
-        end do
-       end do
+      ! Close main output files
       close(30)
       
       do j=311,320
          close(j)
       end do 
 
+      ! Open block stress output files (these are for stress data, not observation data)
       open(401,file=trim(foldername)//'blkst_strk-16fn+08dp+00'//jobname,position='append',status='unknown')
       open(402,file=trim(foldername)//'blkst_strk+00fn+08dp+00'//jobname,position='append',status='unknown')
       open(403,file=trim(foldername)//'blkst_strk+16fn+08dp+00'//jobname,position='append',status='unknown')
@@ -1500,31 +566,60 @@ if(Ioutput == 0)then    !output during run
       open(405,file=trim(foldername)//'blkst_strk+00fn+32dp+00'//jobname,position='append',status='unknown')
       open(406,file=trim(foldername)//'blkst_strk+00fn+48dp+00'//jobname,position='append',status='unknown')
       open(407,file=trim(foldername)//'blkst_strk+00fn+08dp+10'//jobname,position='append',status='unknown')
-      open(408,file=trim(foldername)//'blkst_strk+00fn+16dp+10'//jobname,position='append',status='unknown')
+      open(408,file=trim(foldername)//'blkst_strk+16fn+08dp+10'//jobname,position='append',status='unknown')
       open(409,file=trim(foldername)//'blkst_strk+00fn+32dp+10'//jobname,position='append',status='unknown')
 
+      ! Open additional output files
       open(501,file=trim(foldername)//'slip_2_depth'//jobname,position='append',status='unknown')
       open(502,file=trim(foldername)//'slip_2_strike'//jobname,position='append',status='unknown')
       open(503,file=trim(foldername)//'stress_2_depth'//jobname,position='append',status='unknown')
       open(504,file=trim(foldername)//'stress_2_strike'//jobname,position='append',status='unknown')
     
+      ! Write main output data
       do i=1,nmv
-        do j=401,409
-         write(j,110) tmv(i),obvs(i,1,j-400),obvs(i,2,j-400),obvs(i,3,j-400),obvs(i,4,j-400),obvs(i,5,j-400),obvs(i,6,j-400)
-        end do
+        ! Write block stress data to files 401-409 (these are NOT observation data)
+        ! Note: These files are for stress output, not observation data
+        
+        ! Write additional output data
         write(501,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvdp(i,1,:)
         write(503,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvdp(i,2,:)
         write(502,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvstrk(i,1,:)
         write(504,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvstrk(i,2,:)
      end do
+     
+     ! Close additional output files
      do j=501,504
        close(j)
      end do
 
 144 format(E22.14,80(1X,E15.7))
+
+      ! Close block stress output files
       do j=401,409
          close(j)
       end do
+
+      ! Handle observation data output separately (if n_obv > 0)
+      if (n_obv > 0) then
+         ! Open observation data output files
+         do j = 1, min(n_obv, 9)  ! Limit to available observation points
+            open(600+j, file=trim(foldername)//'obs_data_'//char(48+j)//jobname, position='append', status='unknown')
+         end do
+         
+         ! Write observation data
+         do i = 1, nmv
+            do j = 1, min(n_obv, 9)
+               write(600+j, 110) tmv(i), obvs(i,1,j), obvs(i,2,j), obvs(i,3,j), obvs(i,4,j), obvs(i,5,j), obvs(i,6,j)
+            end do
+         end do
+         
+         ! Close observation data files
+         do j = 1, min(n_obv, 9)
+            close(600+j)
+         end do
+         
+         write(*,*) 'Observation data written for ', min(n_obv, 9), ' observation points'
+      end if
 
       imv = 0
    end if
@@ -1811,6 +906,28 @@ else
       do j=401,409
          close(j)
       end do
+
+      ! Handle observation data output separately (if n_obv > 0)
+      if (n_obv > 0) then
+         ! Open observation data output files
+         do j = 1, min(n_obv, 9)  ! Limit to available observation points
+            open(600+j, file=trim(foldername)//'obs_data_'//char(48+j)//jobname, position='append', status='unknown')
+         end do
+         
+         ! Write observation data
+         do i = 1, imv
+            do j = 1, min(n_obv, 9)
+               write(600+j, 110) tmv(i), obvs(i,1,j), obvs(i,2,j), obvs(i,3,j), obvs(i,4,j), obvs(i,5,j), obvs(i,6,j)
+            end do
+         end do
+         
+         ! Close observation data files
+         do j = 1, min(n_obv, 9)
+            close(600+j)
+         end do
+         
+         write(*,*) 'Observation data written for ', min(n_obv, 9), ' observation points'
+      end if
 
       imv = 0
     end if
