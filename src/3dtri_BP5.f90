@@ -493,6 +493,8 @@ end if
   dt_try=dtmin
   Vint = Vpl
 
+
+  Ifileout = 60   !file index, after 47
   !----Initial values of velocity, state variable, shear stress and slip--
   !--SET INITIAL VPL FOR THE LOCKED PART TO BE 0 
   ! ! set plate convergence
