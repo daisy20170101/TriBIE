@@ -1450,9 +1450,10 @@ end if
           read(98,*) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
        end do
        
-       ! Read cell connectivity (indices start from 0 in GTS, need to add 1 for Fortran)
+       ! Read cell connectivity (indices start from 0 in GTS, which is correct for Paraview)
        do i = 1, n_cells
           read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+          ! Keep 0-based indexing for Paraview compatibility
        end do
        close(98)
        
@@ -1470,8 +1471,8 @@ end if
        ! Write cell connectivity
        dims_2d = (/n_cells, 3/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-       call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INTEGER, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, cell_connectivity, dims_2d, hdferr)
+       call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity, dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
@@ -1495,23 +1496,23 @@ end if
        ! Write a Grid for each time step
        do i = 1, ncos
           write(99,*) '   <Grid Name="step_', i, '" GridType="Uniform">'
-          write(99,*) '    <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
-          write(99,*) '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="', n_cells, ' 3">timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
+          write(99,*) '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
+          write(99,*) '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
           write(99,*) '    </Topology>'
-          write(99,*) '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="', n_vertices, '">'
-          write(99,*) '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="', n_vertices, ' 3">timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
+          write(99,*) '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
+          write(99,*) '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
           write(99,*) '    </Geometry>'
           write(99,*) '    <Time Value="', tcos(i), '"/>'
           write(99,*) '    <Attribute Name="slipz1_v" Center="Cell">'
-          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
-          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
           write(99,*) '     </DataItem>'
           write(99,*) '    </Attribute>'
           write(99,*) '    <Attribute Name="slipz1_cos" Center="Cell">'
-          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
-          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
           write(99,*) '     </DataItem>'
           write(99,*) '    </Attribute>'
           write(99,*) '   </Grid>'
@@ -1559,23 +1560,23 @@ end if
        ! Write a Grid for each completed time step
        do i = 1, icos
           write(99,*) '   <Grid Name="step_', i, '" GridType="Uniform">'
-          write(99,*) '    <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
-          write(99,*) '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="', n_cells, ' 3">timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
+          write(99,*) '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
+          write(99,*) '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
           write(99,*) '    </Topology>'
-          write(99,*) '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="', n_vertices, '">'
-          write(99,*) '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="', n_vertices, ' 3">timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
+          write(99,*) '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
+          write(99,*) '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
           write(99,*) '    </Geometry>'
           write(99,*) '    <Time Value="', tcos(i), '"/>'
           write(99,*) '    <Attribute Name="slipz1_v" Center="Cell">'
-          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
-          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
           write(99,*) '     </DataItem>'
           write(99,*) '    </Attribute>'
           write(99,*) '    <Attribute Name="slipz1_cos" Center="Cell">'
-          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
-          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
           write(99,*) '     </DataItem>'
           write(99,*) '    </Attribute>'
           write(99,*) '   </Grid>'
@@ -1653,9 +1654,10 @@ end if
          read(98,*) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
       end do
       
-      ! Read cell connectivity (indices start from 0 in GTS, need to add 1 for Fortran)
+      ! Read cell connectivity (indices start from 0 in GTS, which is correct for Paraview)
       do i = 1, n_cells
          read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+         ! Keep 0-based indexing for Paraview compatibility
       end do
       close(98)
       
@@ -1673,8 +1675,8 @@ end if
       ! Write cell connectivity
       dims_2d = (/n_cells, 3/)
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-      call h5dcreate_f(group_id, 'topology', H5T_NATIVE_INTEGER, dspace_id, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, cell_connectivity, dims_2d, hdferr)
+      call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity, dims_2d, hdferr)
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
@@ -1689,9 +1691,9 @@ end if
       ! Create XDMF file for SSE visualization
       xdmf_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.xdmf'
       open(99, file=trim(xdmf_filename), status='replace')
-      write(99,*) '<?xml version="1.0" ?>'
-      write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-      write(99,*) '<Xdmf Version="2.0">'
+      write(99,*)'<?xml version="1.0" ?>'
+      write(99,*)'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+      write(99,*)'<Xdmf Version="2.0">'
       write(99,*) ' <Domain>'
       write(99,*) '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
       
@@ -1720,9 +1722,9 @@ end if
          write(99,*) '   </Grid>'
       end do
       
-      write(99,*) '  </Grid>'
-      write(99,*) ' </Domain>'
-      write(99,*) '</Xdmf>'
+      write(99,*)'  </Grid>'
+      write(99,*)' </Domain>'
+      write(99,*)'</Xdmf>'
       close(99)
       
       write(*,*) 'SSE time-series data written to HDF5: ', trim(hdf5_filename)
@@ -1753,40 +1755,40 @@ end if
        ! Update XDMF file to show current progress
        xdmf_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.xdmf'
        open(99, file=trim(xdmf_filename), status='replace')
-       write(99,*) '<?xml version="1.0" ?>'
-       write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-       write(99,*) '<Xdmf Version="2.0">'
+       write(99,*)'<?xml version="1.0" ?>'
+       write(99,*)'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+       write(99,*)'<Xdmf Version="2.0">'
        write(99,*) ' <Domain>'
        write(99,*) '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
        
        ! Write a Grid for each completed time step
        do i = 1, isse
           write(99,*) '   <Grid Name="step_', i, '" GridType="Uniform">'
-          write(99,*) '    <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
-          write(99,*) '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="', n_cells, ' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
+          write(99,*) '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
+          write(99,*) '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
           write(99,*) '    </Topology>'
-          write(99,*) '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="', n_vertices, '">'
-          write(99,*) '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="', n_vertices, ' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
+          write(99,*) '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
+          write(99,*) '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
           write(99,*) '    </Geometry>'
           write(99,*) '    <Time Value="', tsse(i), '"/>'
           write(99,*) '    <Attribute Name="slipz1_sse" Center="Cell">'
-          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
-          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
           write(99,*) '     </DataItem>'
           write(99,*) '    </Attribute>'
           write(99,*) '    <Attribute Name="slipz1_tau" Center="Cell">'
-          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
-          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
+          write(99,*) '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+          write(99,*) '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,*) '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
           write(99,*) '     </DataItem>'
           write(99,*) '    </Attribute>'
           write(99,*) '   </Grid>'
        end do
        
-       write(99,*) '  </Grid>'
-       write(99,*) ' </Domain>'
-       write(99,*) '</Xdmf>'
+       write(99,*)'  </Grid>'
+       write(99,*)' </Domain>'
+       write(99,*)'</Xdmf>'
        close(99)
        
        write(*,*) 'SSE Progress update: XDMF updated for', isse, 'iterations'
@@ -1884,7 +1886,7 @@ else
       end if
       
       ! Open existing HDF5 file for SSE data (append mode)
-      hdf5_filename = trim(foldername)//'sse_timeseries_data'//jobname//'.h5'
+      hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
       
       ! Open existing SSE time-series group
@@ -1932,7 +1934,7 @@ else
        end if
        
        ! Open existing HDF5 file for cosine slip data (append mode)
-       hdf5_filename = trim(foldername)//'timeseries_data'//jobname//'.h5'
+       hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
        call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
        
        ! Open existing time-series group
