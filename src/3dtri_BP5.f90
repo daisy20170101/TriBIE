@@ -732,19 +732,19 @@ end if
  if(myid==master)then
         i=410
         open(i,file=trim(foldername)//'rupture'//jobname,status='unknown')
-        write(i,100)'# This is the file header'
-        write(i,100)'# problem=SEAS Benchmark No.5'
-        write(i,100)'# author=D.Li '
-        write(i,100)'# code=TriBIE'
-        write(i,100)'# date=2021/5/11'
-        write(i,100)'# element_size = 500 m'
-        write(i,100)'# Column #1 = x2 (m)'
-        write(i,100)'# Column #2 = x3 (m)'
-        write(i,100)'# Column #3 = t (s)'
-        write(i,100)'# '
-        write(i,100)'# The line below lists the names of the data fields:'
+        write(i,110)'# This is the file header'
+        write(i,110)'# problem=SEAS Benchmark No.5'
+        write(i,110)'# author=D.Li '
+        write(i,110)'# code=TriBIE'
+        write(i,110)'# date=2021/5/11'
+        write(i,110)'# element_size = 500 m'
+        write(i,110)'# Column #1 = x2 (m)'
+        write(i,110)'# Column #2 = x3 (m)'
+        write(i,110)'# Column #3 = t (s)'
+        write(i,110)'# '
+        write(i,110)'# The line below lists the names of the data fields:'
         write(i,'(A,1x,A,1x,A)')'x2','x3','t'
-        write(i,100)'# Below is the time-series data.'
+        write(i,110)'# Below is the time-series data.'
 
        do j=1,Nt_all
           write(i,111) x_all(j)*1d3,z_all(j)*1d3,Trup(j)
