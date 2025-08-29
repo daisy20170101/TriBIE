@@ -402,7 +402,7 @@ end if
   !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
-        if(stiff(i,j).lt.-1.10d0.or.stiff(i,j).gt.1.1d0)then
+        if(stiff(i,j).lt.-1.6d0.or.stiff(i,j).gt.1.6d0)then
            stiff(i,j) = 0.d0
            !$OMP CRITICAL
            write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
@@ -518,7 +518,7 @@ end if
      end do
   end if
 
-  !------------------------------------------------------------------
+!------------------------------------------------------------------
   if(IDin.eq.1) then               !if this is a restart job
      if(myid==master)then
         call restart(0,'out',4,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
@@ -530,20 +530,26 @@ end if
      call MPI_Bcast(dt_try,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(ndt,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(nrec,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(yt_all,2*Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Bcast(slip_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      
-     ! Scatter restart data to local arrays
      call MPI_Scatterv(yt_all,sendcounts,displs,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Scatterv(slip_all,sendcounts,displs,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     
-     ! Initialize local arrays from restart data
-     do j=1,local_cells
-        yt0(2*j-1)=yt(2*j-1)
-        yt0(2*j) = yt(2*j)
-        slipds(j)=0.d0
-     end do
+     call MPI_Scatterv(slipds_all,sendcounts,displs,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+
+
+     ndtnext = ndt
+     tprint_inter = t
+     tslip_ave=t        
+     tout = t
+
+  else
+     if(myid==master)then
+        write(1,*)'Start time ',t,' yr'
+     end if
   end if
+  if(myid==master)then
+     close(1)
+  end if
+
 
 
   !----------------------------------------------
