@@ -1295,6 +1295,7 @@ integer(HSIZE_T), dimension(2) :: dims_2d, maxdims_2d
 integer(HSIZE_T), dimension(1) :: dims_1d, maxdims_1d
 integer :: hdferr
 logical :: hdf5_initialized = .false.
+integer :: global_time_steps_written = 0  ! Total time steps written across all cycles
 
 ! HDF5 file naming
 character(len=256) :: hdf5_filename, xdmf_filename
@@ -1423,32 +1424,52 @@ end if
           time_series_group_name = '/time_series'
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
-          ! Create datasets with full size (Nt_all, ncos) for the first time
+          ! Create extensible datasets (start with ncos, can grow unlimited)
           dims_2d = (/Nt_all, ncos/)
-          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          maxdims_2d = (/Nt_all, H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
           call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
           
-          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
           call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
           
           dims_1d = (/ncos/)
-          call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+          maxdims_1d = (/H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
+          call h5screate_simple_f(1, dims_1d, dspace_id, hdferr, maxdims_1d)
           call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
        end if
        
+       ! Extend datasets if starting a new cycle (icos == 1)
+       if (icos == 1 .and. global_time_steps_written > 0) then
+          ! Extend datasets by ncos columns for new cycle
+          dims_2d = (/Nt_all, global_time_steps_written + ncos/)
+          call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
+          call h5dset_extent_f(dset_id, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          
+          call h5dopen_f(group_id, 'slipz1_cos', dset_id, hdferr)
+          call h5dset_extent_f(dset_id, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          
+          dims_1d = (/global_time_steps_written + ncos/)
+          call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
+          call h5dset_extent_f(dset_id, dims_1d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+       end if
+       
        ! Write current time step data to existing datasets
-       ! For slipz1_v: write column icos-1 (current time step)
+       ! For slipz1_v: calculate global column position
        call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
-       ! Define hyperslab for current time step column
-       offset_2d = (/0, icos-1/)
+       ! Define hyperslab for current time step column (accumulative position)
+       offset_2d = (/0, global_time_steps_written + icos - 1/)
        count_2d = (/Nt_all, 1/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        
@@ -1457,7 +1478,7 @@ end if
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
        ! Write current time step data
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,icos:icos), dims_2d, hdferr, memspace_id, filespace_id)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,icos), dims_2d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
@@ -1474,7 +1495,7 @@ end if
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
        ! Write current time step data
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,icos:icos), dims_2d, hdferr, memspace_id, filespace_id)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,icos), dims_2d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
@@ -1484,8 +1505,8 @@ end if
        call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
-       ! Define hyperslab for current time step
-       offset_1d = (/icos-1/)
+       ! Define hyperslab for current time step (accumulative position)
+       offset_1d = (/global_time_steps_written + icos - 1/)
        count_1d = (/1/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_1d, count_1d, hdferr)
        
@@ -1494,7 +1515,7 @@ end if
        call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
        
        ! Write current time value
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(icos:icos), dims_1d, hdferr, memspace_id, filespace_id)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(icos), dims_1d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
@@ -1575,19 +1596,22 @@ end if
        ! Create or append to XDMF file for visualization
        xdmf_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.xdmf'
        
-       ! Check if this is the first time step
-       if (icos == 1) then
-          ! Create new XDMF file with header
-          open(99, file=trim(xdmf_filename), status='replace')
+       ! For true accumulative XDMF, we need to:
+       ! 1) Write header only once (first time step of first cycle)
+       ! 2) Append individual Grid elements
+       ! 3) Rewrite footer each time (or keep file open)
+       
+       ! For now, use simpler approach: rewrite entire XDMF with all time steps
+       open(99, file=trim(xdmf_filename), status='replace')
        write(99,'(A)') '<?xml version="1.0" ?>'
        write(99,'(A)') '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
        write(99,'(A)') '<Xdmf Version="2.0">'
        write(99,'(A)') ' <Domain>'
        write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
        
-       ! Write a Grid for each completed time step
+       ! Write a Grid for ALL completed time steps (current cycle only)
        do i = 1, icos
-          write(99,'(A,I0,A)') '   <Grid Name="step_', i, '" GridType="Uniform">'
+          write(99,'(A,I0,A)') '   <Grid Name="step_', global_time_steps_written + i, '" GridType="Uniform">'
           write(99,'(A,I0,A)') '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
           write(99,'(A,I0,3A)') '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
           write(99,'(A)') '    </Topology>'
@@ -1597,13 +1621,13 @@ end if
           write(99,'(A,E15.8,A)') '    <Time Value="', tcos(i), '"/>'
           write(99,'(A)') '    <Attribute Name="slipz1_v" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
           write(99,'(A)') '    <Attribute Name="slipz1_cos" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
@@ -1618,6 +1642,8 @@ end if
        write(*,*) 'Time-series data written to HDF5: ', trim(hdf5_filename)
        write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
        
+       ! Update global counter for accumulative writing
+       global_time_steps_written = global_time_steps_written + ncos
        icos = 0 
        end if  ! End of icos == 1 check 
     else if (mod(icos, 10) == 0 .and. icos > 0) then
@@ -1662,13 +1688,13 @@ end if
           write(99,'(A,E15.8,A)') '    <Time Value="', tcos(i), '"/>'
           write(99,'(A)') '    <Attribute Name="slipz1_v" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
           write(99,'(A)') '    <Attribute Name="slipz1_cos" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
@@ -1902,13 +1928,13 @@ end if
           write(99,'(A,E15.8,A)') '    <Time Value="', tsse(i), '"/>'
           write(99,'(A)') '    <Attribute Name="slipz1_sse" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
           write(99,'(A)') '    <Attribute Name="slipz1_tau" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
