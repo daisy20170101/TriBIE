@@ -1428,19 +1428,19 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
        end if
        
-       ! Write slipz1_v data (velocity time series) - transpose for XDMF HyperSlab
-       dims_2d = (/ncos, n_cells/)
+       ! Write slipz1_v data (velocity time series) - structured for XDMF column extraction
+       dims_2d = (/n_cells, ncos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(slipz1_v(1:n_cells,1:ncos)), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(1:n_cells,1:ncos), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
-       ! Write slipz1_cos data (cosine slip time series) - transpose for XDMF HyperSlab
-       dims_2d = (/ncos, n_cells/)
+       ! Write slipz1_cos data (cosine slip time series) - structured for XDMF column extraction
+       dims_2d = (/n_cells, ncos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(slipz1_cos(1:n_cells,1:ncos)), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(1:n_cells,1:ncos), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
@@ -2018,19 +2018,19 @@ else
        time_series_group_name = '/time_series'
        call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
        
-       ! Write partial slipz1_cos data (cosine slip time series) - transpose for XDMF HyperSlab
-       dims_2d = (/icos, n_cells/)
+       ! Write partial slipz1_cos data (cosine slip time series) - structured for XDMF column extraction
+       dims_2d = (/n_cells, icos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_cos_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(slipz1_cos(1:n_cells,1:icos)), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(1:n_cells,1:icos), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
-       ! Write partial slipz1_v data (velocity time series) - transpose for XDMF HyperSlab
-       dims_2d = (/icos, n_cells/)
+       ! Write partial slipz1_v data (velocity time series) - structured for XDMF column extraction
+       dims_2d = (/n_cells, icos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_v_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(slipz1_v(1:n_cells,1:icos)), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(1:n_cells,1:icos), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
