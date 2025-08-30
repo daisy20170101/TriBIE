@@ -1300,6 +1300,8 @@ logical :: hdf5_initialized = .false.
 character(len=256) :: hdf5_filename, xdmf_filename
 character(len=256) :: time_series_group_name
 logical :: file_exists, file_exists_sse
+integer(HSIZE_T) :: offset_1d(1), count_1d(1), offset_2d(2), count_2d(2)
+integer(HID_T) :: memspace_id, filespace_id
 
 ! Mesh variables for GTS file reading
 integer :: n_vertices, n_edges_dummy, n_cells
@@ -1395,8 +1397,7 @@ if(Ioutput == 0)then    !output during run
        ias = 0 
 end if
 
-    if(icos==ncos)then
-       ! HDF5 output for time-series variables instead of binary files
+    ! HDF5 output for time-series variables instead of binary files - write after each time step
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
           call h5open_f(hdferr)
@@ -1415,42 +1416,89 @@ end if
           ! Open existing time-series group
           time_series_group_name = '/time_series'
           call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
-          
-          ! Delete existing complete datasets if they exist (we're updating with complete data)
-          call h5ldelete_f(group_id, 'slipz1_v', hdferr)  ! Ignore errors if dataset doesn't exist
-          call h5ldelete_f(group_id, 'slipz1_cos', hdferr)
-          call h5ldelete_f(group_id, 'tcos', hdferr)
        else
-          ! Create new file
+          ! Create new file and initialize datasets with maximum size
           call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
           ! Create time-series group
           time_series_group_name = '/time_series'
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+          
+          ! Create datasets with full size (Nt_all, ncos) for the first time
+          dims_2d = (/Nt_all, ncos/)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+          
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+          
+          dims_1d = (/ncos/)
+          call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+          call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
        end if
        
-       ! Write slipz1_v data (velocity time series) - only write valid data up to icos
-       dims_2d = (/Nt_all, icos/)
-       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-       call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr)
-       call h5dclose_f(dset_id, hdferr)
-       call h5sclose_f(dspace_id, hdferr)
+       ! Write current time step data to existing datasets
+       ! For slipz1_v: write column icos-1 (current time step)
+       call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
+       call h5dget_space_f(dset_id, filespace_id, hdferr)
        
-       ! Write slipz1_cos data (cosine slip time series) - only write valid data up to icos
-       dims_2d = (/Nt_all, icos/)
-       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-       call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr)
-       call h5dclose_f(dset_id, hdferr)
-       call h5sclose_f(dspace_id, hdferr)
+       ! Define hyperslab for current time step column
+       offset_2d = (/0, icos-1/)
+       count_2d = (/Nt_all, 1/)
+       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        
-       ! Write time array - only write valid data up to icos
-       dims_1d = (/icos/)
-       call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
-       call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr)
+       ! Create memory space for current column
+       dims_2d = (/Nt_all, 1/)
+       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+       
+       ! Write current time step data
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,icos:icos), dims_2d, hdferr, memspace_id, filespace_id)
+       
+       call h5sclose_f(memspace_id, hdferr)
+       call h5sclose_f(filespace_id, hdferr)
        call h5dclose_f(dset_id, hdferr)
-       call h5sclose_f(dspace_id, hdferr)
+       
+       ! For slipz1_cos: write column icos-1 (current time step)
+       call h5dopen_f(group_id, 'slipz1_cos', dset_id, hdferr)
+       call h5dget_space_f(dset_id, filespace_id, hdferr)
+       
+       ! Define hyperslab for current time step column
+       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
+       
+       ! Create memory space for current column
+       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+       
+       ! Write current time step data
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,icos:icos), dims_2d, hdferr, memspace_id, filespace_id)
+       
+       call h5sclose_f(memspace_id, hdferr)
+       call h5sclose_f(filespace_id, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       
+       ! Write current time step to time array
+       call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
+       call h5dget_space_f(dset_id, filespace_id, hdferr)
+       
+       ! Define hyperslab for current time step
+       offset_1d = (/icos-1/)
+       count_1d = (/1/)
+       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_1d, count_1d, hdferr)
+       
+       ! Create memory space for single value
+       dims_1d = (/1/)
+       call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
+       
+       ! Write current time value
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(icos:icos), dims_1d, hdferr, memspace_id, filespace_id)
+       
+       call h5sclose_f(memspace_id, hdferr)
+       call h5sclose_f(filespace_id, hdferr)
+       call h5dclose_f(dset_id, hdferr)
        
        ! Close time-series group
        call h5gclose_f(group_id, hdferr)
@@ -1524,9 +1572,13 @@ end if
        ! Close HDF5 file
        call h5fclose_f(file_id, hdferr)
        
-       ! Create XDMF file for visualization
+       ! Create or append to XDMF file for visualization
        xdmf_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.xdmf'
-       open(99, file=trim(xdmf_filename), status='replace')
+       
+       ! Check if this is the first time step
+       if (icos == 1) then
+          ! Create new XDMF file with header
+          open(99, file=trim(xdmf_filename), status='replace')
        write(99,'(A)') '<?xml version="1.0" ?>'
        write(99,'(A)') '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
        write(99,'(A)') '<Xdmf Version="2.0">'
@@ -1567,6 +1619,7 @@ end if
        write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
        
        icos = 0 
+       end if  ! End of icos == 1 check 
     else if (mod(icos, 10) == 0 .and. icos > 0) then
        ! Iterative output: Append data every 10 iterations for real-time visualization
        if (.not. hdf5_initialized) then
