@@ -1299,6 +1299,7 @@ logical :: hdf5_initialized = .false.
 ! HDF5 file naming
 character(len=256) :: hdf5_filename, xdmf_filename
 character(len=256) :: time_series_group_name
+logical :: file_exists, file_exists_sse
 
 ! Mesh variables for GTS file reading
 integer :: n_vertices, n_edges_dummy, n_cells
@@ -1406,7 +1407,6 @@ end if
        hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
        
        ! Check if file exists, if so open in append mode, otherwise create new
-       logical :: file_exists
        inquire(file=trim(hdf5_filename), exist=file_exists)
        
        if (file_exists) then
@@ -1648,7 +1648,6 @@ end if
       hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
       
       ! Check if file exists, if so open in append mode, otherwise create new
-      logical :: file_exists_sse
       inquire(file=trim(hdf5_filename), exist=file_exists_sse)
       
       if (file_exists_sse) then
