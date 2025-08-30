@@ -1427,11 +1427,11 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
           ! Create extensible datasets with chunking (required for unlimited dimensions)
-          dims_2d = (/n_cells,ncos/)
-          maxdims_2d = (/n_cells, ncos/)  ! Allow unlimited growth in time dimension
+          dims_2d = (/ncos,n_cells,/)
+          maxdims_2d = (/ ncos,n_cells,/)  ! Allow unlimited growth in time dimension
           
           ! Set chunk size (all cells, reasonable number of time steps)
-          chunk_2d = (/n_cells,min(ncos, 100)/)
+          chunk_2d = (/min(ncos, 100),n_cells/)
           
           ! Create dataset creation property list with chunking
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
@@ -1467,81 +1467,66 @@ end if
           call h5pclose_f(dcpl_id, hdferr)  ! Close property list
        end if
        
-       ! Extend datasets if starting a new cycle (icos == 1)
-       if (icos == 1 .and. global_time_steps_written > 0) then
-          ! Extend datasets by ncos columns for new cycle
-          dims_2d = (/n_cells, global_time_steps_written + ncos/)
+       
+       ! Write all time step data using a loop (ncos steps)
+       do step_i = 1, ncos
+          ! Write slipz1_v data for current time step
           call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
-          call h5dset_extent_f(dset_id, dims_2d, hdferr)
+          call h5dget_space_f(dset_id, filespace_id, hdferr)
+          
+          ! Define hyperslab for current time step column (accumulative position)
+          offset_2d = (/ global_time_steps_written + step_i - 1,1/)
+          count_2d = (1,n_cells/)
+          call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
+          
+          ! Create memory space for current data (1D array of n_cells)
+          dims_1d = (/n_cells/)
+          call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
+          
+          ! Write current time step data
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,step_i), dims_1d, hdferr, memspace_id, filespace_id)
+          
+          call h5sclose_f(memspace_id, hdferr)
+          call h5sclose_f(filespace_id, hdferr)
           call h5dclose_f(dset_id, hdferr)
           
+          ! Write slipz1_cos data for current time step
           call h5dopen_f(group_id, 'slipz1_cos', dset_id, hdferr)
-          call h5dset_extent_f(dset_id, dims_2d, hdferr)
+          call h5dget_space_f(dset_id, filespace_id, hdferr)
+          
+          ! Define hyperslab for current time step column
+          call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
+          
+          ! Create memory space for current column
+          call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
+          
+          ! Write current time step data
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,step_i), dims_1d, hdferr, memspace_id, filespace_id)
+          
+          call h5sclose_f(memspace_id, hdferr)
+          call h5sclose_f(filespace_id, hdferr)
           call h5dclose_f(dset_id, hdferr)
           
-          dims_1d = (/global_time_steps_written + ncos/)
+          ! Write time value for current time step
           call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
-          call h5dset_extent_f(dset_id, dims_1d, hdferr)
+          call h5dget_space_f(dset_id, filespace_id, hdferr)
+          
+          ! Define hyperslab for current time step (accumulative position)
+          offset_1d = (/global_time_steps_written + step_i - 1/)
+          count_1d = (/1/)
+          call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_1d, count_1d, hdferr)
+          
+          ! Create memory space for single value
+          dims_1d = (/1/)
+          call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
+          
+          ! Write current time value
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(step_i), dims_1d, hdferr, memspace_id, filespace_id)
+          
+          call h5sclose_f(memspace_id, hdferr)
+          call h5sclose_f(filespace_id, hdferr)
           call h5dclose_f(dset_id, hdferr)
-       end if
-       
-       ! Write current time step data to existing datasets
-       ! For slipz1_v: calculate global column position
-       call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
-       call h5dget_space_f(dset_id, filespace_id, hdferr)
-       
-       ! Define hyperslab for current time step column (accumulative position)
-       offset_2d = (/0, global_time_steps_written + icos - 1/)
-       count_2d = (/n_cells, 1/)
-       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
-       
-       ! Create memory space for current data (1D array of n_cells)
-       dims_1d = (/n_cells/)
-       call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
-       
-       ! Write current time step data
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,icos), dims_1d, hdferr, memspace_id, filespace_id)
-       
-       call h5sclose_f(memspace_id, hdferr)
-       call h5sclose_f(filespace_id, hdferr)
-       call h5dclose_f(dset_id, hdferr)
-       
-       ! For slipz1_cos: write column icos-1 (current time step)
-       call h5dopen_f(group_id, 'slipz1_cos', dset_id, hdferr)
-       call h5dget_space_f(dset_id, filespace_id, hdferr)
-       
-       ! Define hyperslab for current time step column
-       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
-       
-       ! Create memory space for current column
-       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
-       
-       ! Write current time step data
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,icos), dims_2d, hdferr, memspace_id, filespace_id)
-       
-       call h5sclose_f(memspace_id, hdferr)
-       call h5sclose_f(filespace_id, hdferr)
-       call h5dclose_f(dset_id, hdferr)
-       
-       ! Write current time step to time array
-       call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
-       call h5dget_space_f(dset_id, filespace_id, hdferr)
-       
-       ! Define hyperslab for current time step (accumulative position)
-       offset_1d = (/global_time_steps_written + icos - 1/)
-       count_1d = (/1/)
-       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_1d, count_1d, hdferr)
-       
-       ! Create memory space for single value
-       dims_1d = (/1/)
-       call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
-       
-       ! Write current time value
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(icos), dims_1d, hdferr, memspace_id, filespace_id)
-       
-       call h5sclose_f(memspace_id, hdferr)
-       call h5sclose_f(filespace_id, hdferr)
-       call h5dclose_f(dset_id, hdferr)
+       end do
        
        ! Close time-series group
        call h5gclose_f(group_id, hdferr)
@@ -1667,67 +1652,7 @@ end if
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + ncos
        icos = 0 
-    else if (mod(icos, 10) == 0 .and. icos > 0) then
-       ! Iterative output: Append data every 10 iterations for real-time visualization
-       if (.not. hdf5_initialized) then
-          call h5open_f(hdferr)
-          hdf5_initialized = .true.
-       end if
-       
-       ! Open existing HDF5 file for appending
-       hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
-       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
-       
-       ! Open existing time-series group
-       time_series_group_name = '/time_series'
-       call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
-       
-       ! Append new data to existing datasets
-       ! Note: This requires extending the dataset dimensions
-       ! For now, we'll just update the XDMF to show progress
-       call h5gclose_f(group_id, hdferr)
-       call h5fclose_f(file_id, hdferr)
-       
-       ! Update XDMF file to show current progress
-       xdmf_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.xdmf'
-       open(99, file=trim(xdmf_filename), status='replace')
-       write(99,'(A)') '<?xml version="1.0" ?>'
-       write(99,'(A)') '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-       write(99,'(A)') '<Xdmf Version="2.0">'
-       write(99,'(A)') ' <Domain>'
-       write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
-       
-       ! Write a Grid for each completed time step
-       do i = 1, icos
-          write(99,'(A,I0,A)') '   <Grid Name="step_', i, '" GridType="Uniform">'
-          write(99,'(A,I0,A)') '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
-          write(99,'(A,I0,3A)') '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
-          write(99,'(A)') '    </Topology>'
-          write(99,'(A,I0,A)') '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
-          write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
-          write(99,'(A)') '    </Geometry>'
-          write(99,'(A,E15.8,A)') '    <Time Value="', tcos(i), '"/>'
-          write(99,'(A)') '    <Attribute Name="slipz1_v" Center="Cell">'
-          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
-          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
-          write(99,'(A)') '     </DataItem>'
-          write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '    <Attribute Name="slipz1_cos" Center="Cell">'
-          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
-          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
-          write(99,'(A)') '     </DataItem>'
-          write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '   </Grid>'
-       end do
-       
-       write(99,'(A)') '  </Grid>'
-       write(99,'(A)') ' </Domain>'
-       write(99,'(A)') '</Xdmf>'
-       close(99)
-       
-       write(*,*) 'Progress update: XDMF updated for', icos, 'iterations'
+
     end if
 
 
@@ -1769,28 +1694,105 @@ end if
          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
       end if
       
-      ! Write slipz1_sse data (SSE slip time series)
-      dims_2d = (/Nt_all, nsse/)
-      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-      call h5dcreate_f(group_id, 'slipz1_sse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse, dims_2d, hdferr)
+      ! Create extensible datasets for SSE data with chunking
+      dims_2d = (/nsse, n_cells/)
+      maxdims_2d = (/nsse, n_cells/)
+      
+      ! Set chunk size for SSE data
+      chunk_2d = (/min(nsse, 100), n_cells/)
+      
+      ! Create dataset creation property list with chunking for SSE
+      call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
+      call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
+      
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
+      call h5dcreate_f(group_id, 'slipz1_sse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
-      ! Write slipz1_tau data (SSE tau time series)
-      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-      call h5dcreate_f(group_id, 'slipz1_tau', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau, dims_2d, hdferr)
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
+      call h5dcreate_f(group_id, 'slipz1_tau', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
-      ! Write time array
+      call h5pclose_f(dcpl_id, hdferr)  ! Close property list
+      
       dims_1d = (/nsse/)
-      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
-      call h5dcreate_f(group_id, 'tsse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tsse, dims_1d, hdferr)
+      maxdims_1d = (/nsse/)
+      
+      ! Set chunk size for 1D time array
+      chunk_1d = (/min(nsse, 1000)/)
+      
+      ! Create dataset creation property list with chunking for 1D
+      call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
+      call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
+      
+      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr, maxdims_1d)
+      call h5dcreate_f(group_id, 'tsse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
+      
+      call h5pclose_f(dcpl_id, hdferr)  ! Close property list
+      
+      ! Write all SSE time step data using a loop (nsse steps)
+      do step_i = 1, nsse
+         ! Write slipz1_sse data for current time step
+         call h5dopen_f(group_id, 'slipz1_sse', dset_id, hdferr)
+         call h5dget_space_f(dset_id, filespace_id, hdferr)
+         
+         ! Define hyperslab for current time step column
+         offset_2d = (/step_i - 1, 0/)
+         count_2d = (/1, n_cells/)
+         call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
+         
+         ! Create memory space for current data (1D array of n_cells)
+         dims_1d = (/n_cells/)
+         call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
+         
+         ! Write current time step data
+         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse(:,step_i), dims_1d, hdferr, memspace_id, filespace_id)
+         
+         call h5sclose_f(memspace_id, hdferr)
+         call h5sclose_f(filespace_id, hdferr)
+         call h5dclose_f(dset_id, hdferr)
+         
+         ! Write slipz1_tau data for current time step
+         call h5dopen_f(group_id, 'slipz1_tau', dset_id, hdferr)
+         call h5dget_space_f(dset_id, filespace_id, hdferr)
+         
+         ! Define hyperslab for current time step column
+         call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
+         
+         ! Create memory space for current column
+         call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
+         
+         ! Write current time step data
+         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau(:,step_i), dims_1d, hdferr, memspace_id, filespace_id)
+         
+         call h5sclose_f(memspace_id, hdferr)
+         call h5sclose_f(filespace_id, hdferr)
+         call h5dclose_f(dset_id, hdferr)
+         
+         ! Write time value for current time step
+         call h5dopen_f(group_id, 'tsse', dset_id, hdferr)
+         call h5dget_space_f(dset_id, filespace_id, hdferr)
+         
+         ! Define hyperslab for current time step
+         offset_1d = (/step_i - 1/)
+         count_1d = (/1/)
+         call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_1d, count_1d, hdferr)
+         
+         ! Create memory space for single value
+         dims_1d = (/1/)
+         call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
+         
+         ! Write current time value
+         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tsse(step_i), dims_1d, hdferr, memspace_id, filespace_id)
+         
+         call h5sclose_f(memspace_id, hdferr)
+         call h5sclose_f(filespace_id, hdferr)
+         call h5dclose_f(dset_id, hdferr)
+      end do
       
       ! Close SSE time-series group
       call h5gclose_f(group_id, hdferr)
@@ -1907,67 +1909,7 @@ end if
       write(*,*) 'SSE XDMF visualization file created: ', trim(xdmf_filename)
       
       isse = 0
-   else if (mod(isse, 10) == 0 .and. isse > 0) then
-      ! Iterative output: Append data every 10 iterations for real-time visualization
-      if (.not. hdf5_initialized) then
-         call h5open_f(hdferr)
-         hdf5_initialized = .true.
-       end if
-       
-       ! Open existing HDF5 file for appending
-       hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
-       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
-       
-       ! Open existing SSE time-series group
-       time_series_group_name = '/sse_time_series'
-       call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
-       
-       ! Append new data to existing datasets
-       ! Note: This requires extending the dataset dimensions
-       ! For now, we'll just update the XDMF to show progress
-       call h5gclose_f(group_id, hdferr)
-       call h5fclose_f(file_id, hdferr)
-       
-       ! Update XDMF file to show current progress
-       xdmf_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.xdmf'
-       open(99, file=trim(xdmf_filename), status='replace')
-       write(99,'(A)')'<?xml version="1.0" ?>'
-       write(99,'(A)')'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-       write(99,'(A)')'<Xdmf Version="2.0">'
-       write(99,'(A)') ' <Domain>'
-       write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
-       
-       ! Write a Grid for each completed time step
-       do i = 1, isse
-          write(99,'(A,I0,A)') '   <Grid Name="step_', i, '" GridType="Uniform">'
-          write(99,'(A,I0,A)') '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
-          write(99,'(A,I0,3A)') '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
-          write(99,'(A)') '    </Topology>'
-          write(99,'(A,I0,A)') '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
-          write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
-          write(99,'(A)') '    </Geometry>'
-          write(99,'(A,E15.8,A)') '    <Time Value="', tsse(i), '"/>'
-          write(99,'(A)') '    <Attribute Name="slipz1_sse" Center="Cell">'
-          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
-          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
-          write(99,'(A)') '     </DataItem>'
-          write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '    <Attribute Name="slipz1_tau" Center="Cell">'
-          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', global_time_steps_written + i - 1, ' 0 1 1 1 ',n_cells,'</DataItem>'
-          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
-          write(99,'(A)') '     </DataItem>'
-          write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '   </Grid>'
-       end do
-       
-       write(99,'(A)')'  </Grid>'
-       write(99,'(A)')' </Domain>'
-       write(99,'(A)')'</Xdmf>'
-       close(99)
-       
-       write(*,*) 'SSE Progress update: XDMF updated for', isse, 'iterations'
+
   end if
 
 
