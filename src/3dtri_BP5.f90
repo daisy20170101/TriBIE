@@ -1427,11 +1427,11 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
           ! Create extensible datasets with chunking (required for unlimited dimensions)
-          dims_2d = (/ncos, n_cells/)
-          maxdims_2d = (/H5S_UNLIMITED_F, INT(n_cells,HSIZE_T)/)  ! Allow unlimited growth in time dimension
+          dims_2d = (/n_cells,ncos/)
+          maxdims_2d = (/INT(n_cells,HSIZE_T),H5S_UNLIMITED_F /)  ! Allow unlimited growth in time dimension
           
           ! Set chunk size (all cells, reasonable number of time steps)
-          chunk_2d = (/min(ncos, 100), n_cells/)
+          chunk_2d = (/ n_cells,min(ncos, 100)/)
           
           ! Create dataset creation property list with chunking
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
