@@ -1428,27 +1428,27 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
        end if
        
-       ! Write slipz1_v data (velocity time series)
-       dims_2d = (/Nt_all, ncos/)
+       ! Write slipz1_v data (velocity time series) - only write valid data up to icos
+       dims_2d = (/Nt_all, icos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v, dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
-       ! Write slipz1_cos data (cosine slip time series)
-       dims_2d = (/Nt_all, ncos/)
+       ! Write slipz1_cos data (cosine slip time series) - only write valid data up to icos
+       dims_2d = (/Nt_all, icos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos, dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
-       ! Write time array
-       dims_1d = (/ncos/)
+       ! Write time array - only write valid data up to icos
+       dims_1d = (/icos/)
        call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos, dims_1d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
@@ -1533,8 +1533,8 @@ end if
        write(99,'(A)') ' <Domain>'
        write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
        
-       ! Write a Grid for each time step
-       do i = 1, ncos
+       ! Write a Grid for each completed time step
+       do i = 1, icos
           write(99,'(A,I0,A)') '   <Grid Name="step_', i, '" GridType="Uniform">'
           write(99,'(A,I0,A)') '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
           write(99,'(A,I0,3A)') '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
@@ -1545,13 +1545,13 @@ end if
           write(99,'(A,E15.8,A)') '    <Time Value="', tcos(i), '"/>'
           write(99,'(A)') '    <Attribute Name="slipz1_v" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
           write(99,'(A)') '    <Attribute Name="slipz1_cos" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
@@ -1609,13 +1609,13 @@ end if
           write(99,'(A,E15.8,A)') '    <Time Value="', tcos(i), '"/>'
           write(99,'(A)') '    <Attribute Name="slipz1_v" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
           write(99,'(A)') '    <Attribute Name="slipz1_cos" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
@@ -1785,13 +1785,13 @@ end if
          write(99,'(A,E15.8,A)') '    <Time Value="', tsse(i), '"/>'
          write(99,'(A)') '    <Attribute Name="slipz1_sse" Center="Cell">'
          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
+         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ', n_cells, '</DataItem>'
          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
          write(99,'(A)') '     </DataItem>'
          write(99,'(A)') '    </Attribute>'
          write(99,'(A)') '    <Attribute Name="slipz1_tau" Center="Cell">'
          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ', n_cells, '</DataItem>'
+         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ', n_cells, '</DataItem>'
          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
          write(99,'(A)') '     </DataItem>'
          write(99,'(A)') '    </Attribute>'
@@ -1849,13 +1849,13 @@ end if
           write(99,'(A,E15.8,A)') '    <Time Value="', tsse(i), '"/>'
           write(99,'(A)') '    <Attribute Name="slipz1_sse" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
           write(99,'(A)') '    <Attribute Name="slipz1_tau" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">0 ', i-1, ' 1 1 1 ',n_cells,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
