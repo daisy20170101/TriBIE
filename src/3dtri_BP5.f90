@@ -1307,7 +1307,6 @@ real(DP), allocatable :: vertex_coords(:,:)
 integer*4, allocatable :: cell_connectivity(:,:)
 real(DP), allocatable :: vertex_coords_transposed(:,:)
 integer*4, allocatable :: cell_connectivity_transposed(:,:)
-real(DP), allocatable :: temp_slipz1_v(:,:), temp_slipz1_cos(:,:)
 
 ! MPI variables
 integer :: myid, master
@@ -1429,37 +1428,21 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
        end if
        
-       ! Write slipz1_v data (velocity time series) - transpose for correct XDMF layout
-       allocate(temp_slipz1_v(ncos, Nt_all))
-       do i = 1, Nt_all
-          do j = 1, ncos
-             temp_slipz1_v(j, i) = slipz1_v(i, j)
-          end do
-       end do
-       
-       dims_2d = (/ncos, Nt_all/)
+       ! Write slipz1_v data (velocity time series)
+       dims_2d = (/Nt_all, ncos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, temp_slipz1_v, dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v, dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
-       deallocate(temp_slipz1_v)
        
-       ! Write slipz1_cos data (cosine slip time series) - transpose for correct XDMF layout
-       allocate(temp_slipz1_cos(ncos, Nt_all))
-       do i = 1, Nt_all
-          do j = 1, ncos
-             temp_slipz1_cos(j, i) = slipz1_cos(i, j)
-          end do
-       end do
-       
-       dims_2d = (/ncos, Nt_all/)
+       ! Write slipz1_cos data (cosine slip time series)
+       dims_2d = (/Nt_all, ncos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, temp_slipz1_cos, dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos, dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
-       deallocate(temp_slipz1_cos)
        
        ! Write time array
        dims_1d = (/ncos/)
@@ -2034,37 +2017,21 @@ else
        time_series_group_name = '/time_series'
        call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
        
-       ! Write partial slipz1_cos data (cosine slip time series) - transpose for correct XDMF layout
-       allocate(temp_slipz1_cos(icos, Nt_all))
-       do i = 1, Nt_all
-          do j = 1, icos
-             temp_slipz1_cos(j, i) = slipz1_cos(i, j)
-          end do
-       end do
-       
-       dims_2d = (/icos, Nt_all/)
+       ! Write partial slipz1_cos data (cosine slip time series)
+       dims_2d = (/Nt_all, icos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_cos_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, temp_slipz1_cos, dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
-       deallocate(temp_slipz1_cos)
        
-       ! Write partial slipz1_v data (velocity time series) - transpose for correct XDMF layout
-       allocate(temp_slipz1_v(icos, Nt_all))
-       do i = 1, Nt_all
-          do j = 1, icos
-             temp_slipz1_v(j, i) = slipz1_v(i, j)
-          end do
-       end do
-       
-       dims_2d = (/icos, Nt_all/)
+       ! Write partial slipz1_v data (velocity time series)
+       dims_2d = (/Nt_all, icos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_v_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, temp_slipz1_v, dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
-       deallocate(temp_slipz1_v)
        
        ! Write partial time array
        dims_1d = (/icos/)
