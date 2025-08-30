@@ -1302,7 +1302,8 @@ character(len=256) :: hdf5_filename, xdmf_filename
 character(len=256) :: time_series_group_name
 logical :: file_exists, file_exists_sse
 integer(HSIZE_T) :: offset_1d(1), count_1d(1), offset_2d(2), count_2d(2)
-integer(HID_T) :: memspace_id, filespace_id
+integer(HID_T) :: memspace_id, filespace_id, dcpl_id
+integer(HSIZE_T) :: chunk_2d(2), chunk_1d(1)
 
 ! Mesh variables for GTS file reading
 integer :: n_vertices, n_edges_dummy, n_cells
@@ -1425,31 +1426,51 @@ end if
           time_series_group_name = '/time_series'
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
-          ! Create extensible datasets (start with ncos, can grow unlimited)
-          dims_2d = (/INT(Nt_all,HSIZE_T), INT(ncos,HSIZE_T)/)
-          maxdims_2d = (/INT(Nt_all,HSIZE_T), H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
+          ! Create extensible datasets with chunking (required for unlimited dimensions)
+          dims_2d = (/INT(n_cells,HSIZE_T), INT(ncos,HSIZE_T)/)
+          maxdims_2d = (/INT(n_cells,HSIZE_T), H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
+          
+          ! Set chunk size (all cells, reasonable number of time steps)
+          chunk_2d = (/INT(n_cells,HSIZE_T), INT(min(ncos, 100),HSIZE_T)/)
+          
+          ! Create dataset creation property list with chunking
+          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
+          call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
+          
           call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
-          call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
           
           call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
-          call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
+          
+          call h5pclose_f(dcpl_id, hdferr)  ! Close property list
           
           dims_1d = (/INT(ncos,HSIZE_T)/)
           maxdims_1d = (/H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
+          
+          ! Set chunk size for 1D time array
+          chunk_1d = (/INT(min(ncos, 1000),HSIZE_T)/)
+          
+          ! Create dataset creation property list with chunking for 1D
+          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
+          call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
+          
           call h5screate_simple_f(1, dims_1d, dspace_id, hdferr, maxdims_1d)
-          call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
+          
+          call h5pclose_f(dcpl_id, hdferr)  ! Close property list
        end if
        
        ! Extend datasets if starting a new cycle (icos == 1)
        if (icos == 1 .and. global_time_steps_written > 0) then
           ! Extend datasets by ncos columns for new cycle
-          dims_2d = (/INT(Nt_all,HSIZE_T), INT(global_time_steps_written + ncos,HSIZE_T)/)
+          dims_2d = (/INT(n_cells,HSIZE_T), INT(global_time_steps_written + ncos,HSIZE_T)/)
           call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
           call h5dset_extent_f(dset_id, dims_2d, hdferr)
           call h5dclose_f(dset_id, hdferr)
@@ -1471,11 +1492,11 @@ end if
        
        ! Define hyperslab for current time step column (accumulative position)
        offset_2d = (/INT(0,HSIZE_T), INT(global_time_steps_written + icos - 1,HSIZE_T)/)
-       count_2d = (/INT(Nt_all,HSIZE_T), INT(1,HSIZE_T)/)
+       count_2d = (/INT(n_cells,HSIZE_T), INT(1,HSIZE_T)/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        
        ! Create memory space for current column
-       dims_2d = (/INT(Nt_all,HSIZE_T), INT(1,HSIZE_T)/)
+       dims_2d = (/INT(n_cells,HSIZE_T), INT(1,HSIZE_T)/)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
        ! Write current time step data
