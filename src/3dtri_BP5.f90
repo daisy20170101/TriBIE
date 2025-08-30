@@ -1428,7 +1428,7 @@ end if
           
           ! Create extensible datasets with chunking (required for unlimited dimensions)
           dims_2d = (/n_cells,ncos/)
-          maxdims_2d = (/INT(n_cells,HSIZE_T),H5S_UNLIMITED_F /)  ! Allow unlimited growth in time dimension
+          maxdims_2d = (/n_cells, ncos/)  ! Allow unlimited growth in time dimension
           
           ! Set chunk size (all cells, reasonable number of time steps)
           chunk_2d = (/n_cells,min(ncos, 100)/)
@@ -1450,7 +1450,7 @@ end if
           call h5pclose_f(dcpl_id, hdferr)  ! Close property list
           
           dims_1d = (/ncos/)
-          maxdims_1d = (/H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
+          maxdims_1d = (/ncos/)  ! Allow unlimited growth in time dimension
           
           ! Set chunk size for 1D time array
           chunk_1d = (/min(ncos, 1000)/)
