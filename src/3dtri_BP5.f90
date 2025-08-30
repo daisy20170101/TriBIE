@@ -1428,18 +1428,19 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
        end if
        
-       ! Write slipz1_v data (velocity time series)
-       dims_2d = (/Nt_all, ncos/)
+       ! Write slipz1_v data (velocity time series) - transpose for XDMF HyperSlab
+       dims_2d = (/ncos, n_cells/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v, dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(slipz1_v(1:n_cells,1:ncos)), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
-       ! Write slipz1_cos data (cosine slip time series)
+       ! Write slipz1_cos data (cosine slip time series) - transpose for XDMF HyperSlab
+       dims_2d = (/ncos, n_cells/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos, dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(slipz1_cos(1:n_cells,1:ncos)), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
@@ -1526,11 +1527,11 @@ end if
        ! Create XDMF file for visualization
        xdmf_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.xdmf'
        open(99, file=trim(xdmf_filename), status='replace')
-       write(99,*) '<?xml version="1.0" ?>'
-       write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-       write(99,*) '<Xdmf Version="2.0">'
-       write(99,*) ' <Domain>'
-       write(99,*) '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+       write(99,'(A)') '<?xml version="1.0" ?>'
+       write(99,'(A)') '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+       write(99,'(A)') '<Xdmf Version="2.0">'
+       write(99,'(A)') ' <Domain>'
+       write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
        
        ! Write a Grid for each time step
        do i = 1, ncos
@@ -1557,9 +1558,9 @@ end if
           write(99,*) '   </Grid>'
        end do
        
-       write(99,*) '  </Grid>'
-       write(99,*) ' </Domain>'
-       write(99,*) '</Xdmf>'
+       write(99,'(A)') '  </Grid>'
+       write(99,'(A)') ' </Domain>'
+       write(99,'(A)') '</Xdmf>'
        close(99)
        
        write(*,*) 'Time-series data written to HDF5: ', trim(hdf5_filename)
@@ -1590,11 +1591,11 @@ end if
        ! Update XDMF file to show current progress
        xdmf_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.xdmf'
        open(99, file=trim(xdmf_filename), status='replace')
-       write(99,*) '<?xml version="1.0" ?>'
-       write(99,*) '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-       write(99,*) '<Xdmf Version="2.0">'
-       write(99,*) ' <Domain>'
-       write(99,*) '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+       write(99,'(A)') '<?xml version="1.0" ?>'
+       write(99,'(A)') '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+       write(99,'(A)') '<Xdmf Version="2.0">'
+       write(99,'(A)') ' <Domain>'
+       write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
        
        ! Write a Grid for each completed time step
        do i = 1, icos
@@ -1621,9 +1622,9 @@ end if
           write(99,*) '   </Grid>'
        end do
        
-       write(99,*) '  </Grid>'
-       write(99,*) ' </Domain>'
-       write(99,*) '</Xdmf>'
+       write(99,'(A)') '  </Grid>'
+       write(99,'(A)') ' </Domain>'
+       write(99,'(A)') '</Xdmf>'
        close(99)
        
        write(*,*) 'Progress update: XDMF updated for', icos, 'iterations'
@@ -1767,11 +1768,11 @@ end if
       ! Create XDMF file for SSE visualization
       xdmf_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.xdmf'
       open(99, file=trim(xdmf_filename), status='replace')
-      write(99,*)'<?xml version="1.0" ?>'
-      write(99,*)'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-      write(99,*)'<Xdmf Version="2.0">'
-      write(99,*) ' <Domain>'
-      write(99,*) '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+      write(99,'(A)')'<?xml version="1.0" ?>'
+      write(99,'(A)')'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+      write(99,'(A)')'<Xdmf Version="2.0">'
+      write(99,'(A)') ' <Domain>'
+      write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
       
       ! Write a Grid for each time step
       do i = 1, nsse
@@ -1798,9 +1799,9 @@ end if
          write(99,*) '   </Grid>'
       end do
       
-      write(99,*)'  </Grid>'
-      write(99,*)' </Domain>'
-      write(99,*)'</Xdmf>'
+      write(99,'(A)')'  </Grid>'
+      write(99,'(A)')' </Domain>'
+      write(99,'(A)')'</Xdmf>'
       close(99)
       
       write(*,*) 'SSE time-series data written to HDF5: ', trim(hdf5_filename)
@@ -1831,11 +1832,11 @@ end if
        ! Update XDMF file to show current progress
        xdmf_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.xdmf'
        open(99, file=trim(xdmf_filename), status='replace')
-       write(99,*)'<?xml version="1.0" ?>'
-       write(99,*)'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-       write(99,*)'<Xdmf Version="2.0">'
-       write(99,*) ' <Domain>'
-       write(99,*) '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
+       write(99,'(A)')'<?xml version="1.0" ?>'
+       write(99,'(A)')'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+       write(99,'(A)')'<Xdmf Version="2.0">'
+       write(99,'(A)') ' <Domain>'
+       write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
        
        ! Write a Grid for each completed time step
        do i = 1, isse
@@ -1862,9 +1863,9 @@ end if
           write(99,*) '   </Grid>'
        end do
        
-       write(99,*)'  </Grid>'
-       write(99,*)' </Domain>'
-       write(99,*)'</Xdmf>'
+       write(99,'(A)')'  </Grid>'
+       write(99,'(A)')' </Domain>'
+       write(99,'(A)')'</Xdmf>'
        close(99)
        
        write(*,*) 'SSE Progress update: XDMF updated for', isse, 'iterations'
@@ -2017,18 +2018,19 @@ else
        time_series_group_name = '/time_series'
        call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
        
-       ! Write partial slipz1_cos data (cosine slip time series)
-       dims_2d = (/Nt_all, icos/)
+       ! Write partial slipz1_cos data (cosine slip time series) - transpose for XDMF HyperSlab
+       dims_2d = (/icos, n_cells/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_cos_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(slipz1_cos(1:n_cells,1:icos)), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
-       ! Write partial slipz1_v data (velocity time series)
+       ! Write partial slipz1_v data (velocity time series) - transpose for XDMF HyperSlab
+       dims_2d = (/icos, n_cells/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_v_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(slipz1_v(1:n_cells,1:icos)), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
