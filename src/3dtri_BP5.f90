@@ -1304,6 +1304,8 @@ character(len=256) :: time_series_group_name
 integer :: n_vertices, n_edges_dummy, n_cells
 real(DP), allocatable :: vertex_coords(:,:)
 integer*4, allocatable :: cell_connectivity(:,:)
+real(DP), allocatable :: vertex_coords_transposed(:,:)
+integer*4, allocatable :: cell_connectivity_transposed(:,:)
 
 ! MPI variables
 integer :: myid, master
@@ -1461,19 +1463,39 @@ end if
        ! Write mesh data to HDF5
        call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
        
-       ! Write vertex coordinates (transpose for correct XDMF layout)
-       dims_2d = (/n_vertices, 3/)
+       ! Write vertex coordinates in correct layout for XDMF
+       ! Create temporary array with correct memory layout
+       allocate(vertex_coords_transposed(3, n_vertices))
+       do i = 1, n_vertices
+          vertex_coords_transposed(1, i) = vertex_coords(i, 1)  ! x
+          vertex_coords_transposed(2, i) = vertex_coords(i, 2)  ! y
+          vertex_coords_transposed(3, i) = vertex_coords(i, 3)  ! z
+       end do
+       
+       dims_2d = (/3, n_vertices/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(vertex_coords), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords_transposed, dims_2d, hdferr)
+       
+       deallocate(vertex_coords_transposed)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
-       ! Write cell connectivity (transpose for correct XDMF layout)
-       dims_2d = (/n_cells, 3/)
+       ! Write cell connectivity in correct layout for XDMF
+       ! Create temporary array with correct memory layout
+       allocate(cell_connectivity_transposed(3, n_cells))
+       do i = 1, n_cells
+          cell_connectivity_transposed(1, i) = cell_connectivity(i, 1)  ! vertex 1
+          cell_connectivity_transposed(2, i) = cell_connectivity(i, 2)  ! vertex 2
+          cell_connectivity_transposed(3, i) = cell_connectivity(i, 3)  ! vertex 3
+       end do
+       
+       dims_2d = (/3, n_cells/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_STD_I32LE, transpose(cell_connectivity), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity_transposed, dims_2d, hdferr)
+       
+       deallocate(cell_connectivity_transposed)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
@@ -1666,19 +1688,39 @@ end if
       ! Write mesh data to HDF5
       call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
       
-      ! Write vertex coordinates (transpose for correct XDMF layout)
-      dims_2d = (/n_vertices, 3/)
+      ! Write vertex coordinates in correct layout for XDMF
+      ! Create temporary array with correct memory layout
+      allocate(vertex_coords_transposed(3, n_vertices))
+      do i = 1, n_vertices
+         vertex_coords_transposed(1, i) = vertex_coords(i, 1)  ! x
+         vertex_coords_transposed(2, i) = vertex_coords(i, 2)  ! y
+         vertex_coords_transposed(3, i) = vertex_coords(i, 3)  ! z
+      end do
+      
+      dims_2d = (/3, n_vertices/)
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
       call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, transpose(vertex_coords), dims_2d, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords_transposed, dims_2d, hdferr)
+      
+      deallocate(vertex_coords_transposed)
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
-      ! Write cell connectivity (transpose for correct XDMF layout)
-      dims_2d = (/n_cells, 3/)
+      ! Write cell connectivity in correct layout for XDMF
+      ! Create temporary array with correct memory layout
+      allocate(cell_connectivity_transposed(3, n_cells))
+      do i = 1, n_cells
+         cell_connectivity_transposed(1, i) = cell_connectivity(i, 1)  ! vertex 1
+         cell_connectivity_transposed(2, i) = cell_connectivity(i, 2)  ! vertex 2
+         cell_connectivity_transposed(3, i) = cell_connectivity(i, 3)  ! vertex 3
+      end do
+      
+      dims_2d = (/3, n_cells/)
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
       call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_STD_I32LE, transpose(cell_connectivity), dims_2d, hdferr)
+      call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity_transposed, dims_2d, hdferr)
+      
+      deallocate(cell_connectivity_transposed)
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
