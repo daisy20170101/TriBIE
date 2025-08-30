@@ -1431,7 +1431,7 @@ end if
           maxdims_2d = (/INT(n_cells,HSIZE_T),H5S_UNLIMITED_F /)  ! Allow unlimited growth in time dimension
           
           ! Set chunk size (all cells, reasonable number of time steps)
-          chunk_2d = (/ n_cells,min(ncos, 100)/)
+          chunk_2d = (/n_cells,min(ncos, 100)/)
           
           ! Create dataset creation property list with chunking
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
@@ -1470,7 +1470,7 @@ end if
        ! Extend datasets if starting a new cycle (icos == 1)
        if (icos == 1 .and. global_time_steps_written > 0) then
           ! Extend datasets by ncos columns for new cycle
-          dims_2d = (/global_time_steps_written + ncos, n_cells/)
+          dims_2d = (/n_cells, global_time_steps_written + ncos/)
           call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
           call h5dset_extent_f(dset_id, dims_2d, hdferr)
           call h5dclose_f(dset_id, hdferr)
@@ -1491,16 +1491,16 @@ end if
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
        ! Define hyperslab for current time step column (accumulative position)
-       offset_2d = (/global_time_steps_written + icos - 1, 0/)
-       count_2d = (/1, n_cells/)
+       offset_2d = (/0, global_time_steps_written + icos - 1/)
+       count_2d = (/n_cells, 1/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        
-       ! Create memory space for current data
-       dims_2d = (/n_cells, icos/)
-       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+       ! Create memory space for current data (1D array of n_cells)
+       dims_1d = (/n_cells/)
+       call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
        
        ! Write current time step data
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,icos), dims_2d, hdferr, memspace_id, filespace_id)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,icos), dims_1d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
