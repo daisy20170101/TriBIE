@@ -1398,7 +1398,8 @@ if(Ioutput == 0)then    !output during run
        ias = 0 
 end if
 
-    ! HDF5 output for time-series variables instead of binary files - write after each time step
+    if(icos==ncos)then
+       ! HDF5 output for time-series variables instead of binary files
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
           call h5open_f(hdferr)
@@ -1425,8 +1426,8 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
           ! Create extensible datasets (start with ncos, can grow unlimited)
-          dims_2d = (/Nt_all, ncos/)
-          maxdims_2d = (/Nt_all, H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
+          dims_2d = (/INT(Nt_all,HSIZE_T), INT(ncos,HSIZE_T)/)
+          maxdims_2d = (/INT(Nt_all,HSIZE_T), H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
           call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
           call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
           call h5dclose_f(dset_id, hdferr)
@@ -1437,7 +1438,7 @@ end if
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
           
-          dims_1d = (/ncos/)
+          dims_1d = (/INT(ncos,HSIZE_T)/)
           maxdims_1d = (/H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
           call h5screate_simple_f(1, dims_1d, dspace_id, hdferr, maxdims_1d)
           call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
@@ -1448,7 +1449,7 @@ end if
        ! Extend datasets if starting a new cycle (icos == 1)
        if (icos == 1 .and. global_time_steps_written > 0) then
           ! Extend datasets by ncos columns for new cycle
-          dims_2d = (/Nt_all, global_time_steps_written + ncos/)
+          dims_2d = (/INT(Nt_all,HSIZE_T), INT(global_time_steps_written + ncos,HSIZE_T)/)
           call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
           call h5dset_extent_f(dset_id, dims_2d, hdferr)
           call h5dclose_f(dset_id, hdferr)
@@ -1457,7 +1458,7 @@ end if
           call h5dset_extent_f(dset_id, dims_2d, hdferr)
           call h5dclose_f(dset_id, hdferr)
           
-          dims_1d = (/global_time_steps_written + ncos/)
+          dims_1d = (/INT(global_time_steps_written + ncos,HSIZE_T)/)
           call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
           call h5dset_extent_f(dset_id, dims_1d, hdferr)
           call h5dclose_f(dset_id, hdferr)
@@ -1469,12 +1470,12 @@ end if
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
        ! Define hyperslab for current time step column (accumulative position)
-       offset_2d = (/0, global_time_steps_written + icos - 1/)
-       count_2d = (/Nt_all, 1/)
+       offset_2d = (/INT(0,HSIZE_T), INT(global_time_steps_written + icos - 1,HSIZE_T)/)
+       count_2d = (/INT(Nt_all,HSIZE_T), INT(1,HSIZE_T)/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        
        ! Create memory space for current column
-       dims_2d = (/Nt_all, 1/)
+       dims_2d = (/INT(Nt_all,HSIZE_T), INT(1,HSIZE_T)/)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
        ! Write current time step data
@@ -1506,12 +1507,12 @@ end if
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
        ! Define hyperslab for current time step (accumulative position)
-       offset_1d = (/global_time_steps_written + icos - 1/)
-       count_1d = (/1/)
+       offset_1d = (/INT(global_time_steps_written + icos - 1,HSIZE_T)/)
+       count_1d = (/INT(1,HSIZE_T)/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_1d, count_1d, hdferr)
        
        ! Create memory space for single value
-       dims_1d = (/1/)
+       dims_1d = (/INT(1,HSIZE_T)/)
        call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
        
        ! Write current time value
@@ -1645,7 +1646,6 @@ end if
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + ncos
        icos = 0 
-       end if  ! End of icos == 1 check 
     else if (mod(icos, 10) == 0 .and. icos > 0) then
        ! Iterative output: Append data every 10 iterations for real-time visualization
        if (.not. hdf5_initialized) then
