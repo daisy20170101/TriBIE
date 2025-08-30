@@ -1427,11 +1427,11 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
           ! Create extensible datasets with chunking (required for unlimited dimensions)
-          dims_2d = (/n_cells, ncos/)
-          maxdims_2d = (/INT(n_cells,HSIZE_T), H5S_UNLIMITED_F/)  ! Allow unlimited growth in time dimension
+          dims_2d = (/ncos, n_cells/)
+          maxdims_2d = (/H5S_UNLIMITED_F, INT(n_cells,HSIZE_T)/)  ! Allow unlimited growth in time dimension
           
           ! Set chunk size (all cells, reasonable number of time steps)
-          chunk_2d = (/n_cells, min(ncos, 100)/)
+          chunk_2d = (/min(ncos, 100), n_cells/)
           
           ! Create dataset creation property list with chunking
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
@@ -1470,7 +1470,7 @@ end if
        ! Extend datasets if starting a new cycle (icos == 1)
        if (icos == 1 .and. global_time_steps_written > 0) then
           ! Extend datasets by ncos columns for new cycle
-          dims_2d = (/n_cells, global_time_steps_written + ncos/)
+          dims_2d = (/global_time_steps_written + ncos, n_cells/)
           call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
           call h5dset_extent_f(dset_id, dims_2d, hdferr)
           call h5dclose_f(dset_id, hdferr)
@@ -1491,12 +1491,12 @@ end if
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
        ! Define hyperslab for current time step column (accumulative position)
-       offset_2d = (/0, global_time_steps_written + icos - 1/)
-       count_2d = (/n_cells, 1/)
+       offset_2d = (/global_time_steps_written + icos - 1, 0/)
+       count_2d = (/1, n_cells/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        
-       ! Create memory space for current column
-       dims_2d = (/n_cells, 1/)
+       ! Create memory space for current data
+       dims_2d = (/n_cells, icos/)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
        ! Write current time step data
@@ -2121,7 +2121,7 @@ else
        dims_2d = (/Nt_all, icos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_cos_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,:), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
@@ -2129,7 +2129,7 @@ else
        dims_2d = (/Nt_all, icos/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'slipz1_v_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,:), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
