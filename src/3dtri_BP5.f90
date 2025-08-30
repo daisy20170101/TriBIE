@@ -1295,7 +1295,7 @@ integer(HSIZE_T), dimension(2) :: dims_2d, maxdims_2d
 integer(HSIZE_T), dimension(1) :: dims_1d, maxdims_1d
 integer :: hdferr
 logical :: hdf5_initialized = .false.
-integer :: global_time_steps_written = 0  ! Total time steps written across all cycles
+integer :: global_time_steps_written = 0 , step_i ! Total time steps written across all cycles
 
 ! HDF5 file naming
 character(len=256) :: hdf5_filename, xdmf_filename
@@ -1427,8 +1427,8 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
           ! Create extensible datasets with chunking (required for unlimited dimensions)
-          dims_2d = (/ncos,n_cells,/)
-          maxdims_2d = (/ ncos,n_cells,/)  ! Allow unlimited growth in time dimension
+          dims_2d = (/ncos,n_cells/)
+          maxdims_2d = (/ ncos,n_cells/)  ! Allow unlimited growth in time dimension
           
           ! Set chunk size (all cells, reasonable number of time steps)
           chunk_2d = (/min(ncos, 100),n_cells/)
@@ -1476,7 +1476,7 @@ end if
           
           ! Define hyperslab for current time step column (accumulative position)
           offset_2d = (/ global_time_steps_written + step_i - 1,1/)
-          count_2d = (1,n_cells/)
+          count_2d = (/1,n_cells/)
           call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
           
           ! Create memory space for current data (1D array of n_cells)
