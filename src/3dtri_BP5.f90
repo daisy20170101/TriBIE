@@ -1405,12 +1405,28 @@ end if
        ! Create HDF5 filename
        hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
        
-       ! Create or open HDF5 file
-       call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+       ! Check if file exists, if so open in append mode, otherwise create new
+       logical :: file_exists
+       inquire(file=trim(hdf5_filename), exist=file_exists)
        
-       ! Create time-series group
-       time_series_group_name = '/time_series'
-       call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+       if (file_exists) then
+          ! Open existing file for read/write
+          call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+          ! Open existing time-series group
+          time_series_group_name = '/time_series'
+          call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
+          
+          ! Delete existing complete datasets if they exist (we're updating with complete data)
+          call h5ldelete_f(group_id, 'slipz1_v', hdferr)  ! Ignore errors if dataset doesn't exist
+          call h5ldelete_f(group_id, 'slipz1_cos', hdferr)
+          call h5ldelete_f(group_id, 'tcos', hdferr)
+       else
+          ! Create new file
+          call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+          ! Create time-series group
+          time_series_group_name = '/time_series'
+          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+       end if
        
        ! Write slipz1_v data (velocity time series)
        dims_2d = (/Nt_all, ncos/)
@@ -1630,12 +1646,28 @@ end if
       ! Create HDF5 filename for SSE data
       hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
       
-      ! Create or open HDF5 file
-      call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+      ! Check if file exists, if so open in append mode, otherwise create new
+      logical :: file_exists_sse
+      inquire(file=trim(hdf5_filename), exist=file_exists_sse)
       
-      ! Create SSE time-series group
-      time_series_group_name = '/sse_time_series'
-      call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+      if (file_exists_sse) then
+         ! Open existing file for read/write
+         call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+         ! Open existing SSE time-series group
+         time_series_group_name = '/sse_time_series'
+         call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
+         
+         ! Delete existing complete datasets if they exist (we're updating with complete data)
+         call h5ldelete_f(group_id, 'slipz1_sse', hdferr)  ! Ignore errors if dataset doesn't exist
+         call h5ldelete_f(group_id, 'slipz1_tau', hdferr)
+         call h5ldelete_f(group_id, 'tsse', hdferr)
+      else
+         ! Create new file
+         call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+         ! Create SSE time-series group
+         time_series_group_name = '/sse_time_series'
+         call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
+      end if
       
       ! Write slipz1_sse data (SSE slip time series)
       dims_2d = (/Nt_all, nsse/)
