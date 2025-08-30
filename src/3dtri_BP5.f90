@@ -1462,7 +1462,7 @@ end if
        call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
        
        ! Write vertex coordinates
-       dims_2d = (/n_vertices, 3/)
+       dims_2d = (/3, n_vertices/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords, dims_2d, hdferr)
@@ -1470,7 +1470,7 @@ end if
        call h5sclose_f(dspace_id, hdferr)
        
        ! Write cell connectivity
-       dims_2d = (/n_cells, 3/)
+       dims_2d = (/3, n_cells/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
        call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
        call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity, dims_2d, hdferr)
@@ -1667,7 +1667,7 @@ end if
       call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
       
       ! Write vertex coordinates
-      dims_2d = (/n_vertices, 3/)
+      dims_2d = (/3, n_vertices/)
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
       call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords, dims_2d, hdferr)
@@ -1675,7 +1675,7 @@ end if
       call h5sclose_f(dspace_id, hdferr)
       
       ! Write cell connectivity
-      dims_2d = (/n_cells, 3/)
+      dims_2d = (/3, n_cells/)
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
       call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
       call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity, dims_2d, hdferr)
