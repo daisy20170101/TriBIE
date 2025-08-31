@@ -1296,6 +1296,7 @@ integer(HSIZE_T), dimension(1) :: dims_1d, maxdims_1d
 integer :: hdferr
 logical :: hdf5_initialized = .false.
 integer :: global_time_steps_written = 0  ! Total time steps written across all cycles
+integer :: global_sse_steps_written = 0   ! Total SSE time steps written across all cycles
 
 ! HDF5 file naming
 character(len=256) :: hdf5_filename, xdmf_filename
@@ -1623,13 +1624,13 @@ end if
           write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Use step index as time for now
           write(99,'(A)') '    <Attribute Name="slipz1_v" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1',Nt_all,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
           write(99,'(A)') '    <Attribute Name="slipz1_cos" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1',Nt_all,'</DataItem>'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
@@ -1716,6 +1717,8 @@ end if
          call h5sclose_f(dspace_id, hdferr)
          
          call h5pclose_f(dcpl_id, hdferr)
+         
+         global_sse_steps_written = 0
       end if
       
       ! For SSE, we append new nsse columns to existing data
@@ -1856,48 +1859,50 @@ end if
       ! Close HDF5 file
       call h5fclose_f(file_id, hdferr)
       
-      ! Create XDMF file for SSE visualization
+      ! Create or update XDMF file for SSE visualization with accumulative time steps
       xdmf_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.xdmf'
       open(99, file=trim(xdmf_filename), status='replace')
-      write(99,'(A)')'<?xml version="1.0" ?>'
-      write(99,'(A)')'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-      write(99,'(A)')'<Xdmf Version="2.0">'
+      write(99,'(A)') '<?xml version="1.0" ?>'
+      write(99,'(A)') '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+      write(99,'(A)') '<Xdmf Version="2.0">'
       write(99,'(A)') ' <Domain>'
       write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
       
-      ! Write a Grid for each time step
-      do i = 1, nsse
+      ! Write a Grid for ALL accumulated SSE time steps (including previous cycles)
+      do i = 1, global_sse_steps_written + nsse
          write(99,'(A,I0,A)') '   <Grid Name="step_', i, '" GridType="Uniform">'
-         write(99,'(A,I0,A)') '    <Topology TopologyType="Triangle" NumberOfElements="', n_cells, '">'
-         write(99,'(A,I0,3A)') '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="', n_cells, ' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
+         write(99,'(A,I0,A)') '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
+         write(99,'(A,I0,3A)') '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
          write(99,'(A)') '    </Topology>'
-         write(99,'(A,I0,A)') '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="', n_vertices, '">'
-         write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="', n_vertices, ' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
+         write(99,'(A,I0,A)') '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
+         write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
          write(99,'(A)') '    </Geometry>'
-         write(99,'(A,E15.8,A)') '    <Time Value="', tsse(i), '"/>'
+         write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Use step index as time for now
          write(99,'(A)') '    <Attribute Name="slipz1_sse" Center="Cell">'
-         write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ', n_cells, '</DataItem>'
-         write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
+         write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
+         write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
          write(99,'(A)') '     </DataItem>'
          write(99,'(A)') '    </Attribute>'
          write(99,'(A)') '    <Attribute Name="slipz1_tau" Center="Cell">'
-         write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="', n_cells, '">'
-         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ', n_cells, '</DataItem>'
-         write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ', n_cells, '">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
+         write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
+         write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
          write(99,'(A)') '     </DataItem>'
          write(99,'(A)') '    </Attribute>'
          write(99,'(A)') '   </Grid>'
       end do
       
-      write(99,'(A)')'  </Grid>'
-      write(99,'(A)')' </Domain>'
-      write(99,'(A)')'</Xdmf>'
+      write(99,'(A)') '  </Grid>'
+      write(99,'(A)') ' </Domain>'
+      write(99,'(A)') '</Xdmf>'
       close(99)
       
       write(*,*) 'SSE time-series data written to HDF5: ', trim(hdf5_filename)
       write(*,*) 'SSE XDMF visualization file created: ', trim(xdmf_filename)
       
+      ! Update global SSE counter for accumulative writing
+      global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
    
   end if
