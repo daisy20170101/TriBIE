@@ -1567,67 +1567,6 @@ end if
        write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
        
        icos = 0 
-    else if (mod(icos, 10) == 0 .and. icos > 0) then
-       ! Iterative output: Append data every 10 iterations for real-time visualization
-       if (.not. hdf5_initialized) then
-          call h5open_f(hdferr)
-          hdf5_initialized = .true.
-       end if
-       
-       ! Open existing HDF5 file for appending
-       hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
-       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
-       
-       ! Open existing time-series group
-       time_series_group_name = '/time_series'
-       call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
-       
-       ! Append new data to existing datasets
-       ! Note: This requires extending the dataset dimensions
-       ! For now, we'll just update the XDMF to show progress
-       call h5gclose_f(group_id, hdferr)
-       call h5fclose_f(file_id, hdferr)
-       
-       ! Update XDMF file to show current progress
-       xdmf_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.xdmf'
-       open(99, file=trim(xdmf_filename), status='replace')
-       write(99,'(A)') '<?xml version="1.0" ?>'
-       write(99,'(A)') '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-       write(99,'(A)') '<Xdmf Version="2.0">'
-       write(99,'(A)') ' <Domain>'
-       write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
-       
-       ! Write a Grid for each completed time step
-       do i = 1, icos
-          write(99,'(A,I0,A)') '   <Grid Name="step_', i, '" GridType="Uniform">'
-          write(99,'(A,I0,A)') '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
-          write(99,'(A,I0,3A)') '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
-          write(99,'(A)') '    </Topology>'
-          write(99,'(A,I0,A)') '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
-          write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
-          write(99,'(A)') '    </Geometry>'
-          write(99,'(A,E15.8,A)') '    <Time Value="', tcos(i), '"/>'
-          write(99,'(A)') '    <Attribute Name="slipz1_v" Center="Cell">'
-          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
-          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
-          write(99,'(A)') '     </DataItem>'
-          write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '    <Attribute Name="slipz1_cos" Center="Cell">'
-          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
-          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
-          write(99,'(A)') '     </DataItem>'
-          write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '   </Grid>'
-       end do
-       
-       write(99,'(A)') '  </Grid>'
-       write(99,'(A)') ' </Domain>'
-       write(99,'(A)') '</Xdmf>'
-       close(99)
-       
-       write(*,*) 'Progress update: XDMF updated for', icos, 'iterations'
     end if
 
 
@@ -1807,67 +1746,6 @@ end if
       write(*,*) 'SSE XDMF visualization file created: ', trim(xdmf_filename)
       
       isse = 0
-   else if (mod(isse, 10) == 0 .and. isse > 0) then
-      ! Iterative output: Append data every 10 iterations for real-time visualization
-      if (.not. hdf5_initialized) then
-         call h5open_f(hdferr)
-         hdf5_initialized = .true.
-       end if
-       
-       ! Open existing HDF5 file for appending
-       hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
-       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
-       
-       ! Open existing SSE time-series group
-       time_series_group_name = '/sse_time_series'
-       call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
-       
-       ! Append new data to existing datasets
-       ! Note: This requires extending the dataset dimensions
-       ! For now, we'll just update the XDMF to show progress
-       call h5gclose_f(group_id, hdferr)
-       call h5fclose_f(file_id, hdferr)
-       
-       ! Update XDMF file to show current progress
-       xdmf_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.xdmf'
-       open(99, file=trim(xdmf_filename), status='replace')
-       write(99,'(A)')'<?xml version="1.0" ?>'
-       write(99,'(A)')'<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
-       write(99,'(A)')'<Xdmf Version="2.0">'
-       write(99,'(A)') ' <Domain>'
-       write(99,'(A)') '  <Grid Name="TimeSeries" GridType="Collection" CollectionType="Temporal">'
-       
-       ! Write a Grid for each completed time step
-       do i = 1, isse
-          write(99,'(A,I0,A)') '   <Grid Name="step_', i, '" GridType="Uniform">'
-          write(99,'(A,I0,A)') '    <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
-          write(99,'(A,I0,3A)') '     <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/topology</DataItem>'
-          write(99,'(A)') '    </Topology>'
-          write(99,'(A,I0,A)') '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
-          write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
-          write(99,'(A)') '    </Geometry>'
-          write(99,'(A,E15.8,A)') '    <Time Value="', tsse(i), '"/>'
-          write(99,'(A)') '    <Attribute Name="slipz1_sse" Center="Cell">'
-          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
-          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
-          write(99,'(A)') '     </DataItem>'
-          write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '    <Attribute Name="slipz1_tau" Center="Cell">'
-          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',n_cells,'</DataItem>'
-          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',n_cells,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
-          write(99,'(A)') '     </DataItem>'
-          write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '   </Grid>'
-       end do
-       
-       write(99,'(A)')'  </Grid>'
-       write(99,'(A)')' </Domain>'
-       write(99,'(A)')'</Xdmf>'
-       close(99)
-       
-       write(*,*) 'SSE Progress update: XDMF updated for', isse, 'iterations'
   end if
 
 
