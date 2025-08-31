@@ -1427,9 +1427,9 @@ end if
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
           ! Create extensible datasets for first time with chunking
-          dims_2d = (/Nt_all, icos/)
-          maxdims_2d = (/Nt_all, H5S_UNLIMITED_F/)
-          chunk_2d = (/Nt_all, min(icos, 100)/)
+          dims_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
+          maxdims_2d = (/INT(Nt_all, HSIZE_T), H5S_UNLIMITED_F/)
+          chunk_2d = (/INT(Nt_all, HSIZE_T), INT(min(icos, 100), HSIZE_T)/)
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
           call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
@@ -1446,9 +1446,9 @@ end if
           
           call h5pclose_f(dcpl_id, hdferr)
           
-          dims_1d = (/icos/)
+          dims_1d = (/INT(icos, HSIZE_T)/)
           maxdims_1d = (/H5S_UNLIMITED_F/)
-          chunk_1d = (/min(icos, 1000)/)
+          chunk_1d = (/INT(min(icos, 1000), HSIZE_T)/)
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
           call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
@@ -1466,7 +1466,7 @@ end if
        ! Extend datasets if this is not the first cycle
        if (global_time_steps_written > 0) then
           ! Extend 2D datasets
-          dims_2d = (/Nt_all, global_time_steps_written + icos/)
+          dims_2d = (/INT(Nt_all, HSIZE_T), INT(global_time_steps_written + icos, HSIZE_T)/)
           call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
           call h5dset_extent_f(dset_id, dims_2d, hdferr)
           call h5dclose_f(dset_id, hdferr)
@@ -1476,7 +1476,7 @@ end if
           call h5dclose_f(dset_id, hdferr)
           
           ! Extend 1D dataset
-          dims_1d = (/global_time_steps_written + icos/)
+          dims_1d = (/INT(global_time_steps_written + icos, HSIZE_T)/)
           call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
           call h5dset_extent_f(dset_id, dims_1d, hdferr)
           call h5dclose_f(dset_id, hdferr)
@@ -1487,12 +1487,12 @@ end if
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
        ! Define hyperslab for appending new data
-       offset_2d = (/0, global_time_steps_written/)
-       count_2d = (/Nt_all, icos/)
+       offset_2d = (/INT(0, HSIZE_T), INT(global_time_steps_written, HSIZE_T)/)
+       count_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        
        ! Create memory space for current data
-       dims_2d = (/Nt_all, icos/)
+       dims_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
        ! Write current cycle data
@@ -1518,11 +1518,11 @@ end if
        call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
-       offset_1d = (/global_time_steps_written/)
-       count_1d = (/icos/)
+       offset_1d = (/INT(global_time_steps_written, HSIZE_T)/)
+       count_1d = (/INT(icos, HSIZE_T)/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_1d, count_1d, hdferr)
        
-       dims_1d = (/icos/)
+       dims_1d = (/INT(icos, HSIZE_T)/)
        call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr, memspace_id, filespace_id)
        
@@ -1684,9 +1684,9 @@ end if
          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
          
          ! Create initial extensible datasets for SSE data with chunking
-         dims_2d = (/Nt_all, nsse/)
-         maxdims_2d = (/Nt_all, H5S_UNLIMITED_F/)
-         chunk_2d = (/Nt_all, min(nsse, 100)/)
+         dims_2d = (/INT(Nt_all, HSIZE_T), INT(nsse, HSIZE_T)/)
+         maxdims_2d = (/INT(Nt_all, HSIZE_T), H5S_UNLIMITED_F/)
+         chunk_2d = (/INT(Nt_all, HSIZE_T), INT(min(nsse, 100), HSIZE_T)/)
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
@@ -1703,9 +1703,9 @@ end if
          
          call h5pclose_f(dcpl_id, hdferr)
          
-         dims_1d = (/nsse/)
+         dims_1d = (/INT(nsse, HSIZE_T)/)
          maxdims_1d = (/H5S_UNLIMITED_F/)
-         chunk_1d = (/min(nsse, 1000)/)
+         chunk_1d = (/INT(min(nsse, 1000), HSIZE_T)/)
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
@@ -1727,7 +1727,7 @@ end if
       call h5dclose_f(dset_id, hdferr)
       
       ! Current size is dims_2d(2), extend by nsse
-      dims_2d = (/Nt_all, dims_2d(2) + nsse/)
+      dims_2d = (/INT(Nt_all, HSIZE_T), dims_2d(2) + INT(nsse, HSIZE_T)/)
       
       ! Extend all SSE datasets
       call h5dopen_f(group_id, 'slipz1_sse', dset_id, hdferr)
@@ -1747,11 +1747,11 @@ end if
       call h5dopen_f(group_id, 'slipz1_sse', dset_id, hdferr)
       call h5dget_space_f(dset_id, filespace_id, hdferr)
       
-      offset_2d = (/0, dims_2d(2) - nsse/)  ! Start at the new columns
-      count_2d = (/Nt_all, nsse/)
+      offset_2d = (/INT(0, HSIZE_T), dims_2d(2) - INT(nsse, HSIZE_T)/)  ! Start at the new columns
+      count_2d = (/INT(Nt_all, HSIZE_T), INT(nsse, HSIZE_T)/)
       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
       
-      dims_2d = (/Nt_all, nsse/)
+      dims_2d = (/INT(Nt_all, HSIZE_T), INT(nsse, HSIZE_T)/)
       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse, dims_2d, hdferr, memspace_id, filespace_id)
       
@@ -1773,11 +1773,11 @@ end if
       call h5dopen_f(group_id, 'tsse', dset_id, hdferr)
       call h5dget_space_f(dset_id, filespace_id, hdferr)
       
-      offset_1d = (/dims_1d(1) - nsse/)
-      count_1d = (/nsse/)
+      offset_1d = (/dims_1d(1) - INT(nsse, HSIZE_T)/)
+      count_1d = (/INT(nsse, HSIZE_T)/)
       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_1d, count_1d, hdferr)
       
-      dims_1d = (/nsse/)
+      dims_1d = (/INT(nsse, HSIZE_T)/)
       call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tsse, dims_1d, hdferr, memspace_id, filespace_id)
       call h5sclose_f(memspace_id, hdferr)
