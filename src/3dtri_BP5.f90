@@ -505,7 +505,6 @@ end if
   dt_try=dtmin
   Vint = Vpl
 
-
   Ifileout = 60   !file index, after 47
   !----Initial values of velocity, state variable, shear stress and slip--
   !--SET INITIAL VPL FOR THE LOCKED PART TO BE 0 
@@ -867,7 +866,9 @@ end if
   end if
 
 
+  ! Deallocate arrays based on allocation pattern
   if(myid==master)then 
+     ! Master: Deallocate full-size arrays and master-only arrays
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
                 phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
           slip_all,slipinc_all,slipds_all,slipdsinc_all,&
@@ -882,6 +883,12 @@ end if
 
      deallocate(Trup,rup,area,obvs)
      deallocate(pstrk,pdp,obvstrk,obvdp)
+  else
+     ! Workers: Deallocate dummy arrays (size 1)
+     DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
+                phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
+          slip_all,slipinc_all,slipds_all,slipdsinc_all,&
+           cca_all,ccb_all,xLf_all,seff_all)
   end if
 
 
