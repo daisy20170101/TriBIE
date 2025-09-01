@@ -872,17 +872,26 @@ end if
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
                 phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
           slip_all,slipinc_all,slipds_all,slipdsinc_all,&
-           cca_all,ccb_all,xLf_all,seff_all, &
-          maxnum,maxv,moment,outs1,&
-          msse1,msse2,areasse1,areasse2,tmv,tcos,tas,tnul,tsse)
+           cca_all,ccb_all,xLf_all,seff_all)
+     
+     ! Deallocate master-only output arrays (only allocated on master)
+     if (allocated(maxnum)) DEALLOCATE(maxnum,maxv,moment,outs1)
+     if (allocated(msse1)) DEALLOCATE(msse1,msse2,areasse1,areasse2)
+     if (allocated(tmv)) DEALLOCATE(tmv,tas,tcos,tnul,tsse)
 
-     DEALLOCATE (slipz1_inter,slipz1_tau,slipz1_sse, &
-          slipz1_cos,slipave_inter,slipave_cos, &
-          v_cos,slip_cos,v_nul,slip_nul)
-     DEALLOCATE (intdepz1,intdepz2,intdepz3,ssetime,slipz1_v)
+     ! Deallocate master-only simulation arrays (only allocated on master)
+     if (allocated(slipz1_inter)) then
+        DEALLOCATE (slipz1_inter,slipz1_tau,slipz1_sse, &
+             slipz1_cos,slipave_inter,slipave_cos, &
+             v_cos,slip_cos,v_nul,slip_nul)
+     end if
+     if (allocated(intdepz1)) then
+        DEALLOCATE (intdepz1,intdepz2,intdepz3,ssetime,slipz1_v)
+     end if
 
-     deallocate(Trup,rup,area,obvs)
-     deallocate(pstrk,pdp,obvstrk,obvdp)
+     ! Deallocate more master-only arrays
+     if (allocated(Trup)) deallocate(Trup,rup,area,obvs)
+     if (allocated(pstrk)) deallocate(pstrk,pdp,obvstrk,obvdp)
   else
      ! Workers: Deallocate dummy arrays (size 1)
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
