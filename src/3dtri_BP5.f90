@@ -239,16 +239,6 @@ program main
          yt0_all(2*Nt_all),yt_all(2*Nt_all),dydt_all(2*Nt_all),yt_scale_all(2*Nt_all))
 
      allocate(phy1_all(Nt_all),phy2_all(Nt_all))
-  else
-     ! Worker processes: Allocate minimal dummy arrays for MPI_Scatterv compatibility
-     ! These arrays won't be used as source data, but must exist for the MPI call
-     ALLOCATE(x_all(1),xi_all(1),&
-          cca_all(1),ccb_all(1),seff_all(1),xLf_all(1),vi_all(1),&
-          tau1_all(1),tau2_all(1),slip_all(1),slipinc_all(1),slipds_all(1),slipdsinc_all(1),&
-         yt0_all(1),yt_all(1),dydt_all(1),yt_scale_all(1))
-
-     allocate(phy1_all(1),phy2_all(1))
-  end if
 
      ALLOCATE (outs1(nmv,7,10),&
           maxv(nmv),maxnum(nmv),msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
@@ -455,7 +445,7 @@ end if
   if(myid==master)then
      CALL resdep(Nt_all,hnucl, &
           xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all)
-  end if
+  
 
 
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
@@ -467,7 +457,7 @@ end if
    call MPI_Scatterv(x_all,sendcounts,displs,MPI_Real8,x,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
   call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
+  
   call CPU_TIME(tmbegin)
 
   tm1=tmbegin
@@ -534,7 +524,7 @@ end if
         yt0(2*j) = yt(2*j)
      end do
   end if
-
+end if
 !------------------------------------------------------------------
   if(IDin.eq.1) then               !if this is a restart job
      if(myid==master)then
@@ -1037,6 +1027,7 @@ end subroutine rkqs
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
        real(DP) :: temp_sum
        integer :: request1, request2
+       integer :: recv_counts(0:nprocs-1), recv_displs(0:nprocs-1)
        intrinsic real
 
        !MPI RELATED DEFINITIONS
@@ -1053,11 +1044,18 @@ end subroutine rkqs
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
        ! Use non-blocking communication to overlap computation and communication
        
-       ! Start non-blocking communication early
-       call MPI_Iallgather(zz,Nt,MPI_Real8,zz_all,Nt,MPI_Real8,MPI_COMM_WORLD,request1,ierr)
+       ! Fixed: Use MPI_Allgatherv for variable-size data collection
+       ! First gather the counts from all processes
+       call MPI_Allgather(Nt, 1, MPI_INTEGER, recv_counts, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
        
-       ! Wait for communication to complete before using the data
-       call MPI_Wait(request1,MPI_STATUS_IGNORE,ierr)
+       ! Calculate displacements
+       recv_displs(0) = 0
+       do i = 1, nprocs-1
+          recv_displs(i) = recv_displs(i-1) + recv_counts(i-1)
+       end do
+       
+       ! Now gather the actual velocity data with variable sizes
+       call MPI_Allgatherv(zz, Nt, MPI_Real8, zz_all, recv_counts, recv_displs, MPI_Real8, MPI_COMM_WORLD, ierr)
        
        !----------------------------------------------------------------------
        !    summation of stiffness of all elements in slab
