@@ -460,9 +460,9 @@ end if
   end if
 
 
-  call MPI_Barrier(MPI_COMM_WORLD,ierr)
+   call MPI_Barrier(MPI_COMM_WORLD,ierr)
    call MPI_Scatterv(cca_all,sendcounts,displs,MPI_Real8,cca,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-  call MPI_Scatterv(ccb_all,sendcounts,displs,MPI_Real8,ccb,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   call MPI_Scatterv(ccb_all,sendcounts,displs,MPI_Real8,ccb,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
    call MPI_Scatterv(xLf_all,sendcounts,displs,MPI_Real8,xLf,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
    call MPI_Scatterv(seff_all,sendcounts,displs,MPI_Real8,seff,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
    call MPI_Scatterv(vi_all,sendcounts,displs,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -1585,12 +1585,16 @@ end if
        
        dims_2d = (/3, n_vertices/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-       call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords_transposed, dims_2d, hdferr)
+       ! Check if geometry dataset already exists
+       call h5lexists_f(group_id, 'geometry', mesh_group_exists, hdferr)
+       if (.not. mesh_group_exists) then
+          call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords_transposed, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+       end if
+       call h5sclose_f(dspace_id, hdferr)
        
        deallocate(vertex_coords_transposed)
-       call h5dclose_f(dset_id, hdferr)
-       call h5sclose_f(dspace_id, hdferr)
        
        ! Write cell connectivity in correct layout for XDMF
        ! Create temporary array with correct memory layout
@@ -1603,11 +1607,15 @@ end if
        
        dims_2d = (/3, n_cells/)
        call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-       call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity_transposed, dims_2d, hdferr)
+       ! Check if topology dataset already exists
+       call h5lexists_f(group_id, 'topology', mesh_group_exists, hdferr)
+       if (.not. mesh_group_exists) then
+          call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
+          call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity_transposed, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+       end if
        
        deallocate(cell_connectivity_transposed)
-       call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
        
        call h5gclose_f(group_id, hdferr)
@@ -1846,12 +1854,16 @@ end if
       
       dims_2d = (/3, n_vertices/)
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-      call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords_transposed, dims_2d, hdferr)
+      ! Check if geometry dataset already exists
+      call h5lexists_f(group_id, 'geometry', mesh_group_exists, hdferr)
+      if (.not. mesh_group_exists) then
+         call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+         call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords_transposed, dims_2d, hdferr)
+         call h5dclose_f(dset_id, hdferr)
+      end if
+      call h5sclose_f(dspace_id, hdferr)
       
       deallocate(vertex_coords_transposed)
-      call h5dclose_f(dset_id, hdferr)
-      call h5sclose_f(dspace_id, hdferr)
       
       ! Write cell connectivity in correct layout for XDMF
       ! Create temporary array with correct memory layout
@@ -1864,11 +1876,15 @@ end if
       
       dims_2d = (/3, n_cells/)
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-      call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity_transposed, dims_2d, hdferr)
+      ! Check if topology dataset already exists
+      call h5lexists_f(group_id, 'topology', mesh_group_exists, hdferr)
+      if (.not. mesh_group_exists) then
+         call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
+         call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity_transposed, dims_2d, hdferr)
+         call h5dclose_f(dset_id, hdferr)
+      end if
       
       deallocate(cell_connectivity_transposed)
-      call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
       call h5gclose_f(group_id, hdferr)
