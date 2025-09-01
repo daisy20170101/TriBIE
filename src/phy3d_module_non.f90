@@ -18,5 +18,6 @@ real (DP0) :: tm1,tm2,tmday,tmelse,tmmidn,tmmult,Vpl
 real (DP0), DIMENSION(:), ALLOCATABLE :: tau1,tau2,tau0,cca,ccb,seff,xLf,phy1,phy2
 !real (DP0), DIMENSION(:,:,:), ALLOCATABLE :: fr
 real (DP0), DIMENSION(:,:), ALLOCATABLE :: stiff,stiff2
+integer, DIMENSION(:), ALLOCATABLE :: sendcounts, displs
 character(len=80) :: jobname,foldername,restartname,stiffname,profile
 end module phy3d_module_non

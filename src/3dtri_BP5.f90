@@ -123,7 +123,7 @@ program main
   character(len=256) :: trigreen_filename
   
   ! MPI_Scatterv variables for uneven distribution
-  integer, allocatable :: sendcounts(:), displs(:)
+
   integer :: total_sent
 
   ! Add HDF5 variables
@@ -239,7 +239,19 @@ program main
          yt0_all(2*Nt_all),yt_all(2*Nt_all),dydt_all(2*Nt_all),yt_scale_all(2*Nt_all))
 
      allocate(phy1_all(Nt_all),phy2_all(Nt_all))
+  else
+     ! Worker processes: Allocate minimal dummy arrays for MPI_Scatterv compatibility
+     ! These arrays won't be used as source data, but must exist for the MPI call
+     ALLOCATE(x_all(1),xi_all(1),&
+          cca_all(1),ccb_all(1),seff_all(1),xLf_all(1),vi_all(1),&
+          tau1_all(1),tau2_all(1),slip_all(1),slipinc_all(1),slipds_all(1),slipdsinc_all(1),&
+         yt0_all(1),yt_all(1),dydt_all(1),yt_scale_all(1))
 
+     allocate(phy1_all(1),phy2_all(1))
+  end if
+
+  ! Master-only output arrays allocation
+  if(myid == master) then
      ALLOCATE (outs1(nmv,7,10),&
           maxv(nmv),maxnum(nmv),msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
           tmv(nmv),tas(nas),tcos(ncos),tnul(nnul),tsse(nsse))
@@ -445,7 +457,7 @@ end if
   if(myid==master)then
      CALL resdep(Nt_all,hnucl, &
           xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all)
-  
+  end if
 
 
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
@@ -1013,7 +1025,7 @@ end subroutine rkqs
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
        USE mpi
        USE phy3d_module_non, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
-            tm1,tm2,tmday,tmelse,tmmidn,tmmult
+            tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs
        implicit none
        integer, parameter :: DP = kind(1.0d0)
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
@@ -1027,7 +1039,6 @@ end subroutine rkqs
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
        real(DP) :: temp_sum
        integer :: request1, request2
-       integer :: recv_counts(0:nprocs-1), recv_displs(0:nprocs-1)
        intrinsic real
 
        !MPI RELATED DEFINITIONS
@@ -1044,18 +1055,9 @@ end subroutine rkqs
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
        ! Use non-blocking communication to overlap computation and communication
        
-       ! Fixed: Use MPI_Allgatherv for variable-size data collection
-       ! First gather the counts from all processes
-       call MPI_Allgather(Nt, 1, MPI_INTEGER, recv_counts, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
-       
-       ! Calculate displacements
-       recv_displs(0) = 0
-       do i = 1, nprocs-1
-          recv_displs(i) = recv_displs(i-1) + recv_counts(i-1)
-       end do
-       
-       ! Now gather the actual velocity data with variable sizes
-       call MPI_Allgatherv(zz, Nt, MPI_Real8, zz_all, recv_counts, recv_displs, MPI_Real8, MPI_COMM_WORLD, ierr)
+       ! Fixed: Use existing sendcounts and displs for MPI_Allgatherv
+       ! Much more efficient - reuse the already calculated distribution arrays
+       call MPI_Allgatherv(zz, Nt, MPI_Real8, zz_all, sendcounts, displs, MPI_Real8, MPI_COMM_WORLD, ierr)
        
        !----------------------------------------------------------------------
        !    summation of stiffness of all elements in slab
