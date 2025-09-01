@@ -536,7 +536,7 @@ end if
         yt0(2*j) = yt(2*j)
      end do
   end if
-end if
+
 !------------------------------------------------------------------
   if(IDin.eq.1) then               !if this is a restart job
      if(myid==master)then
