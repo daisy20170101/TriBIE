@@ -239,6 +239,16 @@ program main
          yt0_all(2*Nt_all),yt_all(2*Nt_all),dydt_all(2*Nt_all),yt_scale_all(2*Nt_all))
 
      allocate(phy1_all(Nt_all),phy2_all(Nt_all))
+  else
+     ! Worker processes: Allocate minimal dummy arrays for MPI_Scatterv compatibility
+     ! These arrays won't be used as source data, but must exist for the MPI call
+     ALLOCATE(x_all(1),xi_all(1),&
+          cca_all(1),ccb_all(1),seff_all(1),xLf_all(1),vi_all(1),&
+          tau1_all(1),tau2_all(1),slip_all(1),slipinc_all(1),slipds_all(1),slipdsinc_all(1),&
+         yt0_all(1),yt_all(1),dydt_all(1),yt_scale_all(1))
+
+     allocate(phy1_all(1),phy2_all(1))
+  end if
 
      ALLOCATE (outs1(nmv,7,10),&
           maxv(nmv),maxnum(nmv),msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
@@ -450,11 +460,11 @@ end if
 
   call MPI_Barrier(MPI_COMM_WORLD,ierr)
    call MPI_Scatterv(cca_all,sendcounts,displs,MPI_Real8,cca,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatterv(ccb_all,sendcounts,displs,MPI_Real8,ccb,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatterv(xLf_all,sendcounts,displs,MPI_Real8,xLf,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatterv(seff_all,sendcounts,displs,MPI_Real8,seff,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatterv(vi_all,sendcounts,displs,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-     call MPI_Scatterv(x_all,sendcounts,displs,MPI_Real8,x,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  call MPI_Scatterv(ccb_all,sendcounts,displs,MPI_Real8,ccb,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   call MPI_Scatterv(xLf_all,sendcounts,displs,MPI_Real8,xLf,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   call MPI_Scatterv(seff_all,sendcounts,displs,MPI_Real8,seff,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   call MPI_Scatterv(vi_all,sendcounts,displs,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   call MPI_Scatterv(x_all,sendcounts,displs,MPI_Real8,x,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
   call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
@@ -1301,7 +1311,7 @@ integer :: global_sse_steps_written = 0   ! Total SSE time steps written across 
 ! HDF5 file naming
 character(len=256) :: hdf5_filename, xdmf_filename
 character(len=256) :: time_series_group_name
-logical :: file_exists, file_exists_sse
+logical :: file_exists, file_exists_sse, mesh_group_exists
 integer(HSIZE_T) :: offset_1d(1), count_1d(1), offset_2d(2), count_2d(2)
 integer(HID_T) :: memspace_id, filespace_id, dcpl_id
 integer(HSIZE_T) :: chunk_2d(2), chunk_1d(1)
@@ -1551,13 +1561,18 @@ end if
        ! Read cell connectivity (indices start from 0 in GTS, which is correct for Paraview)
        do i = 1, n_cells
           read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
-          ! Keep 0-based indexing for Paraview compatibility
+                    ! Keep 0-based indexing for Paraview compatibility
           cell_connectivity(i, :) = cell_connectivity(i, :) -1
        end do
        close(98)
        
-       ! Write mesh data to HDF5
-       call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
+       ! Write mesh data to HDF5 - check if mesh group already exists
+       call h5lexists_f(file_id, '/mesh', mesh_group_exists, hdferr)
+       if (.not. mesh_group_exists) then
+          call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
+       else
+          call h5gopen_f(file_id, '/mesh', group_id, hdferr)
+       end if
        
        ! Write vertex coordinates in correct layout for XDMF
        ! Create temporary array with correct memory layout
@@ -1812,8 +1827,13 @@ end if
       end do
       close(98)
       
-      ! Write mesh data to HDF5
-      call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
+      ! Write mesh data to HDF5 - check if mesh group already exists
+      call h5lexists_f(file_id, '/mesh', mesh_group_exists, hdferr)
+      if (.not. mesh_group_exists) then
+         call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
+      else
+         call h5gopen_f(file_id, '/mesh', group_id, hdferr)
+      end if
       
       ! Write vertex coordinates in correct layout for XDMF
       ! Create temporary array with correct memory layout
