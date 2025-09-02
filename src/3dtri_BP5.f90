@@ -158,7 +158,7 @@ program main
   read(12,'(a)')foldername
   read(12,'(a)')stiffname
   read(12,'(a)')restartname
-  read(12,*)Nab,Nt_all,Nt,Lratio,nprocs,n_obv,np1,np2
+  read(12,*)Nt_all,nprocs,n_obv,np1,np2
   read(12,*)Idin,Idout,Iprofile,Iperb,Isnapshot 
   read(12,*)Vpl
   read(12,*)tmax

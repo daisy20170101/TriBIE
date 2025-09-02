@@ -98,7 +98,7 @@ mpirun -np <n_processes> ../src/3dtri_BP5
 <foldername>                 ! Output directory path
 <stiffname>                  ! Stiffness matrix file prefix
 <restartname>                ! Restart file name (if applicable)
-<Nab> <Nt_all> <Nt> <Lratio> <nprocs> <n_obv> <np1> <np2>  ! Array dimensions
+<Nab> <Nt_all> <nprocs> <n_obv> <num_of_receivers_along_strike> <num_of_receivers_along_downdip>  ! Array dimensions
 <Idin> <Idout> <Iprofile> <Iperb> <Isnapshot>               ! Control flags
 <Vpl>                        ! Plate velocity (m/s)
 <tmax>                       ! Maximum simulation time (years)
@@ -228,4 +228,216 @@ TriBIE now supports modern HDF5/XDMF output for visualization:
 - Use restart capability for long simulations
 - Check output files for expected results
 - Test with smaller problems before large-scale runs
+
+For detailed parameter descriptions and advanced usage, see `src/USER_GUIDE.md`.
+
+---
+
+## Running Example1 - BP5 Benchmark
+
+The `example1/` directory contains a complete working example based on the SCEC SEAS BP5 benchmark problem. This example demonstrates earthquake cycle simulation on a planar fault with rate-and-state friction.
+
+### Example1 Overview
+
+**Problem**: SCEC SEAS Benchmark Problem 5 (BP5) - Long-term earthquake cycles on a vertical strike-slip fault
+- **Fault geometry**: 160 km × 60 km planar fault 
+- **Depth**: Surface to 60 km depth
+- **Elements**: 9,214 triangular elements
+- **Physics**: Rate-and-state friction with aging law
+- **Duration**: 500 years simulation time
+
+### Quick Start Guide
+
+#### Step 1: Copy Example to Working Directory
+```bash
+# Create a working copy of example1
+cp -r example1/ my_simulation/
+cd my_simulation/
+```
+
+#### Step 2: Compile the Code
+```bash
+# Compile TriGreen for stiffness calculation
+cd ../TriGreen/
+./runcompile.sh
+
+# Compile main simulation code
+cd ../src/
+./compile.sh
+cd ../my_simulation/
+```
+
+#### Step 3: Calculate Stiffness Matrix
+```bash
+# Copy mesh file to TriGreen directory
+cp triangular_mesh.gts ../TriGreen/
+
+# Run stiffness calculation (single process for this example)
+cd ../TriGreen/
+mpirun -np 1 ./calc_trigreen
+
+# Copy stiffness files back to example directory
+cp trigreen_0.bin ../my_simulation/
+cd ../my_simulation/
+```
+
+#### Step 4: Run the Simulation
+```bash
+# Run the earthquake cycle simulation
+mpirun -np 1 ../src/3dtri_BP5 < parameter1.txt
+```
+
+### Example1 File Structure
+
+```
+example1/
+├── parameter1.txt              # Main simulation parameters
+├── triangular_mesh.gts         # Fault mesh geometry  
+├── var-BP5_h1000.dat          # On-fault friction parameters
+├── area-BP5_h1000.dat         # Element area data
+├── profdp-BP5_h1000.dat       # Dip profile coordinates
+├── profstrk-BP5_h1000.dat     # Strike profile coordinates
+├── sub_stiff.sh               # SLURM script for stiffness calculation
+└── sub_3dtri.sh               # SLURM script for main simulation
+```
+
+### Key Parameters in Example1
+
+From `parameter1.txt`:
+```bash
+-BP5_h1000.dat              # File suffix for input files
+result6/                    # Output directory  
+5 9214 111 1 1 9 74 45     # Nab=5, Nt_all=9214, nprocs=1
+31.50                       # Plate velocity: 31.5 mm/yr
+500.0                       # Simulation time: 500 years
+1.0 183.0 305.0            # Velocity thresholds (mm/s, mm/yr)
+```
+
+### Running on HPC Systems
+
+#### Option 1: Interactive Mode
+```bash
+# Request compute node
+salloc --nodes=1 --ntasks-per-node=1 --cpus-per-task=16 --time=2:00:00
+
+# Set OpenMP threads
+export OMP_NUM_THREADS=16
+export OMP_PROC_BIND=close
+
+# Run stiffness calculation
+cd TriGreen/
+mpirun -np 1 ./calc_trigreen
+
+# Run simulation  
+cd ../my_simulation/
+mpirun -np 1 ../src/3dtri_BP5 < parameter1.txt
+```
+
+#### Option 2: Batch Submission
+```bash
+# Submit stiffness calculation
+sbatch sub_stiff.sh
+
+# Wait for completion, then submit main simulation
+sbatch sub_3dtri.sh
+```
+
+### Expected Output Files
+
+After successful completion, you should see:
+```bash
+result6/                        # Output directory
+├── area-BP5_h1000.dat         # Updated area information
+├── rupture-BP5_h1000.dat      # Rupture data
+├── summary-BP5_h1000.dat      # Simulation summary
+├── fltst_strk-*.dat           # Strike profiles
+├── fltst_dip-*.dat            # Dip profiles  
+├── timeseries_data_*.h5       # HDF5 time series (if enabled)
+├── timeseries_data_*.xdmf     # Paraview visualization files
+└── [various monitoring files]
+```
+
+### Performance Expectations
+
+**Single Process (as configured):**
+- **Stiffness calculation**: ~30-60 minutes
+- **500-year simulation**: ~2-4 hours  
+- **Memory usage**: ~8-12 GB
+- **Disk space**: ~1-2 GB for outputs
+
+**Scaling Options:**
+```bash
+# For faster execution, modify parameter1.txt:
+# Change: 5 9214 111 1 1 9 74 45
+# To:     5 9214 111 1 4 9 74 45  (4 processes)
+
+# Then run with:
+mpirun -np 4 ./calc_trigreen     # Stiffness
+mpirun -np 4 ../src/3dtri_BP5    # Simulation
+```
+
+### Visualization
+
+#### Option 1: Paraview (Recommended)
+```bash
+# Open XDMF files directly in Paraview
+paraview result6/timeseries_data_-BP5_h1000.dat.xdmf
+```
+
+#### Option 2: MATLAB Analysis
+```bash
+# Use provided MATLAB scripts in Mesh/ directory
+cd ../Mesh/
+matlab -r "ReadInpFile; PlotVariable"
+```
+
+### Troubleshooting Example1
+
+#### Common Issues:
+
+**"TriGreen file not found":**
+```bash
+# Ensure stiffness files exist
+ls trigreen_*.bin
+# If missing, re-run stiffness calculation
+```
+
+**"Parameter file errors":**
+```bash
+# Check parameter1.txt format
+# Ensure no extra spaces or missing lines
+# Verify nprocs matches number of stiffness files
+```
+
+**Memory errors:**
+```bash
+# Reduce problem size or request more memory
+# For SLURM: --mem-per-cpu=20G
+```
+
+**Slow performance:**
+```bash
+# Enable OpenMP
+export OMP_NUM_THREADS=16
+# Use multiple MPI processes
+mpirun -np 4 ./3dtri_BP5
+```
+
+### Scientific Context
+
+This example reproduces the SCEC SEAS BP5 benchmark, which models:
+- **Long-term earthquake cycles** (~100-200 year recurrence)  
+- **Interseismic loading** at plate velocity
+- **Coseismic ruptures** with dynamic weakening
+- **Postseismic slip** and stress relaxation
+
+The results can be compared with other codes participating in the SCEC SEAS project for validation.
+
+### Next Steps
+
+After successfully running example1:
+1. **Modify parameters** to explore different scenarios
+2. **Scale up** to multiple processes for larger problems  
+3. **Analyze results** using Paraview or MATLAB
+4. **Create custom problems** using your own fault geometries
 
