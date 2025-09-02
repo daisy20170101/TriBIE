@@ -43,26 +43,26 @@ chmod +x runcompile.bash
 # GNU Fortran
 mpif90 -O3 -fopenmp -march=native -mtune=native \
        -ffast-math -funroll-loops \
-       sub_comdun.f mod_dtrigreen.f90 m_calc_green.f90 calc_trigreen.f90 \
-       -o calc_trigreen_optimized
+       sub_comdun.f90 mod_dtrigreen.f90 m_calc_green.f90 calc_trigreen.f90 \
+       -o calc_trigreen
 
 # Cray Compiler
 ftn -O3 -hopenmp -hvector3 \
-    sub_comdun.f mod_dtrigreen.f90 m_calc_green.f90 calc_trigreen.f90 \
-    -o calc_trigreen_optimized
+    sub_comdun.f90 mod_dtrigreen.f90 m_calc_green.f90 calc_trigreen.f90 \
+    -o calc_trigreen
 ```
 
 ## Execution
 
 ### Basic MPI Execution
 ```bash
-mpirun -np 4 ./calc_trigreen_optimized
+mpirun -np 4 ./calc_trigreen
 ```
 
 ### Hybrid MPI+OpenMP Execution
 ```bash
 export OMP_NUM_THREADS=8
-mpirun -np 4 ./calc_trigreen_optimized
+mpirun -np 4 ./calc_trigreen
 ```
 
 ### SLURM Job Script Example
@@ -75,7 +75,7 @@ mpirun -np 4 ./calc_trigreen_optimized
 #SBATCH --time=02:00:00
 
 export OMP_NUM_THREADS=8
-mpirun -np 8 ./calc_trigreen_optimized
+mpirun -np 8 ./calc_trigreen
 ```
 
 ## Performance Tuning
