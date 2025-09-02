@@ -10,7 +10,7 @@ echo "TriGreen Compilation Script"
 echo "=========================================="
 
 # Set compiler and flags
-COMPILER="gfortran"
+COMPILER="mpif90"
 OPTIMIZATION_FLAGS="-O3 -march=native -mtune=native -ffast-math -funroll-loops -ftree-vectorize"
 DEBUG_FLAGS="-g -fcheck=all -fbacktrace -Wall -Wextra"
 OPENMP_FLAGS="-fopenmp"
