@@ -592,7 +592,6 @@ subroutine calc_ss_ds(v1, v2, v3, v_pl, ss, ds, op)
     op = 0.0d0
     return
   end if
-/nesi/project/gns04005/daisy/GitHub/Tribie_imp4/TriGreen  
   nv = nv / denom_h
   
   ! Check if this is a vertical fault (normal vector nearly horizontal)
