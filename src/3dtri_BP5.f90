@@ -171,6 +171,7 @@ program main
 110 format(A)
   close(12)
 
+  Nab=5 ! used in resdep if dault a-b profile is given 
 
   ! MODIFICATION: Implement dynamic load balancing compatible with calc_trigreen.f90
   if (use_trigreen_format) then
