@@ -98,7 +98,7 @@ mpirun -np <n_processes> ../src/3dtri_BP5
 <foldername>                 ! Output directory path
 <stiffname>                  ! Stiffness matrix file prefix
 <restartname>                ! Restart file name (if applicable)
-<Nab> <Nt_all> <nprocs> <n_obv> <num_of_receivers_along_strike> <num_of_receivers_along_downdip>  ! Array dimensions
+<Nt_all> <nprocs> <n_obv> <num_of_receivers_along_strike> <num_of_receivers_along_downdip>  ! Array dimensions
 <Idin> <Idout> <Iprofile> <Iperb> <Isnapshot>               ! Control flags
 <Vpl>                        ! Plate velocity (m/s)
 <tmax>                       ! Maximum simulation time (years)
@@ -242,7 +242,7 @@ The `example1/` directory contains a complete working example based on the SCEC 
 **Problem**: SCEC SEAS Benchmark Problem 5 (BP5) - Long-term earthquake cycles on a vertical strike-slip fault
 - **Fault geometry**: 160 km × 60 km planar fault 
 - **Depth**: Surface to 60 km depth
-- **Elements**: 9,214 triangular elements
+- **Elements**: 9,214 triangular elements, mesh size ~ 1km
 - **Physics**: Rate-and-state friction with aging law
 - **Duration**: 500 years simulation time
 
