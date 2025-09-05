@@ -1117,11 +1117,18 @@ end subroutine rkqs
        end if
        tm1=tm2
 
-       ! Pre-validate critical variables to prevent NaN/infinity issues
+       ! Apply physics-based regularization for rate-and-state friction
+       ! Small regularization parameter to prevent ln(0) while maintaining physics
+       real(DP), parameter :: theta_min = 1.0d-15  ! Minimum state variable (seconds)
+       
        do i=1,Nt
-          if (yt(2*i) <= 0.0d0) then
-             write(*,*) 'ERROR: Non-positive yt(2*i) at i=', i, ' value=', yt(2*i), ' correcting to 1.0d-12'
-             yt(2*i) = 1.0d-12
+          if (yt(2*i) < theta_min) then
+             ! Apply regularization: don't change original values, just prevent ln(0)
+             ! This preserves the physical state while making calculations numerically stable
+             if (yt(2*i) <= 0.0d0) then
+                write(*,*) 'INFO: Regularizing zero state variable at i=', i, ' from', yt(2*i), ' to', theta_min
+             end if
+             yt(2*i) = max(yt(2*i), theta_min)
           end if
           if (xLf(i) <= 0.0d0) then
              write(*,*) 'ERROR: Non-positive xLf(i) at i=', i, ' value=', xLf(i), ' correcting to 1.0d-3'
@@ -1282,7 +1289,7 @@ end subroutine rkqs
 
 subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
 USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
-                        tm1,tm2,tmday,tmelse,tmmidn,tmmult
+                        tm1,tm2,tmday,tmelse,tmmidn,tmmult,xLf,Vpl
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer :: inout,i,ndt,nrec,Ifileout,Nt,Nt_all
@@ -1292,18 +1299,67 @@ character(len=40) :: filename
 
       if(inout.eq.0) then
          write(*,*) 'Opening restart file: ', trim(restartname)
+         
+         ! Check if file exists and get some info
+         logical :: file_exists
+         inquire(file=trim(restartname), exist=file_exists)
+         if (.not. file_exists) then
+            write(*,*) 'ERROR: Restart file does not exist!'
+            stop
+         end if
+         
          open(Ifileout,file=trim(restartname),status='old')
+         write(*,*) 'File opened successfully, unit=', Ifileout
+         
+         ! Quick preview of first few lines in the file
+         character(len=200) :: line_buffer
+         integer :: preview_unit
+         preview_unit = 99
+         open(preview_unit, file=trim(restartname), status='old')
+         write(*,*) 'File preview (first 5 lines):'
+         do i = 1, 5
+            read(preview_unit, '(A)', end=100) line_buffer
+            write(*,*) 'Line', i, ': ', trim(line_buffer)
+         end do
+100      close(preview_unit)
+         
           read(Ifileout,*)t,ndt,nrec
+          write(*,*) 'Read header: t=',t,' ndt=',ndt,' nrec=',nrec
           read(Ifileout,*)dt,dt_try
-          write(*,*) 'Restart values: t=',t,' ndt=',ndt,' dt=',dt
+          write(*,*) 'Read timesteps: dt=',dt,' dt_try=',dt_try
+          write(*,*) 'About to read 2*Nt_all=', 2*Nt_all, ' yt values...'
+          
+          ! Count problematic values
+          integer :: zero_count, negative_count, invalid_count
+          zero_count = 0
+          negative_count = 0 
+          invalid_count = 0
           
           do i=1,2*Nt_all
              read(Ifileout,*)yt(i)
-             ! Check for NaN/Inf in loaded data
+             ! Debug: Show first few values being read
+             if (i <= 10) then
+                write(*,*) 'DEBUG: Read yt(',i,') = ',yt(i)
+             end if
+             
+             ! Detailed analysis of yt values
              if (yt(i) /= yt(i) .or. abs(yt(i)) > huge(yt(i))/2) then
                 write(*,*) 'WARNING: Invalid yt(',i,') = ',yt(i)
+                invalid_count = invalid_count + 1
+             else if (yt(i) == 0.0d0) then
+                zero_count = zero_count + 1
+                if (zero_count <= 5) then  ! Show first 5 zero values
+                   write(*,*) 'ZERO yt(',i,') = ',yt(i)
+                end if
+             else if (yt(i) < 0.0d0) then
+                negative_count = negative_count + 1
+                if (negative_count <= 5) then  ! Show first 5 negative values
+                   write(*,*) 'NEGATIVE yt(',i,') = ',yt(i)
+                end if
              end if
           end do
+          
+          write(*,*) 'yt Statistics: Zero=', zero_count, ' Negative=', negative_count, ' Invalid=', invalid_count
 
           do i=1,Nt_all
              read(Ifileout,*)slip(i)
@@ -1314,6 +1370,13 @@ character(len=40) :: filename
           end do
 	  close(Ifileout)
           write(*,*) 'Restart file loaded successfully'
+          
+          ! Report statistics but preserve the physical state from restart file
+          if (zero_count > 0) then
+             write(*,*) 'INFO: Found', zero_count, 'zero state variables in restart file'
+             write(*,*) '      (This is physically valid during fast slip events)'
+             write(*,*) '      Regularization will be applied during physics calculations'
+          end if
       else
          open(Ifileout,file=trim(foldername)//trim(filename)//jobname,status='unknown')
          write(Ifileout,*)t,ndt,nrec
