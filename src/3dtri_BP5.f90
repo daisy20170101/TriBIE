@@ -118,6 +118,9 @@ program main
   integer :: base_cells, extra_cells, local_cells, start_idx
   logical :: use_trigreen_format = .true.  ! Set to .true. to use TriGreen files
   
+  ! MPI scatter arrays for different data types
+  integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
+  
   ! File existence checking variables
   logical :: trigreen_file_exists
   character(len=256) :: trigreen_filename
@@ -206,6 +209,7 @@ program main
      
      ! Allocate MPI_Scatterv arrays for uneven distribution
      allocate(sendcounts(0:size-1), displs(0:size-1))
+     allocate(sendcounts_yt(0:size-1), displs_yt(0:size-1))
      
      ! Calculate send counts and displacements for each process
      call MPI_Allgather(local_cells, 1, MPI_INTEGER, sendcounts, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
@@ -214,6 +218,15 @@ program main
      displs(0) = 0
      do i = 1, size-1
         displs(i) = displs(i-1) + sendcounts(i-1)
+     end do
+     
+     ! Initialize yt scatter arrays (will be set properly during restart)
+     do i = 0, size-1
+        sendcounts_yt(i) = 2 * sendcounts(i)  ! yt has 2 components per cell
+     end do
+     displs_yt(0) = 0
+     do i = 1, size-1
+        displs_yt(i) = displs_yt(i-1) + sendcounts_yt(i-1)
      end do
      
      
@@ -552,15 +565,7 @@ end if
      call MPI_Bcast(ndt,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(nrec,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      
-     ! Create yt-specific scatter arrays for restart (2*local_cells per process)
-     integer, dimension(0:size-1) :: sendcounts_yt, displs_yt
-     do i = 0, size-1
-        sendcounts_yt(i) = 2 * sendcounts(i)  ! yt has 2 components per cell
-     end do
-     displs_yt(0) = 0
-     do i = 1, size-1
-        displs_yt(i) = displs_yt(i-1) + sendcounts_yt(i-1)
-     end do
+     ! yt scatter arrays are already initialized above
      
      if (myid == master) then
         write(*,*) 'YT MPI_Scatterv distribution:'
@@ -940,6 +945,9 @@ end if
   ! Clean up MPI_Scatterv arrays
   if (use_trigreen_format .and. allocated(sendcounts)) then
      deallocate(sendcounts, displs)
+  end if
+  if (allocated(sendcounts_yt)) then
+     deallocate(sendcounts_yt, displs_yt)
   end if
   
   call MPI_finalize(ierr)
