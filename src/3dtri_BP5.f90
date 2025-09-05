@@ -159,7 +159,7 @@ program main
   read(12,'(a)')stiffname
   read(12,'(a)')restartname
   read(12,*)Nt_all,nprocs,n_obv,np1,np2
-  read(12,*)Idin,Idout,Iprofile,Iperb,Isnapshot 
+  read(12,*)IDin,Idout,Iprofile,Iperb,Isnapshot 
   read(12,*)Vpl
   read(12,*)tmax
   read(12,*)tslip_ave,tslipend,tslip_aveint
@@ -540,7 +540,8 @@ end if
 !------------------------------------------------------------------
   if(IDin.eq.1) then               !if this is a restart job
      if(myid==master)then
-        call restart(0,'out',4,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
+        filename='out'
+        call restart(0,filename,4,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
         write(1,*)'This is a restart job. Start time ',t,' yr'
      end if
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
@@ -1246,7 +1247,7 @@ end subroutine rkqs
 ! restart file
 !------------------------------------------------------------------------------
 
-      subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
+subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
 USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
                         tm1,tm2,tmday,tmelse,tmmidn,tmmult
       implicit none
