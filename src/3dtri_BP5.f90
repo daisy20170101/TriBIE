@@ -1069,6 +1069,9 @@ end subroutine rkqs
        real(DP) :: temp_sum
        integer :: request1, request2
        intrinsic real
+       
+       ! Regularization parameter for rate-and-state friction
+       real(DP), parameter :: theta_min = 1.0d-15  ! Minimum state variable (seconds)
 
        !MPI RELATED DEFINITIONS
        integer :: ierr,myid,master
@@ -1119,7 +1122,6 @@ end subroutine rkqs
 
        ! Apply physics-based regularization for rate-and-state friction
        ! Small regularization parameter to prevent ln(0) while maintaining physics
-       real(DP), parameter :: theta_min = 1.0d-15  ! Minimum state variable (seconds)
        
        do i=1,Nt
           if (yt(2*i) < theta_min) then
@@ -1147,7 +1149,7 @@ end subroutine rkqs
           deriv1 = (seff(i)*ccb(i)/yt(2*i))*help1*dexp(help2)/help
           deriv2 = (seff(i)*cca(i)/(2*V0))*dexp(help2)/help
 !aging             
-	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
+          deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
 !slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
           dydt(2*i-1) = -(zzfric(i)+deriv1*deriv3)/(eta+deriv2) ! total shear traction
           dydt(2*i)=deriv3     
@@ -1295,13 +1297,17 @@ USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
       integer :: inout,i,ndt,nrec,Ifileout,Nt,Nt_all
       real (DP) :: t,dt,dt_try
       real (DP) ::  yt(2*Nt_all),slip(Nt_all)
-character(len=40) :: filename
+      character(len=40) :: filename
+      
+      ! Additional variables for debugging
+      logical :: file_exists
+      character(len=200) :: line_buffer
+      integer :: preview_unit, zero_count, negative_count, invalid_count
 
       if(inout.eq.0) then
          write(*,*) 'Opening restart file: ', trim(restartname)
          
          ! Check if file exists and get some info
-         logical :: file_exists
          inquire(file=trim(restartname), exist=file_exists)
          if (.not. file_exists) then
             write(*,*) 'ERROR: Restart file does not exist!'
@@ -1312,8 +1318,6 @@ character(len=40) :: filename
          write(*,*) 'File opened successfully, unit=', Ifileout
          
          ! Quick preview of first few lines in the file
-         character(len=200) :: line_buffer
-         integer :: preview_unit
          preview_unit = 99
          open(preview_unit, file=trim(restartname), status='old')
          write(*,*) 'File preview (first 5 lines):'
@@ -1330,7 +1334,6 @@ character(len=40) :: filename
           write(*,*) 'About to read 2*Nt_all=', 2*Nt_all, ' yt values...'
           
           ! Count problematic values
-          integer :: zero_count, negative_count, invalid_count
           zero_count = 0
           negative_count = 0 
           invalid_count = 0
