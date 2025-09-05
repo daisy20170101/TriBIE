@@ -1258,17 +1258,29 @@ USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
 character(len=40) :: filename
 
       if(inout.eq.0) then
+         write(*,*) 'Opening restart file: ', trim(restartname)
          open(Ifileout,file=trim(restartname),status='old')
           read(Ifileout,*)t,ndt,nrec
           read(Ifileout,*)dt,dt_try
+          write(*,*) 'Restart values: t=',t,' ndt=',ndt,' dt=',dt
+          
           do i=1,2*Nt_all
              read(Ifileout,*)yt(i)
+             ! Check for NaN/Inf in loaded data
+             if (yt(i) /= yt(i) .or. abs(yt(i)) > huge(yt(i))/2) then
+                write(*,*) 'WARNING: Invalid yt(',i,') = ',yt(i)
+             end if
           end do
 
           do i=1,Nt_all
              read(Ifileout,*)slip(i)
+             ! Check for NaN/Inf in loaded data
+             if (slip(i) /= slip(i) .or. abs(slip(i)) > huge(slip(i))/2) then
+                write(*,*) 'WARNING: Invalid slip(',i,') = ',slip(i)
+             end if
           end do
 	  close(Ifileout)
+          write(*,*) 'Restart file loaded successfully'
       else
          open(Ifileout,file=trim(foldername)//trim(filename)//jobname,status='unknown')
          write(Ifileout,*)t,ndt,nrec
