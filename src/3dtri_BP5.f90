@@ -210,11 +210,12 @@ program main
      ! Calculate send counts and displacements for each process
      call MPI_Allgather(local_cells, 1, MPI_INTEGER, sendcounts, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
      
-     ! Calculate displacements
+     ! Calculate displacements for single arrays (slip, slipds)
      displs(0) = 0
      do i = 1, size-1
         displs(i) = displs(i-1) + sendcounts(i-1)
      end do
+     
      
      if (myid == master) then
         write(*,*) 'MPI_Scatterv distribution:'
@@ -551,7 +552,24 @@ end if
      call MPI_Bcast(ndt,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(nrec,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      
-     call MPI_Scatterv(yt_all,sendcounts,displs,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     ! Create yt-specific scatter arrays for restart (2*local_cells per process)
+     integer, dimension(0:size-1) :: sendcounts_yt, displs_yt
+     do i = 0, size-1
+        sendcounts_yt(i) = 2 * sendcounts(i)  ! yt has 2 components per cell
+     end do
+     displs_yt(0) = 0
+     do i = 1, size-1
+        displs_yt(i) = displs_yt(i-1) + sendcounts_yt(i-1)
+     end do
+     
+     if (myid == master) then
+        write(*,*) 'YT MPI_Scatterv distribution:'
+        do i = 0, size-1
+           write(*,*) '  Process', i, ': yt_sendcount =', sendcounts_yt(i), ', yt_displacement =', displs_yt(i)
+        end do
+     end if
+     
+     call MPI_Scatterv(yt_all,sendcounts_yt,displs_yt,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Scatterv(slip_all,sendcounts,displs,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Scatterv(slipds_all,sendcounts,displs,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      
