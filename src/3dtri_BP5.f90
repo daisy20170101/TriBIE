@@ -1071,7 +1071,7 @@ end subroutine rkqs
        intrinsic real
        
        ! Regularization parameter for rate-and-state friction
-       real(DP), parameter :: theta_min = 1.0d-15  ! Minimum state variable (seconds)
+       real(DP), parameter :: theta_min = 1.0d-12  ! Minimum state variable (seconds) - increased for stability
 
        !MPI RELATED DEFINITIONS
        integer :: ierr,myid,master
