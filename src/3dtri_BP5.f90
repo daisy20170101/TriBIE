@@ -1117,45 +1117,38 @@ end subroutine rkqs
        end if
        tm1=tm2
 
-       ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
-       ! Add validation to prevent NaN/infinity issues after restart
+       ! Pre-validate critical variables to prevent NaN/infinity issues
        do i=1,Nt
-          ! Validate critical variables before calculations
-          if (yt(2*i) <= 0.0d0 .or. xLf(i) <= 0.0d0) then
-             write(*,*) 'ERROR: Invalid values for log calculation:'
-             write(*,*) '  i=', i, ' yt(2*i)=', yt(2*i), ' xLf(i)=', xLf(i)
-             write(*,*) '  Setting yt(2*i) to small positive value'
-             if (yt(2*i) <= 0.0d0) yt(2*i) = 1.0d-12
-             if (xLf(i) <= 0.0d0) xLf(i) = 1.0d-3
+          if (yt(2*i) <= 0.0d0) then
+             write(*,*) 'ERROR: Non-positive yt(2*i) at i=', i, ' value=', yt(2*i), ' correcting to 1.0d-12'
+             yt(2*i) = 1.0d-12
           end if
-          
+          if (xLf(i) <= 0.0d0) then
+             write(*,*) 'ERROR: Non-positive xLf(i) at i=', i, ' value=', xLf(i), ' correcting to 1.0d-3'
+             xLf(i) = 1.0d-3
+          end if
+       end do
+
+       ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
+       !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
+       do i=1,Nt
           psi = dlog(V0*yt(2*i)/xLf(i))
           help1 = yt(2*i-1)/(2*V0)
           help2 = (f0+ccb(i)*psi)/cca(i)
           help = dsqrt(1+(help1*dexp(help2))**2)
 
-          ! Check for division by zero
-          if (abs(yt(2*i)) < 1.0d-15) then
-             write(*,*) 'ERROR: Division by zero in deriv1, i=', i, ' yt(2*i)=', yt(2*i)
-             yt(2*i) = 1.0d-12
-          end if
-
           deriv1 = (seff(i)*ccb(i)/yt(2*i))*help1*dexp(help2)/help
           deriv2 = (seff(i)*cca(i)/(2*V0))*dexp(help2)/help
-          
-          ! Check denominator before division
-          if (abs(eta+deriv2) < 1.0d-15) then
-             write(*,*) 'ERROR: Division by zero in dydt, i=', i, ' eta=', eta, ' deriv2=', deriv2
-             deriv2 = deriv2 + 1.0d-12
-          end if
-          
 !aging             
 	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
 !slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
           dydt(2*i-1) = -(zzfric(i)+deriv1*deriv3)/(eta+deriv2) ! total shear traction
           dydt(2*i)=deriv3     
-          
-          ! Validate results
+       end do
+       !$OMP END SIMD
+       
+       ! Post-validate results (outside SIMD for debugging)
+       do i=1,Nt
           if (dydt(2*i-1) /= dydt(2*i-1) .or. abs(dydt(2*i-1)) > huge(dydt(2*i-1))/2) then
              write(*,*) 'WARNING: Invalid dydt(2*i-1) at i=', i, ' value=', dydt(2*i-1)
           end if
