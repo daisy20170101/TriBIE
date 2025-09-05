@@ -554,7 +554,18 @@ end if
      call MPI_Scatterv(yt_all,sendcounts,displs,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Scatterv(slip_all,sendcounts,displs,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Scatterv(slipds_all,sendcounts,displs,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
+     
+     ! Validate scattered data for NaN/infinity
+     do i = 1, 2*local_cells
+        if (yt(i) /= yt(i) .or. abs(yt(i)) > huge(yt(i))/2) then
+           write(*,*) 'ERROR: Invalid yt(',i,') after MPI scatter on process', myid, ' value=', yt(i)
+        end if
+     end do
+     do i = 1, local_cells
+        if (slip(i) /= slip(i) .or. abs(slip(i)) > huge(slip(i))/2) then
+           write(*,*) 'ERROR: Invalid slip(',i,') after MPI scatter on process', myid, ' value=', slip(i)
+        end if
+     end do
 
      ndtnext = ndt
      tprint_inter = t
@@ -1107,22 +1118,51 @@ end subroutine rkqs
        tm1=tm2
 
        ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
-       !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
+       ! Add validation to prevent NaN/infinity issues after restart
        do i=1,Nt
+          ! Validate critical variables before calculations
+          if (yt(2*i) <= 0.0d0 .or. xLf(i) <= 0.0d0) then
+             write(*,*) 'ERROR: Invalid values for log calculation:'
+             write(*,*) '  i=', i, ' yt(2*i)=', yt(2*i), ' xLf(i)=', xLf(i)
+             write(*,*) '  Setting yt(2*i) to small positive value'
+             if (yt(2*i) <= 0.0d0) yt(2*i) = 1.0d-12
+             if (xLf(i) <= 0.0d0) xLf(i) = 1.0d-3
+          end if
+          
           psi = dlog(V0*yt(2*i)/xLf(i))
           help1 = yt(2*i-1)/(2*V0)
           help2 = (f0+ccb(i)*psi)/cca(i)
           help = dsqrt(1+(help1*dexp(help2))**2)
 
+          ! Check for division by zero
+          if (abs(yt(2*i)) < 1.0d-15) then
+             write(*,*) 'ERROR: Division by zero in deriv1, i=', i, ' yt(2*i)=', yt(2*i)
+             yt(2*i) = 1.0d-12
+          end if
+
           deriv1 = (seff(i)*ccb(i)/yt(2*i))*help1*dexp(help2)/help
           deriv2 = (seff(i)*cca(i)/(2*V0))*dexp(help2)/help
+          
+          ! Check denominator before division
+          if (abs(eta+deriv2) < 1.0d-15) then
+             write(*,*) 'ERROR: Division by zero in dydt, i=', i, ' eta=', eta, ' deriv2=', deriv2
+             deriv2 = deriv2 + 1.0d-12
+          end if
+          
 !aging             
 	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
 !slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
           dydt(2*i-1) = -(zzfric(i)+deriv1*deriv3)/(eta+deriv2) ! total shear traction
           dydt(2*i)=deriv3     
+          
+          ! Validate results
+          if (dydt(2*i-1) /= dydt(2*i-1) .or. abs(dydt(2*i-1)) > huge(dydt(2*i-1))/2) then
+             write(*,*) 'WARNING: Invalid dydt(2*i-1) at i=', i, ' value=', dydt(2*i-1)
+          end if
+          if (dydt(2*i) /= dydt(2*i) .or. abs(dydt(2*i)) > huge(dydt(2*i))/2) then
+             write(*,*) 'WARNING: Invalid dydt(2*i) at i=', i, ' value=', dydt(2*i)
+          end if
        end do
-       !$OMP END SIMD
 
        RETURN
      END subroutine derivs
