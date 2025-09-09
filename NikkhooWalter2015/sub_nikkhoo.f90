@@ -473,6 +473,9 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   
   real(DP), dimension(2, 2) :: A
   real(DP), dimension(n_points) :: y1, z1, bx1, by1, bz1
+  real(DP), dimension(3, 3) :: B
+  real(DP), dimension(n_points) :: exx_adcs, eyy_adcs, ezz_adcs
+  real(DP), dimension(n_points) :: exy_adcs, exz_adcs, eyz_adcs
   integer :: i
   
   ! Transformation matrix
@@ -496,9 +499,6 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   
   ! Transform strains from ADCS to TDCS
   ! B = [[1 0 0];[zeros(2,1),A']] - 3x3 transformation matrix
-  real(DP), dimension(3, 3) :: B
-  real(DP), dimension(n_points) :: exx_adcs, eyy_adcs, ezz_adcs
-  real(DP), dimension(n_points) :: exy_adcs, exz_adcs, eyz_adcs
   
   ! Set up transformation matrix B
   B = 0.0_DP
