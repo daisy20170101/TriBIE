@@ -607,7 +607,7 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   end if
   
   ! Special case: if on triangle and z != 0, use first configuration
-  if (trimode == 0 .and. abs(z) < 1.0e-15_DP) then
+  if (trimode == 0 .and. abs(z) > 1.0e-15_DP) then
     trimode = 1
   end if
 
