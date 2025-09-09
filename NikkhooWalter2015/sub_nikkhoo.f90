@@ -185,17 +185,17 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Calculate strains based on configuration
   if (casep_log) then
     ! Configuration I
-    call tdsetup_s(x_td, y_td, z_td, bx, by, bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, 0.25_DP, p2_td(2:3), e23(2:3), &
                    exx, eyy, ezz, exy, exz, eyz)
   else if (casen_log) then
     ! Configuration II
-    call tdsetup_s(x_td, y_td, z_td, -bx, -by, -bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, 0.25_DP, p2_td(2:3), e23(2:3), &
                    exx, eyy, ezz, exy, exz, eyz)
   else if (casez_log) then
     ! For points on the triangle, use average of positive and negative cases
-    call tdsetup_s(x_td, y_td, z_td, bx, by, bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, 0.25_DP, p2_td(2:3), e23(2:3), &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    call tdsetup_s(x_td, y_td, z_td, -bx, -by, -bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, 0.25_DP, p2_td(2:3), e23(2:3), &
                    exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
     
     ! Average the results
@@ -566,53 +566,44 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
 
 end subroutine trimode_finder
 
-subroutine tdsetup_s(x, y, z, bx, by, bz, p1, p2, p3, A_angle, B_angle, C_angle, &
+subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
                      exx, eyy, ezz, exy, exz, eyz)
   implicit none
   
-  real(DP), intent(in) :: x, y, z, bx, by, bz
-  real(DP), dimension(3), intent(in) :: p1, p2, p3
-  real(DP), intent(in) :: A_angle, B_angle, C_angle
+  real(DP), intent(in) :: x, y, z, alpha, bx, by, bz, nu
+  real(DP), dimension(2), intent(in) :: tri_vertex, side_vec
   real(DP), intent(out) :: exx, eyy, ezz, exy, exz, eyz
   
   ! Local variables
-  real(DP) :: nu = 0.25_DP  ! Default Poisson's ratio
-  real(DP), dimension(3) :: side_vec, tri_vertex
   real(DP), dimension(2, 2) :: A
   real(DP) :: y1, z1, by1, bz1
-  real(DP) :: exx_adcs, eyy_adcs, ezz_adcs
-  real(DP) :: exy_adcs, exz_adcs, eyz_adcs
   
-  ! Calculate side vector and triangle vertex
-  side_vec = p3 - p2
-  tri_vertex = p2
+  ! Transformation matrix A (following MATLAB: A = [[SideVec(3);-SideVec(2)] SideVec(2:3)]')
+  ! MATLAB creates: [SideVec(3), SideVec(2); -SideVec(2), SideVec(3)] then transposes
+  ! So the final matrix is: [SideVec(3), -SideVec(2); SideVec(2), SideVec(3)]
+  A(1, 1) = side_vec(2)   ! SideVec(3) after transpose (side_vec(2) = z component)
+  A(1, 2) = -side_vec(1)  ! -SideVec(2) after transpose (side_vec(1) = y component)
+  A(2, 1) = side_vec(1)   ! SideVec(2) after transpose (side_vec(1) = y component)
+  A(2, 2) = side_vec(2)   ! SideVec(3) after transpose (side_vec(2) = z component)
   
-  ! Transformation matrix A (2x2 for y-z plane)
-  A(1, 1) = side_vec(3)
-  A(1, 2) = -side_vec(2)
-  A(2, 1) = side_vec(2)
-  A(2, 2) = side_vec(3)
+  ! Transform coordinates of the calculation points from TDCS into ADCS
+  ! MATLAB: r1 = A*[y'-TriVertex(2);z'-TriVertex(3)];
+  y1 = A(1, 1) * (y - tri_vertex(1)) + A(1, 2) * (z - tri_vertex(2))
+  z1 = A(2, 1) * (y - tri_vertex(1)) + A(2, 2) * (z - tri_vertex(2))
   
-  ! Transform coordinates from TDCS to ADCS
-  y1 = A(1, 1) * (y - tri_vertex(2)) + A(1, 2) * (z - tri_vertex(3))
-  z1 = A(2, 1) * (y - tri_vertex(2)) + A(2, 2) * (z - tri_vertex(3))
-  
-  ! Transform slip vector components from TDCS to ADCS
+  ! Transform the in-plane slip vector components from TDCS into ADCS
+  ! MATLAB: r2 = A*[by;bz];
   by1 = A(1, 1) * by + A(1, 2) * bz
   bz1 = A(2, 1) * by + A(2, 2) * bz
   
-  ! Calculate strains associated with angular dislocation in ADCS
-  call angdis_strain(x, y1, z1, -PI + A_angle, bx, by1, bz1, nu, &
-                     exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs)
+  ! Calculate strains associated with an angular dislocation in ADCS
+  ! MATLAB: [exx,eyy,ezz,exy,exz,eyz] = AngDisStrain(x,y1,z1,-pi+alpha,bx,by1,bz1,nu);
+  call angdis_strain(x, y1, z1, -PI + alpha, bx, by1, bz1, nu, &
+                     exx, eyy, ezz, exy, exz, eyz)
   
-  ! Transform strains from ADCS to TDCS
-  exx = exx_adcs
-  eyy = A(1, 1)**2 * eyy_adcs + 2.0_DP * A(1, 1) * A(1, 2) * exy_adcs + A(1, 2)**2 * ezz_adcs
-  ezz = A(2, 1)**2 * eyy_adcs + 2.0_DP * A(2, 1) * A(2, 2) * exy_adcs + A(2, 2)**2 * ezz_adcs
-  exy = A(1, 1) * eyy_adcs + A(1, 2) * exy_adcs
-  exz = A(2, 1) * eyy_adcs + A(2, 2) * exy_adcs
-  eyz = A(1, 1) * A(2, 1) * eyy_adcs + (A(1, 1) * A(2, 2) + A(1, 2) * A(2, 1)) * exy_adcs + &
-        A(1, 2) * A(2, 2) * ezz_adcs
+  ! Note: MATLAB TDSetupS returns strains in ADCS, not TDCS
+  ! No transformation back to TDCS is performed in the MATLAB version
+
 end subroutine tdsetup_s
 
 !==============================================================================
