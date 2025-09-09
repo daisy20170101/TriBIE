@@ -123,6 +123,7 @@ program main
   
   ! Element mapping for visualization (MPI order -> Mesh order)
   integer, dimension(:), allocatable :: mpi_to_mesh_map
+  integer, dimension(:), allocatable :: start_indices
   integer :: mpi_idx, global_idx, mesh_idx
   
   ! File existence checking variables
@@ -215,6 +216,7 @@ program main
      allocate(sendcounts(0:size-1), displs(0:size-1))
      allocate(sendcounts_yt(0:size-1), displs_yt(0:size-1))
      allocate(mpi_to_mesh_map(Nt_all))
+     allocate(start_indices(0:size-1))
      
      ! Calculate send counts and displacements for each process
      call MPI_Allgather(local_cells, 1, MPI_INTEGER, sendcounts, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
@@ -236,16 +238,15 @@ program main
      
      ! Create element mapping: MPI gather order -> Original mesh order
      ! The MPI_Gather puts data in process order, but we need mesh order
+     ! We need to collect the actual start_idx values from each process
+     call MPI_Allgather(start_idx, 1, MPI_INTEGER, start_indices, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
+     
      do i = 0, size-1
         do j = 1, sendcounts(i)
            ! Element index in MPI gathered array
            mpi_idx = displs(i) + j
-           ! Original global element index (before MPI distribution)
-           if (i == 0) then
-              global_idx = j
-           else
-              global_idx = sum(sendcounts(0:i-1)) + j
-           end if
+           ! Original global element index from actual start_idx
+           global_idx = start_indices(i) + j - 1  ! start_idx is 1-based, j is 1-based
            mpi_to_mesh_map(mpi_idx) = global_idx
         end do
      end do
@@ -253,7 +254,9 @@ program main
      ! Verify mapping consistency (optional debug)
      if (myid == master .and. allocated(mpi_to_mesh_map)) then
         write(*,*) 'Element mapping created: MPI order -> Mesh order'
-        write(*,*) 'First 5 mappings:', mpi_to_mesh_map(1:min(5,Nt_all))
+        write(*,*) 'Start indices for each process:', start_indices
+        write(*,*) 'First 10 mappings:', mpi_to_mesh_map(1:min(10,Nt_all))
+        write(*,*) 'Last 10 mappings:', mpi_to_mesh_map(max(1,Nt_all-9):Nt_all)
      end if
      
      if (myid == master) then
@@ -979,6 +982,9 @@ end if
   end if
   if (allocated(mpi_to_mesh_map)) then
      deallocate(mpi_to_mesh_map)
+  end if
+  if (allocated(start_indices)) then
+     deallocate(start_indices)
   end if
   
   call MPI_finalize(ierr)
