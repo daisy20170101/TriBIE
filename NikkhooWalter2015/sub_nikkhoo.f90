@@ -629,7 +629,7 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   
   ! Transformation matrix A (following MATLAB: A = [[SideVec(3);-SideVec(2)] SideVec(2:3)]')
   ! MATLAB creates: [SideVec(3), SideVec(2); -SideVec(2), SideVec(3)] then transposes
-  ! So the final matrix is: [SideVec(3), -SideVec(2); SideVec(2), SideVec(3)]
+  ! So the final 2x2 matrix is: [SideVec(3), -SideVec(2); SideVec(2), SideVec(3)]
   A(1, 1) = side_vec(3)   ! SideVec(3) after transpose
   A(1, 2) = -side_vec(2)  ! -SideVec(2) after transpose  
   A(2, 1) = side_vec(2)   ! SideVec(2) after transpose
@@ -654,8 +654,8 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   ! MATLAB: B = [[1 0 0];[zeros(2,1),A']]; % 3x3 Transformation matrix
   ! MATLAB: [exx,eyy,ezz,exy,exz,eyz] = TensTrans(exx,eyy,ezz,exy,exz,eyz,B);
   B(1, 1) = 1.0_DP; B(1, 2) = 0.0_DP; B(1, 3) = 0.0_DP
-  B(2, 1) = 0.0_DP; B(2, 2) = A(1, 1); B(2, 3) = A(1, 2)
-  B(3, 1) = 0.0_DP; B(3, 2) = A(2, 1); B(3, 3) = A(2, 2)
+  B(2, 1) = 0.0_DP; B(2, 2) = A(1, 1); B(2, 3) = A(1, 2)  ! A'(1,1), A'(1,2)
+  B(3, 1) = 0.0_DP; B(3, 2) = A(2, 1); B(3, 3) = A(2, 2)  ! A'(2,1), A'(2,2)
   
   call tens_trans(exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs, B, &
                   exx, eyy, ezz, exy, exz, eyz)
