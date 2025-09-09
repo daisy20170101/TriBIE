@@ -573,7 +573,7 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   
   ! Calculate barycentric coordinates (following MATLAB implementation)
   ! Note: MATLAB uses 2D coordinates (y, z) in TDCS, so we use p1(2:3), p2(2:3), p3(2:3)
-  denominator = (p2(2) - p3(2)) * (p1(2) - p3(2)) + (p3(2) - p2(2)) * (p1(3) - p3(3))
+  denominator = (p2(2) - p3(2)) * (p1(1) - p3(1)) + (p3(1) - p2(1)) * (p1(2) - p3(2))
   
   if (abs(denominator) < 1.0e-15_DP) then
     ! Degenerate triangle case
@@ -581,8 +581,8 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
     return
   end if
   
-  a = ((p2(2) - p3(2)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
-  b = ((p3(2) - p1(2)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
+  a = ((p2(2) - p3(2)) * (x - p3(1)) + (p3(1) - p2(1)) * (y - p3(2))) / denominator
+  b = ((p3(2) - p1(2)) * (x - p3(1)) + (p1(1) - p3(1)) * (y - p3(2))) / denominator
   c = 1.0_DP - a - b
   
   ! Initialize to first configuration
