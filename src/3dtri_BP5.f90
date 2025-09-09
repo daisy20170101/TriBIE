@@ -250,6 +250,11 @@ program main
         end do
      end do
      
+     ! Verify mapping consistency (optional debug)
+     if (myid == master .and. allocated(mpi_to_mesh_map)) then
+        write(*,*) 'Element mapping created: MPI order -> Mesh order'
+        write(*,*) 'First 5 mappings:', mpi_to_mesh_map(1:min(5,Nt_all))
+     end if
      
      if (myid == master) then
         write(*,*) 'MPI_Scatterv distribution:'
@@ -610,7 +615,7 @@ end if
            write(*,*) 'ERROR: Invalid slip(',i,') after MPI scatter on process', myid, ' value=', slip(i)
         end if
      end do
-
+  
      ndtnext = ndt
      tprint_inter = t
      tslip_ave=t        
@@ -1201,7 +1206,7 @@ end subroutine rkqs
           deriv1 = (seff(i)*ccb(i)/yt(2*i))*help1*dexp(help2)/help
           deriv2 = (seff(i)*cca(i)/(2*V0))*dexp(help2)/help
 !aging             
-          deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
+	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
 !slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
           dydt(2*i-1) = -(zzfric(i)+deriv1*deriv3)/(eta+deriv2) ! total shear traction
           dydt(2*i)=deriv3     
