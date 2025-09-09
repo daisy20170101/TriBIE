@@ -405,7 +405,7 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   ! Local variables
   real(DP) :: nu
   real(DP), dimension(3) :: side_vec, ey1, ey2, ey3
-  real(DP), dimension(3, 3) :: A
+  real(DP), dimension(3, 3) :: A, A_transpose
   real(DP) :: beta
   real(DP) :: y1A, y2A, y3A, y1B, y2B, y3B
   real(DP) :: y1AB, y2AB, y3AB
@@ -490,8 +490,11 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   v13 = v13B - v13A
   v23 = v23B - v23A
   
+  ! Calculate transpose of A to avoid temporary array creation
+  A_transpose = transpose(A)
+  
   ! Transform total Free Surface Correction to strains from ADCS to EFCS
-  call tens_trans(v11, v22, v33, v12, v13, v23, transpose(A), &
+  call tens_trans(v11, v22, v33, v12, v13, v23, A_transpose, &
                   Exx, Eyy, Ezz, Exy, Exz, Eyz)
   
   ! Calculate total Free Surface Correction to stresses in EFCS
