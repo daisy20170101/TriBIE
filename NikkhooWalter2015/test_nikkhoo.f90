@@ -10,6 +10,7 @@ program test_nikkhoo
   
   ! Test parameters
   integer, parameter :: n_points = 4
+  integer :: i
   real(DP), dimension(n_points) :: x, y, z
   real(DP), dimension(3) :: p1, p2, p3
   real(DP) :: ss, ds, ts, mu, lambda
