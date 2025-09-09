@@ -185,17 +185,17 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Calculate strains based on configuration
   if (casep_log) then
     ! Configuration I
-    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, 0.25_DP, p2_td(2:3), e23(2:3), &
+    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, 0.25_DP, p2_td, e23, &
                    exx, eyy, ezz, exy, exz, eyz)
   else if (casen_log) then
     ! Configuration II
-    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, 0.25_DP, p2_td(2:3), e23(2:3), &
+    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, 0.25_DP, p2_td, e23, &
                    exx, eyy, ezz, exy, exz, eyz)
   else if (casez_log) then
     ! For points on the triangle, use average of positive and negative cases
-    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, 0.25_DP, p2_td(2:3), e23(2:3), &
+    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, 0.25_DP, p2_td, e23, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, 0.25_DP, p2_td(2:3), e23(2:3), &
+    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, 0.25_DP, p2_td, e23, &
                    exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
     
     ! Average the results
@@ -571,25 +571,27 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   implicit none
   
   real(DP), intent(in) :: x, y, z, alpha, bx, by, bz, nu
-  real(DP), dimension(2), intent(in) :: tri_vertex, side_vec
+  real(DP), dimension(3), intent(in) :: tri_vertex, side_vec
   real(DP), intent(out) :: exx, eyy, ezz, exy, exz, eyz
   
   ! Local variables
   real(DP), dimension(2, 2) :: A
+  real(DP), dimension(3, 3) :: B
   real(DP) :: y1, z1, by1, bz1
+  real(DP) :: exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs
   
   ! Transformation matrix A (following MATLAB: A = [[SideVec(3);-SideVec(2)] SideVec(2:3)]')
   ! MATLAB creates: [SideVec(3), SideVec(2); -SideVec(2), SideVec(3)] then transposes
   ! So the final matrix is: [SideVec(3), -SideVec(2); SideVec(2), SideVec(3)]
-  A(1, 1) = side_vec(2)   ! SideVec(3) after transpose (side_vec(2) = z component)
-  A(1, 2) = -side_vec(1)  ! -SideVec(2) after transpose (side_vec(1) = y component)
-  A(2, 1) = side_vec(1)   ! SideVec(2) after transpose (side_vec(1) = y component)
-  A(2, 2) = side_vec(2)   ! SideVec(3) after transpose (side_vec(2) = z component)
+  A(1, 1) = side_vec(3)   ! SideVec(3) after transpose
+  A(1, 2) = -side_vec(2)  ! -SideVec(2) after transpose  
+  A(2, 1) = side_vec(2)   ! SideVec(2) after transpose
+  A(2, 2) = side_vec(3)   ! SideVec(3) after transpose
   
   ! Transform coordinates of the calculation points from TDCS into ADCS
   ! MATLAB: r1 = A*[y'-TriVertex(2);z'-TriVertex(3)];
-  y1 = A(1, 1) * (y - tri_vertex(1)) + A(1, 2) * (z - tri_vertex(2))
-  z1 = A(2, 1) * (y - tri_vertex(1)) + A(2, 2) * (z - tri_vertex(2))
+  y1 = A(1, 1) * (y - tri_vertex(2)) + A(1, 2) * (z - tri_vertex(3))
+  z1 = A(2, 1) * (y - tri_vertex(2)) + A(2, 2) * (z - tri_vertex(3))
   
   ! Transform the in-plane slip vector components from TDCS into ADCS
   ! MATLAB: r2 = A*[by;bz];
@@ -599,10 +601,17 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   ! Calculate strains associated with an angular dislocation in ADCS
   ! MATLAB: [exx,eyy,ezz,exy,exz,eyz] = AngDisStrain(x,y1,z1,-pi+alpha,bx,by1,bz1,nu);
   call angdis_strain(x, y1, z1, -PI + alpha, bx, by1, bz1, nu, &
-                     exx, eyy, ezz, exy, exz, eyz)
+                     exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs)
   
-  ! Note: MATLAB TDSetupS returns strains in ADCS, not TDCS
-  ! No transformation back to TDCS is performed in the MATLAB version
+  ! Transform strains from ADCS into TDCS
+  ! MATLAB: B = [[1 0 0];[zeros(2,1),A']]; % 3x3 Transformation matrix
+  ! MATLAB: [exx,eyy,ezz,exy,exz,eyz] = TensTrans(exx,eyy,ezz,exy,exz,eyz,B);
+  B(1, 1) = 1.0_DP; B(1, 2) = 0.0_DP; B(1, 3) = 0.0_DP
+  B(2, 1) = 0.0_DP; B(2, 2) = A(1, 1); B(2, 3) = A(1, 2)
+  B(3, 1) = 0.0_DP; B(3, 2) = A(2, 1); B(3, 3) = A(2, 2)
+  
+  call tens_trans(exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs, B, &
+                  exx, eyy, ezz, exy, exz, eyz)
 
 end subroutine tdsetup_s
 
