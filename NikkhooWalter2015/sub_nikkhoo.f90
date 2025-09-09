@@ -490,12 +490,35 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   by1 = A(1,1) * by + A(1,2) * bz
   bz1 = A(2,1) * by + A(2,2) * bz
   
-  ! Calculate strains
+  ! Calculate strains in ADCS
   call angdis_strain(x, y1, z1, -PI + alpha, bx1, by1, bz1, nu, &
                      exx, eyy, ezz, exy, exz, eyz, n_points)
   
-  ! Transform back to TDCS
-  ! (Implementation would continue with tensor transformation)
+  ! Transform strains from ADCS to TDCS
+  ! B = [[1 0 0];[zeros(2,1),A']] - 3x3 transformation matrix
+  real(DP), dimension(3, 3) :: B
+  real(DP), dimension(n_points) :: exx_adcs, eyy_adcs, ezz_adcs
+  real(DP), dimension(n_points) :: exy_adcs, exz_adcs, eyz_adcs
+  
+  ! Set up transformation matrix B
+  B = 0.0_DP
+  B(1, 1) = 1.0_DP
+  B(2, 2) = A(1, 1)  ! A'(1,1)
+  B(2, 3) = A(1, 2)  ! A'(1,2)
+  B(3, 2) = A(2, 1)  ! A'(2,1)
+  B(3, 3) = A(2, 2)  ! A'(2,2)
+  
+  ! Store ADCS strains
+  exx_adcs = exx
+  eyy_adcs = eyy
+  ezz_adcs = ezz
+  exy_adcs = exy
+  exz_adcs = exz
+  eyz_adcs = eyz
+  
+  ! Transform to TDCS
+  call tens_trans(exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs, &
+                  B, exx, eyy, ezz, exy, exz, eyz, n_points)
 
 end subroutine tdsetup_s
 
