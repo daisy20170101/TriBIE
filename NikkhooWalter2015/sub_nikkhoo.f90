@@ -520,20 +520,50 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   real(DP), dimension(3), intent(in) :: p1, p2, p3
   integer, intent(out) :: trimode
   
-  real(DP) :: area, area1, area2, area3
-  real(DP) :: tol = 1.0e-10_DP
+  ! Local variables for barycentric coordinates
+  real(DP) :: a, b, c
+  real(DP) :: denominator
   
-  ! Calculate areas
-  area = 0.5_DP * abs((p2(1) - p1(1)) * (p3(2) - p1(2)) - (p3(1) - p1(1)) * (p2(2) - p1(2)))
-  area1 = 0.5_DP * abs((p2(1) - x) * (p3(2) - y) - (p3(1) - x) * (p2(2) - y))
-  area2 = 0.5_DP * abs((x - p1(1)) * (p3(2) - p1(2)) - (p3(1) - p1(1)) * (y - p1(2)))
-  area3 = 0.5_DP * abs((p2(1) - p1(1)) * (y - p1(2)) - (x - p1(1)) * (p2(2) - p1(2)))
+  ! Calculate barycentric coordinates (following MATLAB implementation)
+  ! Note: MATLAB uses 2D coordinates (y, z) in TDCS, so we use p1(2:3), p2(2:3), p3(2:3)
+  denominator = (p2(2) - p3(2)) * (p1(2) - p3(2)) + (p3(2) - p2(2)) * (p1(3) - p3(3))
   
-  if (abs(area1 + area2 + area3 - area) < tol) then
-    trimode = 0  ! On triangle
-  else
-    trimode = 1  ! Outside triangle (simplified)
+  if (abs(denominator) < 1.0e-15_DP) then
+    ! Degenerate triangle case
+    trimode = 1
+    return
   end if
+  
+  a = ((p2(2) - p3(2)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
+  b = ((p3(2) - p1(2)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
+  c = 1.0_DP - a - b
+  
+  ! Initialize to first configuration
+  trimode = 1
+  
+  ! Check for second configuration (-1)
+  if (a <= 0.0_DP .and. b > c .and. c > a) then
+    trimode = -1
+  else if (b <= 0.0_DP .and. c > a .and. a > b) then
+    trimode = -1
+  else if (c <= 0.0_DP .and. a > b .and. b > c) then
+    trimode = -1
+  end if
+  
+  ! Check for points on triangle sides (0)
+  if (a == 0.0_DP .and. b >= 0.0_DP .and. c >= 0.0_DP) then
+    trimode = 0
+  else if (a >= 0.0_DP .and. b == 0.0_DP .and. c >= 0.0_DP) then
+    trimode = 0
+  else if (a >= 0.0_DP .and. b >= 0.0_DP .and. c == 0.0_DP) then
+    trimode = 0
+  end if
+  
+  ! Special case: if on triangle and z != 0, use first configuration
+  if (trimode == 0 .and. abs(z) > 1.0e-15_DP) then
+    trimode = 1
+  end if
+
 end subroutine trimode_finder
 
 subroutine tdsetup_s(x, y, z, bx, by, bz, p1, p2, p3, A_angle, B_angle, C_angle, &
