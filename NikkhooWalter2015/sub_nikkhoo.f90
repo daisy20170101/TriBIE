@@ -160,8 +160,8 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   p3_td = 0.0_DP
   
   call coord_trans(x - p2(1), y - p2(2), z - p2(3), A, x_td, y_td, z_td, n_points)
-  call coord_trans(p1(1) - p2(1), p1(2) - p2(2), p1(3) - p2(3), A, p1_td(1), p1_td(2), p1_td(3), 1)
-  call coord_trans(p3(1) - p2(1), p3(2) - p2(2), p3(3) - p2(3), A, p3_td(1), p3_td(2), p3_td(3), 1)
+  call coord_trans_scalar(p1(1) - p2(1), p1(2) - p2(2), p1(3) - p2(3), A, p1_td(1), p1_td(2), p1_td(3))
+  call coord_trans_scalar(p3(1) - p2(1), p3(2) - p2(2), p3(3) - p2(3), A, p3_td(1), p3_td(2), p3_td(3))
   
   ! Calculate unit vectors along TD sides
   e12 = (p2_td - p1_td) / norm2(p2_td - p1_td)
@@ -290,7 +290,7 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   real(DP) :: bx, by, bz
   real(DP), dimension(3) :: vnorm, vstrike, vdip, ey, ez
   real(DP), dimension(3, 3) :: A
-  real(DP) :: bX, bY, bZ
+  real(DP) :: bX_out, bY_out, bZ_out
   real(DP), dimension(n_points, 6) :: stress1, strain1, stress2, strain2, stress3, strain3
   
   ! Slip vector components
@@ -316,12 +316,12 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   A(:, 2) = vstrike
   A(:, 3) = vdip
   
-  call coord_trans(bx, by, bz, A, bX, bY, bZ, 1)
+  call coord_trans_scalar(bx, by, bz, A, bX_out, bY_out, bZ_out)
   
   ! Calculate contributions from each side
-  call angsetup_fsc_s(x, y, z, bX, bY, bZ, p1, p2, mu, lambda, stress1, strain1, n_points)
-  call angsetup_fsc_s(x, y, z, bX, bY, bZ, p2, p3, mu, lambda, stress2, strain2, n_points)
-  call angsetup_fsc_s(x, y, z, bX, bY, bZ, p3, p1, mu, lambda, stress3, strain3, n_points)
+  call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p1, p2, mu, lambda, stress1, strain1, n_points)
+  call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p2, p3, mu, lambda, stress2, strain2, n_points)
+  call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p3, p1, mu, lambda, stress3, strain3, n_points)
   
   ! Total contribution
   stress = stress1 + stress2 + stress3
@@ -371,25 +371,44 @@ end subroutine tens_trans
 !==============================================================================
 ! Coordinate transformation
 !==============================================================================
-subroutine coord_trans(x1, x2, x3, A, X1, X2, X3, n_points)
+subroutine coord_trans(x1_in, x2_in, x3_in, A, X1_out, X2_out, X3_out, n_points)
   implicit none
   
   integer, intent(in) :: n_points
-  real(DP), dimension(n_points), intent(in) :: x1, x2, x3
+  real(DP), dimension(n_points), intent(in) :: x1_in, x2_in, x3_in
   real(DP), dimension(3, 3), intent(in) :: A
-  real(DP), dimension(n_points), intent(out) :: X1, X2, X3
+  real(DP), dimension(n_points), intent(out) :: X1_out, X2_out, X3_out
   
   integer :: i
   real(DP), dimension(3) :: r
   
   do i = 1, n_points
-    r = matmul(A, [x1(i), x2(i), x3(i)])
-    X1(i) = r(1)
-    X2(i) = r(2)
-    X3(i) = r(3)
+    r = matmul(A, [x1_in(i), x2_in(i), x3_in(i)])
+    X1_out(i) = r(1)
+    X2_out(i) = r(2)
+    X3_out(i) = r(3)
   end do
 
 end subroutine coord_trans
+
+!==============================================================================
+! Scalar coordinate transformation
+!==============================================================================
+subroutine coord_trans_scalar(x1_in, x2_in, x3_in, A, X1_out, X2_out, X3_out)
+  implicit none
+  
+  real(DP), intent(in) :: x1_in, x2_in, x3_in
+  real(DP), dimension(3, 3), intent(in) :: A
+  real(DP), intent(out) :: X1_out, X2_out, X3_out
+  
+  real(DP), dimension(3) :: r
+  
+  r = matmul(A, [x1_in, x2_in, x3_in])
+  X1_out = r(1)
+  X2_out = r(2)
+  X3_out = r(3)
+
+end subroutine coord_trans_scalar
 
 !==============================================================================
 ! Triangular mode finder
