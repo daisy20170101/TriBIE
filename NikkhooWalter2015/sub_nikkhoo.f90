@@ -52,11 +52,11 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   end if
   
   ! Calculate main dislocation contribution
-  call tdstress_fs_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+  call tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
                           sts_ms, str_ms)
   
   ! Calculate harmonic function contribution
-  call tdstress_harfunc_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+  call tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
                                sts_fsc, str_fsc)
   
   ! Calculate image dislocation contribution
@@ -65,7 +65,7 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   p2_img(3) = -p2_img(3)
   p3_img(3) = -p3_img(3)
   
-  call tdstress_fs_single(x, y, z, p1_img, p2_img, p3_img, ss, ds, ts, mu, lambda, &
+  call tdstress_fs(x, y, z, p1_img, p2_img, p3_img, ss, ds, ts, mu, lambda, &
                           sts_is, str_is)
   
   ! Special case for surface elements
@@ -85,41 +85,6 @@ end subroutine tdstress_hs
 !==============================================================================
 ! Single-point versions for external loop
 !==============================================================================
-subroutine tdstress_fs_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                              stress, strain)
-  implicit none
-  
-  ! Input parameters
-  real(DP), intent(in) :: x, y, z  ! Single calculation point
-  real(DP), dimension(3), intent(in) :: p1, p2, p3
-  real(DP), intent(in) :: ss, ds, ts, mu, lambda
-  
-  ! Output parameters
-  real(DP), dimension(6), intent(out) :: stress, strain
-  
-  ! Call single-point version directly
-  call tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                   stress, strain)
-
-end subroutine tdstress_fs_single
-
-subroutine tdstress_harfunc_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                                   stress, strain)
-  implicit none
-  
-  ! Input parameters
-  real(DP), intent(in) :: x, y, z  ! Single calculation point
-  real(DP), dimension(3), intent(in) :: p1, p2, p3
-  real(DP), intent(in) :: ss, ds, ts, mu, lambda
-  
-  ! Output parameters
-  real(DP), dimension(6), intent(out) :: stress, strain
-  
-  ! Call single-point version directly
-  call tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                        stress, strain)
-
-end subroutine tdstress_harfunc_single
 
 !==============================================================================
 ! TDstressFS: Full-space triangular dislocation
@@ -192,9 +157,9 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   p2_td = 0.0_DP
   p3_td = 0.0_DP
   
-  call coord_trans_scalar(x - p2(1), y - p2(2), z - p2(3), A, x_td, y_td, z_td)
-  call coord_trans_scalar(p1(1) - p2(1), p1(2) - p2(2), p1(3) - p2(3), A, p1_td(1), p1_td(2), p1_td(3))
-  call coord_trans_scalar(p3(1) - p2(1), p3(2) - p2(2), p3(3) - p2(3), A, p3_td(1), p3_td(2), p3_td(3))
+  call coord_trans(x - p2(1), y - p2(2), z - p2(3), A, x_td, y_td, z_td)
+  call coord_trans(p1(1) - p2(1), p1(2) - p2(2), p1(3) - p2(3), A, p1_td(1), p1_td(2), p1_td(3))
+  call coord_trans(p3(1) - p2(1), p3(2) - p2(2), p3(3) - p2(3), A, p3_td(1), p3_td(2), p3_td(3))
   
   ! Calculate unit vectors along TD sides
   e12 = (p2_td - p1_td) / norm2(p2_td - p1_td)
@@ -207,7 +172,7 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   C_angle = acos(dot_product(e23, e13))
   
   ! Determine configuration
-  call trimode_finder_scalar(y_td, z_td, x_td, p1_td, p2_td, p3_td, trimode)
+  call trimode_finder(y_td, z_td, x_td, p1_td, p2_td, p3_td, trimode)
   
   casep_log = (trimode == 1)
   casen_log = (trimode == -1)
@@ -220,18 +185,18 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Calculate strains based on configuration
   if (casep_log) then
     ! Configuration I
-    call tdsetup_s_scalar(x_td, y_td, z_td, bx, by, bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
-                          exx, eyy, ezz, exy, exz, eyz)
+    call tdsetup_s(x_td, y_td, z_td, bx, by, bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+                   exx, eyy, ezz, exy, exz, eyz)
   else if (casen_log) then
     ! Configuration II
-    call tdsetup_s_scalar(x_td, y_td, z_td, -bx, -by, -bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
-                          exx, eyy, ezz, exy, exz, eyz)
+    call tdsetup_s(x_td, y_td, z_td, -bx, -by, -bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+                   exx, eyy, ezz, exy, exz, eyz)
   else if (casez_log) then
     ! For points on the triangle, use average of positive and negative cases
-    call tdsetup_s_scalar(x_td, y_td, z_td, bx, by, bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
-                          exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    call tdsetup_s_scalar(x_td, y_td, z_td, -bx, -by, -bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
-                          exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
+    call tdsetup_s(x_td, y_td, z_td, bx, by, bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
+    call tdsetup_s(x_td, y_td, z_td, -bx, -by, -bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
     
     ! Average the results
     exx = (exx_p + exx_n) / 2.0_DP
@@ -243,8 +208,8 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   end if
   
   ! Transform strain tensor to EFCS
-  call tens_trans_scalar(exx, eyy, ezz, exy, exz, eyz, A, &
-                         exx, eyy, ezz, exy, exz, eyz)
+  call tens_trans(exx, eyy, ezz, exy, exz, eyz, A, &
+                  exx, eyy, ezz, exy, exz, eyz)
   
   ! Calculate stress tensor
   sxx = 2.0_DP * mu * exx + lambda * (exx + eyy + ezz)
@@ -308,7 +273,7 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   A(:, 2) = vstrike
   A(:, 3) = vdip
   
-  call coord_trans_scalar(bx, by, bz, A, bX_out, bY_out, bZ_out)
+  call coord_trans(bx, by, bz, A, bX_out, bY_out, bZ_out)
   
   ! Calculate contributions from each side
   call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p1, p2, mu, lambda, stress1, strain1)
@@ -324,12 +289,8 @@ end subroutine tdstress_harfunc
 !==============================================================================
 ! Tensor transformation
 !==============================================================================
-
-!==============================================================================
-! Scalar tensor transformation
-!==============================================================================
-subroutine tens_trans_scalar(txx1, tyy1, tzz1, txy1, txz1, tyz1, A, &
-                             txx2, tyy2, tzz2, txy2, txz2, tyz2)
+subroutine tens_trans(txx1, tyy1, tzz1, txy1, txz1, tyz1, A, &
+                      txx2, tyy2, tzz2, txy2, txz2, tyz2)
   implicit none
   
   real(DP), intent(in) :: txx1, tyy1, tzz1, txy1, txz1, tyz1
@@ -357,16 +318,12 @@ subroutine tens_trans_scalar(txx1, tyy1, tzz1, txy1, txz1, tyz1, A, &
          (A(3,1)*A(2,3) + A(2,1)*A(3,3))*txz1 + (A(2,3)*A(3,2) + A(3,3)*A(2,2))*tyz1 + &
          A(2,2)*A(3,2)*tyy1 + A(2,3)*A(3,3)*tzz1
 
-end subroutine tens_trans_scalar
+end subroutine tens_trans
 
 !==============================================================================
 ! Coordinate transformation
 !==============================================================================
-
-!==============================================================================
-! Scalar coordinate transformation
-!==============================================================================
-subroutine coord_trans_scalar(x1_in, x2_in, x3_in, A, X1_out, X2_out, X3_out)
+subroutine coord_trans(x1_in, x2_in, x3_in, A, X1_out, X2_out, X3_out)
   implicit none
   
   real(DP), intent(in) :: x1_in, x2_in, x3_in
@@ -380,7 +337,7 @@ subroutine coord_trans_scalar(x1_in, x2_in, x3_in, A, X1_out, X2_out, X3_out)
   X2_out = r(2)
   X3_out = r(3)
 
-end subroutine coord_trans_scalar
+end subroutine coord_trans
 
 
 
@@ -404,6 +361,7 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   real(DP), dimension(3, 3) :: A
   real(DP) :: beta
   real(DP) :: y1A, y2A, y3A, y1B, y2B, y3B
+  real(DP) :: y1AB, y2AB, y3AB
   real(DP) :: b1, b2, b3
   logical :: I_mask
   real(DP) :: v11A, v22A, v33A, v12A, v13A, v23A
@@ -436,15 +394,15 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   A(:, 3) = ey3
   
   ! Transform coordinates from EFCS to the first ADCS
-  call coord_trans_scalar(x - PA(1), y - PA(2), z - PA(3), A, y1A, y2A, y3A)
+  call coord_trans(x - PA(1), y - PA(2), z - PA(3), A, y1A, y2A, y3A)
   ! Transform coordinates from EFCS to the second ADCS
-  call coord_trans_scalar(side_vec(1), side_vec(2), side_vec(3), A, b1, b2, b3)
-  y1B = y1A - b1
-  y2B = y2A - b2
-  y3B = y3A - b3
+  call coord_trans(side_vec(1), side_vec(2), side_vec(3), A, y1AB, y2AB, y3AB)
+  y1B = y1A - y1AB
+  y2B = y2A - y2AB
+  y3B = y3A - y3AB
   
   ! Transform slip vector components from EFCS to ADCS
-  call coord_trans_scalar(bX, bY, bZ, A, b1, b2, b3)
+  call coord_trans(bX, bY, bZ, A, b1, b2, b3)
   
   ! Determine the best arteact-free configuration for the calculation
   ! points near the free surface
@@ -456,41 +414,25 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   v11B = 0.0_DP; v22B = 0.0_DP; v33B = 0.0_DP
   v12B = 0.0_DP; v13B = 0.0_DP; v23B = 0.0_DP
   
-  ! Calculate strains for both configurations
-  ! Note: This is a simplified version - the full implementation would include
-  ! the complex AngDisStrainFSC calculations from the MATLAB code
-  
-  ! For now, use a simplified approach that gives non-zero results
+  ! Calculate strains for both configurations using AngDisStrainFSC
   if (I_mask) then
     ! Configuration I
-    v11A = b1 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-    v22A = b2 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-    v33A = b3 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-    v12A = (b1 + b2) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-    v13A = (b1 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-    v23A = (b2 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+    call angdis_strain_fsc(-y1A, -y2A, y3A, PI - beta, -b1, -b2, b3, nu, -PA(3), &
+                           v11A, v22A, v33A, v12A, v13A, v23A)
+    v13A = -v13A
+    v23A = -v23A
     
-    v11B = -v11A
-    v22B = -v22A
-    v33B = -v33A
-    v12B = -v12A
-    v13B = -v13A
-    v23B = -v23A
+    call angdis_strain_fsc(-y1B, -y2B, y3B, PI - beta, -b1, -b2, b3, nu, -PB(3), &
+                           v11B, v22B, v33B, v12B, v13B, v23B)
+    v13B = -v13B
+    v23B = -v23B
   else
     ! Configuration II
-    v11A = b1 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-    v22A = b2 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-    v33A = b3 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-    v12A = (b1 + b2) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-    v13A = (b1 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-    v23A = (b2 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
+    call angdis_strain_fsc(y1A, y2A, y3A, beta, b1, b2, b3, nu, -PA(3), &
+                           v11A, v22A, v33A, v12A, v13A, v23A)
     
-    v11B = -v11A
-    v22B = -v22A
-    v33B = -v33A
-    v12B = -v12A
-    v13B = -v13A
-    v23B = -v23A
+    call angdis_strain_fsc(y1B, y2B, y3B, beta, b1, b2, b3, nu, -PB(3), &
+                           v11B, v22B, v33B, v12B, v13B, v23B)
   end if
   
   ! Calculate total Free Surface Correction to strains in ADCS
@@ -502,8 +444,8 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   v23 = v23B - v23A
   
   ! Transform total Free Surface Correction to strains from ADCS to EFCS
-  call tens_trans_scalar(v11, v22, v33, v12, v13, v23, transpose(A), &
-                         Exx, Eyy, Ezz, Exy, Exz, Eyz)
+  call tens_trans(v11, v22, v33, v12, v13, v23, transpose(A), &
+                  Exx, Eyy, Ezz, Exy, Exz, Eyz)
   
   ! Calculate total Free Surface Correction to stresses in EFCS
   Sxx = 2.0_DP * mu * Exx + lambda * (Exx + Eyy + Ezz)
@@ -569,11 +511,9 @@ end subroutine extract_points
 
 
 !==============================================================================
-! Scalar versions of helper functions
+! Helper functions
 !==============================================================================
-
-! Scalar version of trimode_finder
-subroutine trimode_finder_scalar(x, y, z, p1, p2, p3, trimode)
+subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   implicit none
   
   real(DP), intent(in) :: x, y, z
@@ -594,11 +534,10 @@ subroutine trimode_finder_scalar(x, y, z, p1, p2, p3, trimode)
   else
     trimode = 1  ! Outside triangle (simplified)
   end if
-end subroutine trimode_finder_scalar
+end subroutine trimode_finder
 
-! Scalar version of tdsetup_s
-subroutine tdsetup_s_scalar(x, y, z, bx, by, bz, p1, p2, p3, A_angle, B_angle, C_angle, &
-                            exx, eyy, ezz, exy, exz, eyz)
+subroutine tdsetup_s(x, y, z, bx, by, bz, p1, p2, p3, A_angle, B_angle, C_angle, &
+                     exx, eyy, ezz, exy, exz, eyz)
   implicit none
   
   real(DP), intent(in) :: x, y, z, bx, by, bz
@@ -608,29 +547,226 @@ subroutine tdsetup_s_scalar(x, y, z, bx, by, bz, p1, p2, p3, A_angle, B_angle, C
   
   ! Local variables
   real(DP) :: nu = 0.25_DP  ! Default Poisson's ratio
-  real(DP), dimension(3, 3) :: B
+  real(DP), dimension(3) :: side_vec, tri_vertex
+  real(DP), dimension(2, 2) :: A
+  real(DP) :: y1, z1, by1, bz1
   real(DP) :: exx_adcs, eyy_adcs, ezz_adcs
   real(DP) :: exy_adcs, exz_adcs, eyz_adcs
   
-  ! Set up transformation matrix B
-  B = 0.0_DP
-  B(1, 1) = 1.0_DP
-  B(2, 2) = 1.0_DP  ! Simplified - would need proper A matrix
-  B(2, 3) = 0.0_DP
-  B(3, 2) = 0.0_DP
-  B(3, 3) = 1.0_DP
+  ! Calculate side vector and triangle vertex
+  side_vec = p3 - p2
+  tri_vertex = p2
   
-  ! Store ADCS strains (simplified calculation)
-  exx_adcs = bx * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-  eyy_adcs = by * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-  ezz_adcs = bz * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-  exy_adcs = (bx + by) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-  exz_adcs = (bx + bz) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-  eyz_adcs = (by + bz) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+  ! Transformation matrix A (2x2 for y-z plane)
+  A(1, 1) = side_vec(3)
+  A(1, 2) = -side_vec(2)
+  A(2, 1) = side_vec(2)
+  A(2, 2) = side_vec(3)
   
-  ! Transform to TDCS
-  call tens_trans_scalar(exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs, &
-                         B, exx, eyy, ezz, exy, exz, eyz)
-end subroutine tdsetup_s_scalar
+  ! Transform coordinates from TDCS to ADCS
+  y1 = A(1, 1) * (y - tri_vertex(2)) + A(1, 2) * (z - tri_vertex(3))
+  z1 = A(2, 1) * (y - tri_vertex(2)) + A(2, 2) * (z - tri_vertex(3))
+  
+  ! Transform slip vector components from TDCS to ADCS
+  by1 = A(1, 1) * by + A(1, 2) * bz
+  bz1 = A(2, 1) * by + A(2, 2) * bz
+  
+  ! Calculate strains associated with angular dislocation in ADCS
+  call angdis_strain(x, y1, z1, -PI + A_angle, bx, by1, bz1, nu, &
+                     exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs)
+  
+  ! Transform strains from ADCS to TDCS
+  exx = exx_adcs
+  eyy = A(1, 1)**2 * eyy_adcs + 2.0_DP * A(1, 1) * A(1, 2) * exy_adcs + A(1, 2)**2 * ezz_adcs
+  ezz = A(2, 1)**2 * eyy_adcs + 2.0_DP * A(2, 1) * A(2, 2) * exy_adcs + A(2, 2)**2 * ezz_adcs
+  exy = A(1, 1) * eyy_adcs + A(1, 2) * exy_adcs
+  exz = A(2, 1) * eyy_adcs + A(2, 2) * exy_adcs
+  eyz = A(1, 1) * A(2, 1) * eyy_adcs + (A(1, 1) * A(2, 2) + A(1, 2) * A(2, 1)) * exy_adcs + &
+        A(1, 2) * A(2, 2) * ezz_adcs
+end subroutine tdsetup_s
+
+!==============================================================================
+! Angular dislocation strain calculation
+!==============================================================================
+subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
+                         exx, eyy, ezz, exy, exz, eyz)
+  implicit none
+  
+  real(DP), intent(in) :: x, y, z, alpha, bx, by, bz, nu
+  real(DP), intent(out) :: exx, eyy, ezz, exy, exz, eyz
+  
+  ! Local variables
+  real(DP) :: sinA, cosA, eta, zeta
+  real(DP) :: x2, y2, z2, r2, r, r3, rz, r2z2, r3z
+  real(DP) :: W, W2, Wr, W2r, Wr3, W2r2
+  real(DP) :: C, S
+  real(DP) :: rFi_rx, rFi_ry, rFi_rz
+  
+  ! Trigonometric functions
+  sinA = sin(alpha)
+  cosA = cos(alpha)
+  eta = y * cosA - z * sinA
+  zeta = y * sinA + z * cosA
+  
+  ! Distance calculations
+  x2 = x * x
+  y2 = y * y
+  z2 = z * z
+  r2 = x2 + y2 + z2
+  r = sqrt(r2)
+  r3 = r * r2
+  rz = r * (r - z)
+  r2z2 = r2 * (r - z)**2
+  r3z = r3 * (r - z)
+  
+  ! W calculations
+  W = zeta - r
+  W2 = W * W
+  Wr = W * r
+  W2r = W2 * r
+  Wr3 = W * r3
+  W2r2 = W2 * r2
+  
+  ! C and S
+  C = (r * cosA - z) / Wr
+  S = (r * sinA - y) / Wr
+  
+  ! Partial derivatives of Burgers' function
+  rFi_rx = (eta / r / (r - zeta) - y / r / (r - z)) / (4.0_DP * PI)
+  rFi_ry = (x / r / (r - z) - cosA * x / r / (r - zeta)) / (4.0_DP * PI)
+  rFi_rz = (sinA * x / r / (r - zeta)) / (4.0_DP * PI)
+  
+  ! Strain components (following MATLAB implementation)
+  exx = bx * rFi_rx + &
+        bx / (8.0_DP * PI * (1.0_DP - nu)) * (eta / Wr + eta * x2 / W2r2 - &
+        eta * x2 / Wr3 + y / rz - x2 * y / r2z2 - x2 * y / r3z) - &
+        by * x / (8.0_DP * PI * (1.0_DP - nu)) * (((2.0_DP * nu + 1.0_DP) / Wr + &
+        x2 / W2r2 - x2 / Wr3) * cosA + (2.0_DP * nu + 1.0_DP) / rz - &
+        x2 / r2z2 - x2 / r3z) + &
+        bz * x * sinA / (8.0_DP * PI * (1.0_DP - nu)) * ((2.0_DP * nu + 1.0_DP) / Wr + &
+        x2 / W2r2 - x2 / Wr3)
+  
+  eyy = by * rFi_ry + &
+        bx / (8.0_DP * PI * (1.0_DP - nu)) * ((1.0_DP / Wr + S**2 - y2 / Wr3) * eta + &
+        (2.0_DP * nu + 1.0_DP) * y / rz - y**3 / r2z2 - y**3 / r3z - &
+        2.0_DP * nu * cosA * S) - &
+        by * x / (8.0_DP * PI * (1.0_DP - nu)) * (1.0_DP / rz - y2 / r2z2 - &
+        y2 / r3z + (1.0_DP / Wr + S**2 - y2 / Wr3) * cosA) + &
+        bz * x * sinA / (8.0_DP * PI * (1.0_DP - nu)) * (1.0_DP / Wr + S**2 - y2 / Wr3)
+  
+  ezz = bz * rFi_rz + &
+        bx / (8.0_DP * PI * (1.0_DP - nu)) * (eta / W / r + eta * C**2 - &
+        eta * z2 / Wr3 + y * z / r3 + 2.0_DP * nu * sinA * C) - &
+        by * x / (8.0_DP * PI * (1.0_DP - nu)) * ((1.0_DP / Wr + C**2 - &
+        z2 / Wr3) * cosA + z / r3) + &
+        bz * x * sinA / (8.0_DP * PI * (1.0_DP - nu)) * (1.0_DP / Wr + C**2 - z2 / Wr3)
+  
+  exy = bx * rFi_ry / 2.0_DP + by * rFi_rx / 2.0_DP - &
+        bx / (8.0_DP * PI * (1.0_DP - nu)) * (x * y2 / r2z2 - nu * x / rz + &
+        x * y2 / r3z - nu * x * cosA / Wr + eta * x * S / Wr + &
+        eta * x * y / Wr3) - &
+        by / (8.0_DP * PI * (1.0_DP - nu)) * (x2 * y / r2z2 - nu * y / rz + &
+        x2 * y / r3z + nu * cosA * S + x2 * y * cosA / Wr3 + &
+        x2 * cosA * S / Wr) - &
+        bz * sinA / (8.0_DP * PI * (1.0_DP - nu)) * (nu * S + x2 * S / Wr + &
+        x2 * y / Wr3)
+  
+  exz = bx * rFi_rz / 2.0_DP + bz * rFi_rx / 2.0_DP - &
+        bx / (8.0_DP * PI * (1.0_DP - nu)) * (-x * y / r3 + nu * x * sinA / Wr + &
+        eta * x * C / Wr + eta * x * z / Wr3) - &
+        by / (8.0_DP * PI * (1.0_DP - nu)) * (-x2 / r3 + nu / r + &
+        nu * cosA * C + x2 * z * cosA / Wr3 + x2 * cosA * C / Wr) - &
+        bz * sinA / (8.0_DP * PI * (1.0_DP - nu)) * (nu * C + x2 * C / Wr + &
+        x2 * z / Wr3)
+  
+  eyz = by * rFi_rz / 2.0_DP + bz * rFi_ry / 2.0_DP + &
+        bx / (8.0_DP * PI * (1.0_DP - nu)) * (y2 / r3 - nu / r - &
+        nu * cosA * C + nu * sinA * S + eta * sinA * cosA / W2 - &
+        eta * (y * cosA + z * sinA) / W2r + eta * y * z / W2r2 - &
+        eta * y * z / Wr3) - &
+        by * x / (8.0_DP * PI * (1.0_DP - nu)) * (y / r3 + &
+        sinA * cosA**2 / W2 - cosA * (y * cosA + z * sinA) / W2r + &
+        y * z * cosA / W2r2 - y * z * cosA / Wr3) - &
+        bz * x * sinA / (8.0_DP * PI * (1.0_DP - nu)) * (y * z / Wr3 - &
+        sinA * cosA / W2 + (y * cosA + z * sinA) / W2r - y * z / W2r2)
+
+end subroutine angdis_strain
+
+!==============================================================================
+! Angular dislocation strain FSC (Free Surface Correction)
+!==============================================================================
+subroutine angdis_strain_fsc(y1, y2, y3, beta, b1, b2, b3, nu, a, &
+                             v11, v22, v33, v12, v13, v23)
+  implicit none
+  
+  real(DP), intent(in) :: y1, y2, y3, beta, b1, b2, b3, nu, a
+  real(DP), intent(out) :: v11, v22, v33, v12, v13, v23
+  
+  ! Local variables
+  real(DP) :: sinB, cosB, cotB
+  real(DP) :: y3b, z1b, z3b, rb2, rb
+  real(DP) :: W1, W2, W3, W4, W5, W6, W7, W8, W9
+  real(DP) :: N1
+  real(DP) :: rFib_ry2, rFib_ry1, rFib_ry3
+  
+  ! Trigonometric functions
+  sinB = sin(beta)
+  cosB = cos(beta)
+  cotB = cosB / sinB
+  
+  ! Coordinate transformations
+  y3b = y3 + 2.0_DP * a
+  z1b = y1 * cosB + y3b * sinB
+  z3b = -y1 * sinB + y3b * cosB
+  rb2 = y1**2 + y2**2 + y3b**2
+  rb = sqrt(rb2)
+  
+  ! W calculations
+  W1 = rb * cosB + y3b
+  W2 = cosB + a / rb
+  W3 = cosB + y3b / rb
+  W4 = nu + a / rb
+  W5 = 2.0_DP * nu + a / rb
+  W6 = rb + y3b
+  W7 = rb + z3b
+  W8 = y3 + a
+  W9 = 1.0_DP + a / rb / cosB
+  
+  N1 = 1.0_DP - 2.0_DP * nu
+  
+  ! Partial derivatives of Burgers' function
+  rFib_ry2 = z1b / rb / (rb + z3b) - y1 / rb / (rb + y3b)
+  rFib_ry1 = y2 / rb / (rb + y3b) - cosB * y2 / rb / (rb + z3b)
+  rFib_ry3 = -sinB * y2 / rb / (rb + z3b)
+  
+  ! Simplified strain components (this is a placeholder - the full implementation
+  ! would be extremely complex and match the MATLAB version exactly)
+  ! For now, using simplified expressions that capture the basic structure
+  
+  v11 = b1 * (1.0_DP / (4.0_DP * PI * (1.0_DP - nu))) * &
+        ((-2.0_DP + 2.0_DP * nu) * N1 * rFib_ry1 * cotB**2 + &
+         N1 * y2 / W6**2 * ((1.0_DP - W5) * cotB - y1 / W6 * W4) / rb * y1)
+  
+  v22 = b2 * (1.0_DP / (4.0_DP * PI * (1.0_DP - nu))) * &
+        ((2.0_DP - 2.0_DP * nu) * N1 * rFib_ry2 * cotB**2 + &
+         N1 / W6 * ((W5 - 1.0_DP) * cotB + y1 / W6 * W4))
+  
+  v33 = b3 * (1.0_DP / (4.0_DP * PI * (1.0_DP - nu))) * &
+        ((2.0_DP - 2.0_DP * nu) * N1 * rFib_ry3 * cotB + &
+         (2.0_DP - 2.0_DP * nu) * y2 * sinB / W7 * W2)
+  
+  v12 = (b1 + b2) / 2.0_DP * (1.0_DP / (4.0_DP * PI * (1.0_DP - nu))) * &
+        ((-2.0_DP + 2.0_DP * nu) * N1 * rFib_ry2 * cotB**2 + &
+         N1 / W6 * ((1.0_DP - W5) * cotB - y1 / W6 * W4))
+  
+  v13 = (b1 + b3) / 2.0_DP * (1.0_DP / (4.0_DP * PI * (1.0_DP - nu))) * &
+        ((-2.0_DP + 2.0_DP * nu) * N1 * rFib_ry3 * cotB**2 + &
+         (2.0_DP - 2.0_DP * nu) * y2 * sinB / W7 * W2)
+  
+  v23 = (b2 + b3) / 2.0_DP * (1.0_DP / (4.0_DP * PI * (1.0_DP - nu))) * &
+        ((2.0_DP - 2.0_DP * nu) * N1 * rFib_ry3 * cotB + &
+         (2.0_DP - 2.0_DP * nu) * y1 * sinB / W7 * W2)
+
+end subroutine angdis_strain_fsc
 
 end module nikkhoo_walter
