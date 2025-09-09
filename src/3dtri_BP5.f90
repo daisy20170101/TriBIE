@@ -121,6 +121,10 @@ program main
   ! MPI scatter arrays for different data types
   integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
   
+  ! Element mapping for visualization (MPI order -> Mesh order)
+  integer, dimension(:), allocatable :: mpi_to_mesh_map
+  integer :: mpi_idx, global_idx, mesh_idx
+  
   ! File existence checking variables
   logical :: trigreen_file_exists
   character(len=256) :: trigreen_filename
@@ -210,6 +214,7 @@ program main
      ! Allocate MPI_Scatterv arrays for uneven distribution
      allocate(sendcounts(0:size-1), displs(0:size-1))
      allocate(sendcounts_yt(0:size-1), displs_yt(0:size-1))
+     allocate(mpi_to_mesh_map(Nt_all))
      
      ! Calculate send counts and displacements for each process
      call MPI_Allgather(local_cells, 1, MPI_INTEGER, sendcounts, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
@@ -227,6 +232,22 @@ program main
      displs_yt(0) = 0
      do i = 1, size-1
         displs_yt(i) = displs_yt(i-1) + sendcounts_yt(i-1)
+     end do
+     
+     ! Create element mapping: MPI gather order -> Original mesh order
+     ! The MPI_Gather puts data in process order, but we need mesh order
+     do i = 0, size-1
+        do j = 1, sendcounts(i)
+           ! Element index in MPI gathered array
+           mpi_idx = displs(i) + j
+           ! Original global element index (before MPI distribution)
+           if (i == 0) then
+              global_idx = j
+           else
+              global_idx = sum(sendcounts(0:i-1)) + j
+           end if
+           mpi_to_mesh_map(mpi_idx) = global_idx
+        end do
      end do
      
      
@@ -782,10 +803,12 @@ end if
                  end1=.true.
               end if
 
-              ! Calculate coseismic slip
+              ! Calculate coseismic slip with proper element mapping
               do i=1,Nt_all
-                 slipz1_cos(i,icos) = slip_all(i)*1.d-3
-                 slipz1_v(i,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
+                 ! Map from MPI gather order to mesh order for visualization
+                 mesh_idx = mpi_to_mesh_map(i)
+                 slipz1_cos(mesh_idx,icos) = slip_all(i)*1.d-3
+                 slipz1_v(mesh_idx,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
               end do
 
               tslipcos = 0.d0
@@ -948,6 +971,9 @@ end if
   end if
   if (allocated(sendcounts_yt)) then
      deallocate(sendcounts_yt, displs_yt)
+  end if
+  if (allocated(mpi_to_mesh_map)) then
+     deallocate(mpi_to_mesh_map)
   end if
   
   call MPI_finalize(ierr)
