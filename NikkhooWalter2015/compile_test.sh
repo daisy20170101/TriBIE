@@ -20,21 +20,21 @@ echo ""
 rm -f *.o test_nikkhoo
 
 echo "Step 1: Compiling sub_nikkhoo.f90 module..."
-gfortran -c sub_nikkhoo.f90 -o sub_nikkhoo.o
+gfortran -c sub_nikkhoo.f90 -o sub_nikkhoo.o -ffree-line-length-none
 
 if [ $? -eq 0 ]; then
     echo "✅ Module compilation successful!"
     echo ""
     
     echo "Step 2: Compiling test_nikkhoo.f90..."
-    gfortran -c test_nikkhoo.f90 -o test_nikkhoo.o
+    gfortran -c test_nikkhoo.f90 -o test_nikkhoo.o -ffree-line-length-none
     
     if [ $? -eq 0 ]; then
         echo "✅ Test program compilation successful!"
         echo ""
         
         echo "Step 3: Linking executable..."
-        gfortran sub_nikkhoo.o test_nikkhoo.o -o test_nikkhoo
+        gfortran sub_nikkhoo.o test_nikkhoo.o -o test_nikkhoo -ffree-line-length-none
         
         if [ $? -eq 0 ]; then
             echo "✅ Linking successful!"

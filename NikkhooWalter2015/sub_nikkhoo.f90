@@ -525,98 +525,106 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   sinA = sin(alpha)
   cosA = cos(alpha)
   
-  ! Calculate intermediate variables
-  eta = y * cosA - z * sinA
-  zeta = y * sinA + z * cosA
+  ! Calculate intermediate variables (element-wise operations)
+  do i = 1, n_points
+    eta(i) = y(i) * cosA - z(i) * sinA
+    zeta(i) = y(i) * sinA + z(i) * cosA
+    
+    x2(i) = x(i)**2
+    y2(i) = y(i)**2
+    z2(i) = z(i)**2
+    r2(i) = x2(i) + y2(i) + z2(i)
+    r(i) = sqrt(r2(i))
+    r3(i) = r(i) * r2(i)
+    rz(i) = r(i) * (r(i) - z(i))
+    r2z2(i) = r2(i) * (r(i) - z(i))**2
+    r3z(i) = r3(i) * (r(i) - z(i))
+    
+    W(i) = zeta(i) - r(i)
+    W2(i) = W(i)**2
+    Wr(i) = W(i) * r(i)
+    W2r(i) = W2(i) * r(i)
+    Wr3(i) = W(i) * r3(i)
+    W2r2(i) = W2(i) * r2(i)
+    
+    C(i) = (r(i) * cosA - z(i)) / Wr(i)
+    S(i) = (r(i) * sinA - y(i)) / Wr(i)
+  end do
   
-  x2 = x**2
-  y2 = y**2
-  z2 = z**2
-  r2 = x2 + y2 + z2
-  r = sqrt(r2)
-  r3 = r * r2
-  rz = r * (r - z)
-  r2z2 = r2 * (r - z)**2
-  r3z = r3 * (r - z)
+  ! Partial derivatives of the Burgers' function (element-wise)
+  do i = 1, n_points
+    rFi_rx(i) = (eta(i) / r(i) / (r(i) - zeta(i)) - y(i) / r(i) / (r(i) - z(i))) / 4.0_DP / PI
+    rFi_ry(i) = (x(i) / r(i) / (r(i) - z(i)) - cosA * x(i) / r(i) / (r(i) - zeta(i))) / 4.0_DP / PI
+    rFi_rz(i) = (sinA * x(i) / r(i) / (r(i) - zeta(i))) / 4.0_DP / PI
+  end do
   
-  W = zeta - r
-  W2 = W**2
-  Wr = W * r
-  W2r = W2 * r
-  Wr3 = W * r3
-  W2r2 = W2 * r2
-  
-  C = (r * cosA - z) / Wr
-  S = (r * sinA - y) / Wr
-  
-  ! Partial derivatives of the Burgers' function
-  rFi_rx = (eta / r / (r - zeta) - y / r / (r - z)) / 4.0_DP / PI
-  rFi_ry = (x / r / (r - z) - cosA * x / r / (r - zeta)) / 4.0_DP / PI
-  rFi_rz = (sinA * x / r / (r - zeta)) / 4.0_DP / PI
-  
-  ! Calculate strain components
-  exx = bx * rFi_rx + &
-        bx / 8.0_DP / PI / (1.0_DP - nu) * &
-        (eta / Wr + eta * x2 / W2r2 - eta * x2 / Wr3 + y / rz - &
-         x2 * y / r2z2 - x2 * y / r3z) - &
-        by * x / 8.0_DP / PI / (1.0_DP - nu) * &
-        (((2.0_DP * nu + 1.0_DP) / Wr + x2 / W2r2 - x2 / Wr3) * cosA + &
-         (2.0_DP * nu + 1.0_DP) / rz - x2 / r2z2 - x2 / r3z) + &
-        bz * x * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
-        ((2.0_DP * nu + 1.0_DP) / Wr + x2 / W2r2 - x2 / Wr3)
-  
-  eyy = by * rFi_ry + &
-        bx / 8.0_DP / PI / (1.0_DP - nu) * &
-        ((1.0_DP / Wr + S**2 - y2 / Wr3) * eta + &
-         (2.0_DP * nu + 1.0_DP) * y / rz - y**3 / r2z2 - &
-         y**3 / r3z - 2.0_DP * nu * cosA * S) - &
-        by * x / 8.0_DP / PI / (1.0_DP - nu) * &
-        (1.0_DP / rz - y2 / r2z2 - y2 / r3z + &
-         (1.0_DP / Wr + S**2 - y2 / Wr3) * cosA) + &
-        bz * x * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
-        (1.0_DP / Wr + S**2 - y2 / Wr3)
-  
-  ezz = bz * rFi_rz + &
-        bx / 8.0_DP / PI / (1.0_DP - nu) * &
-        (eta / W / r + eta * C**2 - eta * z2 / Wr3 + y * z / r3 + &
-         2.0_DP * nu * sinA * C) - &
-        by * x / 8.0_DP / PI / (1.0_DP - nu) * &
-        ((1.0_DP / Wr + C**2 - z2 / Wr3) * cosA + z / r3) + &
-        bz * x * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
-        (1.0_DP / Wr + C**2 - z2 / Wr3)
-  
-  exy = bx * rFi_ry / 2.0_DP + by * rFi_rx / 2.0_DP - &
-        bx / 8.0_DP / PI / (1.0_DP - nu) * &
-        (x * y2 / r2z2 - nu * x / rz + x * y2 / r3z - nu * x * cosA / Wr + &
-         eta * x * S / Wr + eta * x * y / Wr3) + &
-        by / 8.0_DP / PI / (1.0_DP - nu) * &
-        (x2 * y / r2z2 - nu * y / rz + x2 * y / r3z + nu * cosA * S + &
-         x2 * y * cosA / Wr3 + x2 * cosA * S / Wr) - &
-        bz * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
-        (nu * S + x2 * S / Wr + x2 * y / Wr3)
-  
-  exz = bx * rFi_rz / 2.0_DP + bz * rFi_rx / 2.0_DP - &
-        bx / 8.0_DP / PI / (1.0_DP - nu) * &
-        (-x * y / r3 + nu * x * sinA / Wr + eta * x * C / Wr + &
-         eta * x * z / Wr3) + &
-        by / 8.0_DP / PI / (1.0_DP - nu) * &
-        (-x2 / r3 + nu / r + nu * cosA * C + x2 * z * cosA / Wr3 + &
-         x2 * cosA * C / Wr) - &
-        bz * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
-        (nu * C + x2 * C / Wr + x2 * z / Wr3)
-  
-  eyz = by * rFi_rz / 2.0_DP + bz * rFi_ry / 2.0_DP + &
-        bx / 8.0_DP / PI / (1.0_DP - nu) * &
-        (y2 / r3 - nu / r - nu * cosA * C + nu * sinA * S + &
-         eta * sinA * cosA / W2 - eta * (y * cosA + z * sinA) / W2r + &
-         eta * y * z / W2r2 - eta * y * z / Wr3) - &
-        by * x / 8.0_DP / PI / (1.0_DP - nu) * &
-        (y / r3 + sinA * cosA**2 / W2 - &
-         cosA * (y * cosA + z * sinA) / W2r + y * z * cosA / W2r2 - &
-         y * z * cosA / Wr3) - &
-        bz * x * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
-        (y * z / Wr3 - sinA * cosA / W2 + (y * cosA + z * sinA) / W2r - &
-         y * z / W2r2)
+  ! Calculate strain components (element-wise)
+  do i = 1, n_points
+    exx(i) = bx(i) * rFi_rx(i) + &
+             bx(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (eta(i) / Wr(i) + eta(i) * x2(i) / W2r2(i) - eta(i) * x2(i) / Wr3(i) + &
+              y(i) / rz(i) - x2(i) * y(i) / r2z2(i) - x2(i) * y(i) / r3z(i)) - &
+             by(i) * x(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (((2.0_DP * nu + 1.0_DP) / Wr(i) + x2(i) / W2r2(i) - x2(i) / Wr3(i)) * cosA + &
+              (2.0_DP * nu + 1.0_DP) / rz(i) - x2(i) / r2z2(i) - x2(i) / r3z(i)) + &
+             bz(i) * x(i) * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
+             ((2.0_DP * nu + 1.0_DP) / Wr(i) + x2(i) / W2r2(i) - x2(i) / Wr3(i))
+    
+    eyy(i) = by(i) * rFi_ry(i) + &
+             bx(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             ((1.0_DP / Wr(i) + S(i)**2 - y2(i) / Wr3(i)) * eta(i) + &
+              (2.0_DP * nu + 1.0_DP) * y(i) / rz(i) - y(i)**3 / r2z2(i) - &
+              y(i)**3 / r3z(i) - 2.0_DP * nu * cosA * S(i)) - &
+             by(i) * x(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (1.0_DP / rz(i) - y2(i) / r2z2(i) - y2(i) / r3z(i) + &
+              (1.0_DP / Wr(i) + S(i)**2 - y2(i) / Wr3(i)) * cosA) + &
+             bz(i) * x(i) * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
+             (1.0_DP / Wr(i) + S(i)**2 - y2(i) / Wr3(i))
+    
+    ezz(i) = bz(i) * rFi_rz(i) + &
+             bx(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (eta(i) / W(i) / r(i) + eta(i) * C(i)**2 - eta(i) * z2(i) / Wr3(i) + &
+              y(i) * z(i) / r3(i) + 2.0_DP * nu * sinA * C(i)) - &
+             by(i) * x(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             ((1.0_DP / Wr(i) + C(i)**2 - z2(i) / Wr3(i)) * cosA + z(i) / r3(i)) + &
+             bz(i) * x(i) * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
+             (1.0_DP / Wr(i) + C(i)**2 - z2(i) / Wr3(i))
+    
+    exy(i) = bx(i) * rFi_ry(i) / 2.0_DP + by(i) * rFi_rx(i) / 2.0_DP - &
+             bx(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (x(i) * y2(i) / r2z2(i) - nu * x(i) / rz(i) + x(i) * y2(i) / r3z(i) - &
+              nu * x(i) * cosA / Wr(i) + eta(i) * x(i) * S(i) / Wr(i) + &
+              eta(i) * x(i) * y(i) / Wr3(i)) + &
+             by(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (x2(i) * y(i) / r2z2(i) - nu * y(i) / rz(i) + x2(i) * y(i) / r3z(i) + &
+              nu * cosA * S(i) + x2(i) * y(i) * cosA / Wr3(i) + &
+              x2(i) * cosA * S(i) / Wr(i)) - &
+             bz(i) * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
+             (nu * S(i) + x2(i) * S(i) / Wr(i) + x2(i) * y(i) / Wr3(i))
+    
+    exz(i) = bx(i) * rFi_rz(i) / 2.0_DP + bz(i) * rFi_rx(i) / 2.0_DP - &
+             bx(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (-x(i) * y(i) / r3(i) + nu * x(i) * sinA / Wr(i) + &
+              eta(i) * x(i) * C(i) / Wr(i) + eta(i) * x(i) * z(i) / Wr3(i)) + &
+             by(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (-x2(i) / r3(i) + nu / r(i) + nu * cosA * C(i) + &
+              x2(i) * z(i) * cosA / Wr3(i) + x2(i) * cosA * C(i) / Wr(i)) - &
+             bz(i) * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
+             (nu * C(i) + x2(i) * C(i) / Wr(i) + x2(i) * z(i) / Wr3(i))
+    
+    eyz(i) = by(i) * rFi_rz(i) / 2.0_DP + bz(i) * rFi_ry(i) / 2.0_DP + &
+             bx(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (y2(i) / r3(i) - nu / r(i) - nu * cosA * C(i) + nu * sinA * S(i) + &
+              eta(i) * sinA * cosA / W2(i) - eta(i) * (y(i) * cosA + z(i) * sinA) / W2r(i) + &
+              eta(i) * y(i) * z(i) / W2r2(i) - eta(i) * y(i) * z(i) / Wr3(i)) - &
+             by(i) * x(i) / 8.0_DP / PI / (1.0_DP - nu) * &
+             (y(i) / r3(i) + sinA * cosA**2 / W2(i) - &
+              cosA * (y(i) * cosA + z(i) * sinA) / W2r(i) + &
+              y(i) * z(i) * cosA / W2r2(i) - y(i) * z(i) * cosA / Wr3(i)) - &
+             bz(i) * x(i) * sinA / 8.0_DP / PI / (1.0_DP - nu) * &
+             (y(i) * z(i) / Wr3(i) - sinA * cosA / W2(i) + &
+              (y(i) * cosA + z(i) * sinA) / W2r(i) - y(i) * z(i) / W2r2(i))
+  end do
 
 end subroutine angdis_strain
 
