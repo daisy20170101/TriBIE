@@ -97,22 +97,9 @@ subroutine tdstress_fs_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Output parameters
   real(DP), dimension(6), intent(out) :: stress, strain
   
-  ! Local variables
-  real(DP), dimension(1) :: x_arr, y_arr, z_arr
-  real(DP), dimension(1, 6) :: stress_arr, strain_arr
-  
-  ! Convert single point to array
-  x_arr(1) = x
-  y_arr(1) = y
-  z_arr(1) = z
-  
-  ! Call array version
-  call tdstress_fs(x_arr, y_arr, z_arr, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                   stress_arr, strain_arr, 1)
-  
-  ! Convert back to single values
-  stress = stress_arr(1, :)
-  strain = strain_arr(1, :)
+  ! Call single-point version directly
+  call tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+                   stress, strain)
 
 end subroutine tdstress_fs_single
 
@@ -128,22 +115,9 @@ subroutine tdstress_harfunc_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, 
   ! Output parameters
   real(DP), dimension(6), intent(out) :: stress, strain
   
-  ! Local variables
-  real(DP), dimension(1) :: x_arr, y_arr, z_arr
-  real(DP), dimension(1, 6) :: stress_arr, strain_arr
-  
-  ! Convert single point to array
-  x_arr(1) = x
-  y_arr(1) = y
-  z_arr(1) = z
-  
-  ! Call array version
-  call tdstress_harfunc(x_arr, y_arr, z_arr, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                        stress_arr, strain_arr, 1)
-  
-  ! Convert back to single values
-  stress = stress_arr(1, :)
-  strain = strain_arr(1, :)
+  ! Call single-point version directly
+  call tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+                        stress, strain)
 
 end subroutine tdstress_harfunc_single
 
@@ -230,7 +204,7 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   C_angle = acos(dot_product(e23, e13))
   
   ! Determine configuration
-  call trimode_finder_scalar(y_td, z_td, x_td, p1_td(2:3), p2_td(2:3), p3_td(2:3), trimode)
+  call trimode_finder_scalar(y_td, z_td, x_td, p1_td, p2_td, p3_td, trimode)
   
   casep_log = (trimode == 1)
   casen_log = (trimode == -1)
@@ -239,6 +213,10 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Initialize results
   exx = 0.0_DP; eyy = 0.0_DP; ezz = 0.0_DP
   exy = 0.0_DP; exz = 0.0_DP; eyz = 0.0_DP
+  
+  ! Local variables for casez_log
+  real(DP) :: exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p
+  real(DP) :: exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n
   
   ! Calculate strains based on configuration
   if (casep_log) then
@@ -251,9 +229,6 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
                           exx, eyy, ezz, exy, exz, eyz)
   else if (casez_log) then
     ! For points on the triangle, use average of positive and negative cases
-    real(DP) :: exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p
-    real(DP) :: exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n
-    
     call tdsetup_s_scalar(x_td, y_td, z_td, bx, by, bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
                           exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
     call tdsetup_s_scalar(x_td, y_td, z_td, -bx, -by, -bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
