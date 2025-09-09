@@ -472,7 +472,7 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   real(DP), dimension(n_points), intent(out) :: exx, eyy, ezz, exy, exz, eyz
   
   real(DP), dimension(2, 2) :: A
-  real(DP), dimension(n_points) :: y1, z1, by1, bz1
+  real(DP), dimension(n_points) :: y1, z1, bx1, by1, bz1
   integer :: i
   
   ! Transformation matrix
@@ -486,11 +486,12 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   end do
   
   ! Transform slip components
+  bx1 = bx  ! bx is constant for all points
   by1 = A(1,1) * by + A(1,2) * bz
   bz1 = A(2,1) * by + A(2,2) * bz
   
   ! Calculate strains
-  call angdis_strain(x, y1, z1, -PI + alpha, bx, by1, bz1, nu, &
+  call angdis_strain(x, y1, z1, -PI + alpha, bx1, by1, bz1, nu, &
                      exx, eyy, ezz, exy, exz, eyz, n_points)
   
   ! Transform back to TDCS
@@ -507,7 +508,8 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   
   integer, intent(in) :: n_points
   real(DP), dimension(n_points), intent(in) :: x, y, z
-  real(DP), intent(in) :: alpha, bx, by, bz, nu
+  real(DP), intent(in) :: alpha, nu
+  real(DP), dimension(n_points), intent(in) :: bx, by, bz
   
   real(DP), dimension(n_points), intent(out) :: exx, eyy, ezz, exy, exz, eyz
   
