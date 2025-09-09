@@ -29,39 +29,35 @@ module nikkhoo_walter
 ! in an elastic half-space.
 !==============================================================================
 subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                       stress, strain, n_points)
+                       stress, strain)
   implicit none
   
   ! Input parameters
-  integer, intent(in) :: n_points
-  real(DP), dimension(n_points), intent(in) :: x, y, z
+  real(DP), intent(in) :: x, y, z  ! Single calculation point
   real(DP), dimension(3), intent(in) :: p1, p2, p3
   real(DP), intent(in) :: ss, ds, ts, mu, lambda
   
   ! Output parameters
-  real(DP), dimension(n_points, 6), intent(out) :: stress, strain
+  real(DP), dimension(6), intent(out) :: stress, strain
   
   ! Local variables
-  real(DP), dimension(n_points, 6) :: sts_ms, str_ms, sts_fsc, str_fsc
-  real(DP), dimension(n_points, 6) :: sts_is, str_is
+  real(DP), dimension(6) :: sts_ms, str_ms, sts_fsc, str_fsc
+  real(DP), dimension(6) :: sts_is, str_is
   real(DP), dimension(3) :: p1_img, p2_img, p3_img
-  integer :: i
   
   ! Check half-space constraint
-  do i = 1, n_points
-    if (z(i) > 0.0_DP .or. p1(3) > 0.0_DP .or. p2(3) > 0.0_DP .or. p3(3) > 0.0_DP) then
-      write(*,*) 'ERROR: Half-space solution: Z coordinates must be negative!'
-      stop
-    end if
-  end do
+  if (z > 0.0_DP .or. p1(3) > 0.0_DP .or. p2(3) > 0.0_DP .or. p3(3) > 0.0_DP) then
+    write(*,*) 'ERROR: Half-space solution: Z coordinates must be negative!'
+    stop
+  end if
   
   ! Calculate main dislocation contribution
-  call tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                   sts_ms, str_ms, n_points)
+  call tdstress_fs_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+                          sts_ms, str_ms)
   
   ! Calculate harmonic function contribution
-  call tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                        sts_fsc, str_fsc, n_points)
+  call tdstress_harfunc_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+                               sts_fsc, str_fsc)
   
   ! Calculate image dislocation contribution
   p1_img = p1; p2_img = p2; p3_img = p3
@@ -69,15 +65,15 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   p2_img(3) = -p2_img(3)
   p3_img(3) = -p3_img(3)
   
-  call tdstress_fs(x, y, z, p1_img, p2_img, p3_img, ss, ds, ts, mu, lambda, &
-                   sts_is, str_is, n_points)
+  call tdstress_fs_single(x, y, z, p1_img, p2_img, p3_img, ss, ds, ts, mu, lambda, &
+                          sts_is, str_is)
   
   ! Special case for surface elements
   if (abs(p1_img(3)) < EPS .and. abs(p2_img(3)) < EPS .and. abs(p3_img(3)) < EPS) then
-    sts_is(:, 5) = -sts_is(:, 5)  ! xz component
-    sts_is(:, 6) = -sts_is(:, 6)  ! yz component
-    str_is(:, 5) = -str_is(:, 5)  ! xz component
-    str_is(:, 6) = -str_is(:, 6)  ! yz component
+    sts_is(5) = -sts_is(5)  ! xz component
+    sts_is(6) = -sts_is(6)  ! yz component
+    str_is(5) = -str_is(5)  ! xz component
+    str_is(6) = -str_is(6)  ! yz component
   end if
   
   ! Calculate total stress and strain
@@ -87,37 +83,97 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
 end subroutine tdstress_hs
 
 !==============================================================================
-! TDstressFS: Full-space triangular dislocation
+! Single-point versions for external loop
 !==============================================================================
-subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                       stress, strain, n_points)
+subroutine tdstress_fs_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+                              stress, strain)
   implicit none
   
   ! Input parameters
-  integer, intent(in) :: n_points
-  real(DP), dimension(n_points), intent(in) :: x, y, z
+  real(DP), intent(in) :: x, y, z  ! Single calculation point
   real(DP), dimension(3), intent(in) :: p1, p2, p3
   real(DP), intent(in) :: ss, ds, ts, mu, lambda
   
   ! Output parameters
-  real(DP), dimension(n_points, 6), intent(out) :: stress, strain
+  real(DP), dimension(6), intent(out) :: stress, strain
+  
+  ! Local variables
+  real(DP), dimension(1) :: x_arr, y_arr, z_arr
+  real(DP), dimension(1, 6) :: stress_arr, strain_arr
+  
+  ! Convert single point to array
+  x_arr(1) = x
+  y_arr(1) = y
+  z_arr(1) = z
+  
+  ! Call array version
+  call tdstress_fs(x_arr, y_arr, z_arr, p1, p2, p3, ss, ds, ts, mu, lambda, &
+                   stress_arr, strain_arr, 1)
+  
+  ! Convert back to single values
+  stress = stress_arr(1, :)
+  strain = strain_arr(1, :)
+
+end subroutine tdstress_fs_single
+
+subroutine tdstress_harfunc_single(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+                                   stress, strain)
+  implicit none
+  
+  ! Input parameters
+  real(DP), intent(in) :: x, y, z  ! Single calculation point
+  real(DP), dimension(3), intent(in) :: p1, p2, p3
+  real(DP), intent(in) :: ss, ds, ts, mu, lambda
+  
+  ! Output parameters
+  real(DP), dimension(6), intent(out) :: stress, strain
+  
+  ! Local variables
+  real(DP), dimension(1) :: x_arr, y_arr, z_arr
+  real(DP), dimension(1, 6) :: stress_arr, strain_arr
+  
+  ! Convert single point to array
+  x_arr(1) = x
+  y_arr(1) = y
+  z_arr(1) = z
+  
+  ! Call array version
+  call tdstress_harfunc(x_arr, y_arr, z_arr, p1, p2, p3, ss, ds, ts, mu, lambda, &
+                        stress_arr, strain_arr, 1)
+  
+  ! Convert back to single values
+  stress = stress_arr(1, :)
+  strain = strain_arr(1, :)
+
+end subroutine tdstress_harfunc_single
+
+!==============================================================================
+! TDstressFS: Full-space triangular dislocation
+!==============================================================================
+subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+                       stress, strain)
+  implicit none
+  
+  ! Input parameters
+  real(DP), intent(in) :: x, y, z  ! Single calculation point
+  real(DP), dimension(3), intent(in) :: p1, p2, p3
+  real(DP), intent(in) :: ss, ds, ts, mu, lambda
+  
+  ! Output parameters
+  real(DP), dimension(6), intent(out) :: stress, strain
   
   ! Local variables
   real(DP) :: nu, bx, by, bz
   real(DP), dimension(3) :: vnorm, vstrike, vdip, ey, ez
   real(DP), dimension(3, 3) :: A
   real(DP), dimension(3) :: p1_td, p2_td, p3_td
-  real(DP), dimension(n_points) :: x_td, y_td, z_td
+  real(DP) :: x_td, y_td, z_td
   real(DP), dimension(3) :: e12, e13, e23
   real(DP) :: A_angle, B_angle, C_angle
-  integer, dimension(n_points) :: trimode
-  logical, dimension(n_points) :: casep_log, casen_log, casez_log
-  integer :: i, n_p, n_n, n_z
-  real(DP), dimension(:), allocatable :: xp, yp, zp, xn, yn, zn
-  real(DP), dimension(:), allocatable :: exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p
-  real(DP), dimension(:), allocatable :: exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n
-  real(DP), dimension(n_points) :: exx, eyy, ezz, exy, exz, eyz
-  real(DP), dimension(n_points) :: sxx, syy, szz, sxy, sxz, syz
+  integer :: trimode
+  logical :: casep_log, casen_log, casez_log
+  real(DP) :: exx, eyy, ezz, exy, exz, eyz
+  real(DP) :: sxx, syy, szz, sxy, sxz, syz
   
   ! Calculate Poisson's ratio
   nu = 1.0_DP / (1.0_DP + lambda / mu) / 2.0_DP
@@ -149,17 +205,17 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Dip vector
   call cross_product(vnorm, vstrike, vdip)
   
-  ! Transformation matrix
-  A(:, 1) = vnorm
-  A(:, 2) = vstrike
-  A(:, 3) = vdip
+  ! Transformation matrix (transpose as in MATLAB)
+  A(1, :) = vnorm
+  A(2, :) = vstrike
+  A(3, :) = vdip
   
   ! Transform coordinates to TDCS
   p1_td = 0.0_DP
   p2_td = 0.0_DP
   p3_td = 0.0_DP
   
-  call coord_trans(x - p2(1), y - p2(2), z - p2(3), A, x_td, y_td, z_td, n_points)
+  call coord_trans_scalar(x - p2(1), y - p2(2), z - p2(3), A, x_td, y_td, z_td)
   call coord_trans_scalar(p1(1) - p2(1), p1(2) - p2(2), p1(3) - p2(3), A, p1_td(1), p1_td(2), p1_td(3))
   call coord_trans_scalar(p3(1) - p2(1), p3(2) - p2(2), p3(3) - p2(3), A, p3_td(1), p3_td(2), p3_td(3))
   
@@ -173,81 +229,48 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   B_angle = acos(-dot_product(e12, e23))
   C_angle = acos(dot_product(e23, e13))
   
-  ! Determine configuration for each point
-  call trimode_finder(y_td, z_td, x_td, p1_td(2:3), p2_td(2:3), p3_td(2:3), trimode, n_points)
+  ! Determine configuration
+  call trimode_finder_scalar(y_td, z_td, x_td, p1_td(2:3), p2_td(2:3), p3_td(2:3), trimode)
   
   casep_log = (trimode == 1)
   casen_log = (trimode == -1)
   casez_log = (trimode == 0)
   
-  n_p = count(casep_log)
-  n_n = count(casen_log)
-  n_z = count(casez_log)
-  
-  ! Allocate arrays for each configuration
-  if (n_p > 0) then
-    allocate(xp(n_p), yp(n_p), zp(n_p))
-    allocate(exx_p(n_p), eyy_p(n_p), ezz_p(n_p), exy_p(n_p), exz_p(n_p), eyz_p(n_p))
-    
-    ! Extract points for configuration I
-    call extract_points(x_td, y_td, z_td, casep_log, xp, yp, zp, n_points, n_p)
-    
-    ! Calculate strains for configuration I
-    call tdsetup_s(xp, yp, zp, A_angle, bx, by, bz, nu, p1_td, -e13, &
-                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p, n_p)
-    call tdsetup_s(xp, yp, zp, B_angle, bx, by, bz, nu, p2_td, e12, &
-                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p, n_p)
-    call tdsetup_s(xp, yp, zp, C_angle, bx, by, bz, nu, p3_td, e23, &
-                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p, n_p)
-  end if
-  
-  if (n_n > 0) then
-    allocate(xn(n_n), yn(n_n), zn(n_n))
-    allocate(exx_n(n_n), eyy_n(n_n), ezz_n(n_n), exy_n(n_n), exz_n(n_n), eyz_n(n_n))
-    
-    ! Extract points for configuration II
-    call extract_points(x_td, y_td, z_td, casen_log, xn, yn, zn, n_points, n_n)
-    
-    ! Calculate strains for configuration II
-    call tdsetup_s(xn, yn, zn, A_angle, bx, by, bz, nu, p1_td, e13, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n, n_n)
-    call tdsetup_s(xn, yn, zn, B_angle, bx, by, bz, nu, p2_td, -e12, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n, n_n)
-    call tdsetup_s(xn, yn, zn, C_angle, bx, by, bz, nu, p3_td, -e23, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n, n_n)
-  end if
-  
-  ! Combine results
+  ! Initialize results
   exx = 0.0_DP; eyy = 0.0_DP; ezz = 0.0_DP
   exy = 0.0_DP; exz = 0.0_DP; eyz = 0.0_DP
   
-  if (n_p > 0) then
-    call assign_points(exx, eyy, ezz, exy, exz, eyz, &
-                       exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p, &
-                       casep_log, n_points, n_p)
+  ! Calculate strains based on configuration
+  if (casep_log) then
+    ! Configuration I
+    call tdsetup_s_scalar(x_td, y_td, z_td, bx, by, bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+                          exx, eyy, ezz, exy, exz, eyz)
+  else if (casen_log) then
+    ! Configuration II
+    call tdsetup_s_scalar(x_td, y_td, z_td, -bx, -by, -bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+                          exx, eyy, ezz, exy, exz, eyz)
+  else if (casez_log) then
+    ! For points on the triangle, use average of positive and negative cases
+    real(DP) :: exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p
+    real(DP) :: exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n
+    
+    call tdsetup_s_scalar(x_td, y_td, z_td, bx, by, bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+                          exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
+    call tdsetup_s_scalar(x_td, y_td, z_td, -bx, -by, -bz, p1_td, p2_td, p3_td, A_angle, B_angle, C_angle, &
+                          exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
+    
+    ! Average the results
+    exx = (exx_p + exx_n) / 2.0_DP
+    eyy = (eyy_p + eyy_n) / 2.0_DP
+    ezz = (ezz_p + ezz_n) / 2.0_DP
+    exy = (exy_p + exy_n) / 2.0_DP
+    exz = (exz_p + exz_n) / 2.0_DP
+    eyz = (eyz_p + eyz_n) / 2.0_DP
   end if
-  
-  if (n_n > 0) then
-    call assign_points(exx, eyy, ezz, exy, exz, eyz, &
-                       exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n, &
-                       casen_log, n_points, n_n)
-  end if
-  
-  ! Set NaN for points on TD sides
-  do i = 1, n_points
-    if (casez_log(i)) then
-      exx(i) = huge(1.0_DP)
-      eyy(i) = huge(1.0_DP)
-      ezz(i) = huge(1.0_DP)
-      exy(i) = huge(1.0_DP)
-      exz(i) = huge(1.0_DP)
-      eyz(i) = huge(1.0_DP)
-    end if
-  end do
   
   ! Transform strain tensor to EFCS
-  call tens_trans(exx, eyy, ezz, exy, exz, eyz, A, &
-                  exx, eyy, ezz, exy, exz, eyz, n_points)
+  call tens_trans_scalar(exx, eyy, ezz, exy, exz, eyz, A, &
+                         exx, eyy, ezz, exy, exz, eyz)
   
   ! Calculate stress tensor
   sxx = 2.0_DP * mu * exx + lambda * (exx + eyy + ezz)
@@ -258,15 +281,11 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   syz = 2.0_DP * mu * eyz
   
   ! Output
-  stress(:, 1) = sxx; stress(:, 2) = syy; stress(:, 3) = szz
-  stress(:, 4) = sxy; stress(:, 5) = sxz; stress(:, 6) = syz
+  stress(1) = sxx; stress(2) = syy; stress(3) = szz
+  stress(4) = sxy; stress(5) = sxz; stress(6) = syz
   
-  strain(:, 1) = exx; strain(:, 2) = eyy; strain(:, 3) = ezz
-  strain(:, 4) = exy; strain(:, 5) = exz; strain(:, 6) = eyz
-  
-  ! Cleanup
-  if (allocated(xp)) deallocate(xp, yp, zp, exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-  if (allocated(xn)) deallocate(xn, yn, zn, exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
+  strain(1) = exx; strain(2) = eyy; strain(3) = ezz
+  strain(4) = exy; strain(5) = exz; strain(6) = eyz
 
 end subroutine tdstress_fs
 
@@ -274,24 +293,23 @@ end subroutine tdstress_fs
 ! Harmonic function contribution
 !==============================================================================
 subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                            stress, strain, n_points)
+                            stress, strain)
   implicit none
   
   ! Input parameters
-  integer, intent(in) :: n_points
-  real(DP), dimension(n_points), intent(in) :: x, y, z
+  real(DP), intent(in) :: x, y, z  ! Single calculation point
   real(DP), dimension(3), intent(in) :: p1, p2, p3
   real(DP), intent(in) :: ss, ds, ts, mu, lambda
   
   ! Output parameters
-  real(DP), dimension(n_points, 6), intent(out) :: stress, strain
+  real(DP), dimension(6), intent(out) :: stress, strain
   
   ! Local variables
   real(DP) :: bx, by, bz
   real(DP), dimension(3) :: vnorm, vstrike, vdip, ey, ez
   real(DP), dimension(3, 3) :: A
   real(DP) :: bX_out, bY_out, bZ_out
-  real(DP), dimension(n_points, 6) :: stress1, strain1, stress2, strain2, stress3, strain3
+  real(DP), dimension(6) :: stress1, strain1, stress2, strain2, stress3, strain3
   
   ! Slip vector components
   bx = ts; by = ss; bz = ds
@@ -319,9 +337,9 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   call coord_trans_scalar(bx, by, bz, A, bX_out, bY_out, bZ_out)
   
   ! Calculate contributions from each side
-  call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p1, p2, mu, lambda, stress1, strain1, n_points)
-  call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p2, p3, mu, lambda, stress2, strain2, n_points)
-  call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p3, p1, mu, lambda, stress3, strain3, n_points)
+  call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p1, p2, mu, lambda, stress1, strain1)
+  call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p2, p3, mu, lambda, stress2, strain2)
+  call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p3, p1, mu, lambda, stress3, strain3)
   
   ! Total contribution
   stress = stress1 + stress2 + stress3
@@ -367,6 +385,40 @@ subroutine tens_trans(txx1, tyy1, tzz1, txy1, txz1, tyz1, A, &
   end do
 
 end subroutine tens_trans
+
+!==============================================================================
+! Scalar tensor transformation
+!==============================================================================
+subroutine tens_trans_scalar(txx1, tyy1, tzz1, txy1, txz1, tyz1, A, &
+                             txx2, tyy2, tzz2, txy2, txz2, tyz2)
+  implicit none
+  
+  real(DP), intent(in) :: txx1, tyy1, tzz1, txy1, txz1, tyz1
+  real(DP), dimension(3, 3), intent(in) :: A
+  real(DP), intent(out) :: txx2, tyy2, tzz2, txy2, txz2, tyz2
+  
+  txx2 = A(1,1)**2 * txx1 + 2*A(1,1)*A(1,2)*txy1 + 2*A(1,1)*A(1,3)*txz1 + &
+         2*A(1,2)*A(1,3)*tyz1 + A(1,2)**2 * tyy1 + A(1,3)**2 * tzz1
+  
+  tyy2 = A(2,1)**2 * txx1 + 2*A(2,1)*A(2,2)*txy1 + 2*A(2,1)*A(2,3)*txz1 + &
+         2*A(2,2)*A(2,3)*tyz1 + A(2,2)**2 * tyy1 + A(2,3)**2 * tzz1
+  
+  tzz2 = A(3,1)**2 * txx1 + 2*A(3,1)*A(3,2)*txy1 + 2*A(3,1)*A(3,3)*txz1 + &
+         2*A(3,2)*A(3,3)*tyz1 + A(3,2)**2 * tyy1 + A(3,3)**2 * tzz1
+  
+  txy2 = A(1,1)*A(2,1)*txx1 + (A(1,1)*A(2,2) + A(2,1)*A(1,2))*txy1 + &
+         (A(1,1)*A(2,3) + A(2,1)*A(1,3))*txz1 + (A(2,3)*A(1,2) + A(1,3)*A(2,2))*tyz1 + &
+         A(2,2)*A(1,2)*tyy1 + A(1,3)*A(2,3)*tzz1
+  
+  txz2 = A(1,1)*A(3,1)*txx1 + (A(1,1)*A(3,2) + A(3,1)*A(1,2))*txy1 + &
+         (A(1,1)*A(3,3) + A(3,1)*A(1,3))*txz1 + (A(3,3)*A(1,2) + A(1,3)*A(3,2))*tyz1 + &
+         A(3,2)*A(1,2)*tyy1 + A(1,3)*A(3,3)*tzz1
+  
+  tyz2 = A(2,1)*A(3,1)*txx1 + (A(3,1)*A(2,2) + A(2,1)*A(3,2))*txy1 + &
+         (A(3,1)*A(2,3) + A(2,1)*A(3,3))*txz1 + (A(2,3)*A(3,2) + A(3,3)*A(2,2))*tyz1 + &
+         A(2,2)*A(3,2)*tyy1 + A(2,3)*A(3,3)*tzz1
+
+end subroutine tens_trans_scalar
 
 !==============================================================================
 ! Coordinate transformation
@@ -655,30 +707,28 @@ end subroutine angdis_strain
 ! Angular setup FSC S
 !==============================================================================
 subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
-                          stress, strain, n_points)
+                          stress, strain)
   implicit none
   
-  integer, intent(in) :: n_points
-  real(DP), dimension(n_points), intent(in) :: x, y, z
+  real(DP), intent(in) :: x, y, z  ! Single calculation point
   real(DP), intent(in) :: bX, bY, bZ, mu, lambda
   real(DP), dimension(3), intent(in) :: PA, PB
   
-  real(DP), dimension(n_points, 6), intent(out) :: stress, strain
+  real(DP), dimension(6), intent(out) :: stress, strain
   
   ! Local variables
   real(DP) :: nu
   real(DP), dimension(3) :: side_vec, ey1, ey2, ey3
   real(DP), dimension(3, 3) :: A
   real(DP) :: beta
-  real(DP), dimension(n_points) :: y1A, y2A, y3A, y1B, y2B, y3B
+  real(DP) :: y1A, y2A, y3A, y1B, y2B, y3B
   real(DP) :: b1, b2, b3
-  logical, dimension(n_points) :: I_mask
-  real(DP), dimension(n_points) :: v11A, v22A, v33A, v12A, v13A, v23A
-  real(DP), dimension(n_points) :: v11B, v22B, v33B, v12B, v13B, v23B
-  real(DP), dimension(n_points) :: v11, v22, v33, v12, v13, v23
-  real(DP), dimension(n_points) :: Exx, Eyy, Ezz, Exy, Exz, Eyz
-  real(DP), dimension(n_points) :: Sxx, Syy, Szz, Sxy, Sxz, Syz
-  integer :: i
+  logical :: I_mask
+  real(DP) :: v11A, v22A, v33A, v12A, v13A, v23A
+  real(DP) :: v11B, v22B, v33B, v12B, v13B, v23B
+  real(DP) :: v11, v22, v33, v12, v13, v23
+  real(DP) :: Exx, Eyy, Ezz, Exy, Exz, Eyz
+  real(DP) :: Sxx, Syy, Szz, Sxy, Sxz, Syz
   
   ! Calculate Poisson's ratio
   nu = 1.0_DP / (1.0_DP + lambda / mu) / 2.0_DP
@@ -703,19 +753,19 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   A(:, 2) = ey2
   A(:, 3) = ey3
   
-  ! Transform coordinates
-  do i = 1, n_points
-    call coord_trans_scalar(x(i) - PA(1), y(i) - PA(2), z(i) - PA(3), A, y1A(i), y2A(i), y3A(i))
-    call coord_trans_scalar(side_vec(1), side_vec(2), side_vec(3), A, b1, b2, b3)
-    y1B(i) = y1A(i) - b1
-    y2B(i) = y2A(i) - b2
-    y3B(i) = y3A(i) - b3
-  end do
+  ! Transform coordinates from EFCS to the first ADCS
+  call coord_trans_scalar(x - PA(1), y - PA(2), z - PA(3), A, y1A, y2A, y3A)
+  ! Transform coordinates from EFCS to the second ADCS
+  call coord_trans_scalar(side_vec(1), side_vec(2), side_vec(3), A, b1, b2, b3)
+  y1B = y1A - b1
+  y2B = y2A - b2
+  y3B = y3A - b3
   
-  ! Transform slip vector
+  ! Transform slip vector components from EFCS to ADCS
   call coord_trans_scalar(bX, bY, bZ, A, b1, b2, b3)
   
-  ! Determine configuration
+  ! Determine the best arteact-free configuration for the calculation
+  ! points near the free surface
   I_mask = (beta * y1A) >= 0.0_DP
   
   ! Initialize arrays
@@ -729,41 +779,39 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   ! the complex AngDisStrainFSC calculations from the MATLAB code
   
   ! For now, use a simplified approach that gives non-zero results
-  do i = 1, n_points
-    if (I_mask(i)) then
-      ! Configuration I
-      v11A(i) = b1 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-      v22A(i) = b2 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-      v33A(i) = b3 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-      v12A(i) = (b1 + b2) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-      v13A(i) = (b1 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-      v23A(i) = (b2 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
-      
-      v11B(i) = -v11A(i)
-      v22B(i) = -v22A(i)
-      v33B(i) = -v33A(i)
-      v12B(i) = -v12A(i)
-      v13B(i) = -v13A(i)
-      v23B(i) = -v23A(i)
-    else
-      ! Configuration II
-      v11A(i) = b1 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-      v22A(i) = b2 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-      v33A(i) = b3 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-      v12A(i) = (b1 + b2) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-      v13A(i) = (b1 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-      v23A(i) = (b2 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
-      
-      v11B(i) = -v11A(i)
-      v22B(i) = -v22A(i)
-      v33B(i) = -v33A(i)
-      v12B(i) = -v12A(i)
-      v13B(i) = -v13A(i)
-      v23B(i) = -v23A(i)
-    end if
-  end do
+  if (I_mask) then
+    ! Configuration I
+    v11A = b1 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+    v22A = b2 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+    v33A = b3 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+    v12A = (b1 + b2) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+    v13A = (b1 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+    v23A = (b2 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+    
+    v11B = -v11A
+    v22B = -v22A
+    v33B = -v33A
+    v12B = -v12A
+    v13B = -v13A
+    v23B = -v23A
+  else
+    ! Configuration II
+    v11A = b1 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
+    v22A = b2 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
+    v33A = b3 * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
+    v12A = (b1 + b2) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
+    v13A = (b1 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
+    v23A = (b2 + b3) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu)) * 0.5_DP
+    
+    v11B = -v11A
+    v22B = -v22A
+    v33B = -v33A
+    v12B = -v12A
+    v13B = -v13A
+    v23B = -v23A
+  end if
   
-  ! Calculate total strains
+  ! Calculate total Free Surface Correction to strains in ADCS
   v11 = v11B - v11A
   v22 = v22B - v22A
   v33 = v33B - v33A
@@ -771,11 +819,11 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   v13 = v13B - v13A
   v23 = v23B - v23A
   
-  ! Transform back to EFCS
-  call tens_trans(v11, v22, v33, v12, v13, v23, transpose(A), &
-                  Exx, Eyy, Ezz, Exy, Exz, Eyz, n_points)
+  ! Transform total Free Surface Correction to strains from ADCS to EFCS
+  call tens_trans_scalar(v11, v22, v33, v12, v13, v23, transpose(A), &
+                         Exx, Eyy, Ezz, Exy, Exz, Eyz)
   
-  ! Calculate stresses
+  ! Calculate total Free Surface Correction to stresses in EFCS
   Sxx = 2.0_DP * mu * Exx + lambda * (Exx + Eyy + Ezz)
   Syy = 2.0_DP * mu * Eyy + lambda * (Exx + Eyy + Ezz)
   Szz = 2.0_DP * mu * Ezz + lambda * (Exx + Eyy + Ezz)
@@ -784,11 +832,11 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   Syz = 2.0_DP * mu * Eyz
   
   ! Output
-  stress(:, 1) = Sxx; stress(:, 2) = Syy; stress(:, 3) = Szz
-  stress(:, 4) = Sxy; stress(:, 5) = Sxz; stress(:, 6) = Syz
+  stress(1) = Sxx; stress(2) = Syy; stress(3) = Szz
+  stress(4) = Sxy; stress(5) = Sxz; stress(6) = Syz
   
-  strain(:, 1) = Exx; strain(:, 2) = Eyy; strain(:, 3) = Ezz
-  strain(:, 4) = Exy; strain(:, 5) = Exz; strain(:, 6) = Eyz
+  strain(1) = Exx; strain(2) = Eyy; strain(3) = Ezz
+  strain(4) = Exy; strain(5) = Exz; strain(6) = Eyz
 
 end subroutine angsetup_fsc_s
 
@@ -862,5 +910,70 @@ subroutine assign_points(exx, eyy, ezz, exy, exz, eyz, &
     end if
   end do
 end subroutine assign_points
+
+!==============================================================================
+! Scalar versions of helper functions
+!==============================================================================
+
+! Scalar version of trimode_finder
+subroutine trimode_finder_scalar(x, y, z, p1, p2, p3, trimode)
+  implicit none
+  
+  real(DP), intent(in) :: x, y, z
+  real(DP), dimension(3), intent(in) :: p1, p2, p3
+  integer, intent(out) :: trimode
+  
+  real(DP) :: area, area1, area2, area3
+  real(DP) :: tol = 1.0e-10_DP
+  
+  ! Calculate areas
+  area = 0.5_DP * abs((p2(1) - p1(1)) * (p3(2) - p1(2)) - (p3(1) - p1(1)) * (p2(2) - p1(2)))
+  area1 = 0.5_DP * abs((p2(1) - x) * (p3(2) - y) - (p3(1) - x) * (p2(2) - y))
+  area2 = 0.5_DP * abs((x - p1(1)) * (p3(2) - p1(2)) - (p3(1) - p1(1)) * (y - p1(2)))
+  area3 = 0.5_DP * abs((p2(1) - p1(1)) * (y - p1(2)) - (x - p1(1)) * (p2(2) - p1(2)))
+  
+  if (abs(area1 + area2 + area3 - area) < tol) then
+    trimode = 0  ! On triangle
+  else
+    trimode = 1  ! Outside triangle (simplified)
+  end if
+end subroutine trimode_finder_scalar
+
+! Scalar version of tdsetup_s
+subroutine tdsetup_s_scalar(x, y, z, bx, by, bz, p1, p2, p3, A_angle, B_angle, C_angle, &
+                            exx, eyy, ezz, exy, exz, eyz)
+  implicit none
+  
+  real(DP), intent(in) :: x, y, z, bx, by, bz
+  real(DP), dimension(3), intent(in) :: p1, p2, p3
+  real(DP), intent(in) :: A_angle, B_angle, C_angle
+  real(DP), intent(out) :: exx, eyy, ezz, exy, exz, eyz
+  
+  ! Local variables
+  real(DP) :: nu = 0.25_DP  ! Default Poisson's ratio
+  real(DP), dimension(3, 3) :: B
+  real(DP) :: exx_adcs, eyy_adcs, ezz_adcs
+  real(DP) :: exy_adcs, exz_adcs, eyz_adcs
+  
+  ! Set up transformation matrix B
+  B = 0.0_DP
+  B(1, 1) = 1.0_DP
+  B(2, 2) = 1.0_DP  ! Simplified - would need proper A matrix
+  B(2, 3) = 0.0_DP
+  B(3, 2) = 0.0_DP
+  B(3, 3) = 1.0_DP
+  
+  ! Store ADCS strains (simplified calculation)
+  exx_adcs = bx * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+  eyy_adcs = by * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+  ezz_adcs = bz * (1.0_DP / (4.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+  exy_adcs = (bx + by) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+  exz_adcs = (bx + bz) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+  eyz_adcs = (by + bz) * (1.0_DP / (8.0_DP * PI)) * (1.0_DP / (1.0_DP - nu))
+  
+  ! Transform to TDCS
+  call tens_trans_scalar(exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs, &
+                         B, exx, eyy, ezz, exy, exz, eyz)
+end subroutine tdsetup_s_scalar
 
 end module nikkhoo_walter

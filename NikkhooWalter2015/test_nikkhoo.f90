@@ -32,8 +32,11 @@ program test_nikkhoo
   mu = 3.0e10_DP      ! Shear modulus
   lambda = 3.0e10_DP  ! Lame's first parameter
   
-  ! Calculate stresses and strains
-  call tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, stress, strain, n_points)
+  ! Calculate stresses and strains (loop over calculation points)
+  do i = 1, n_points
+    call tdstress_hs(x(i), y(i), z(i), p1, p2, p3, ss, ds, ts, mu, lambda, &
+                     stress(i, :), strain(i, :))
+  end do
   
   ! Output results
   write(*,*) 'Nikkhoo & Walter (2015) Triangular Dislocation Test'
