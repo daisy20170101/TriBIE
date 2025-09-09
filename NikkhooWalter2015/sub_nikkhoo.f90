@@ -148,6 +148,9 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   logical :: casep_log, casen_log, casez_log
   real(DP) :: exx, eyy, ezz, exy, exz, eyz
   real(DP) :: sxx, syy, szz, sxy, sxz, syz
+  ! Local variables for casez_log
+  real(DP) :: exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p
+  real(DP) :: exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n
   
   ! Calculate Poisson's ratio
   nu = 1.0_DP / (1.0_DP + lambda / mu) / 2.0_DP
@@ -213,10 +216,6 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Initialize results
   exx = 0.0_DP; eyy = 0.0_DP; ezz = 0.0_DP
   exy = 0.0_DP; exz = 0.0_DP; eyz = 0.0_DP
-  
-  ! Local variables for casez_log
-  real(DP) :: exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p
-  real(DP) :: exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n
   
   ! Calculate strains based on configuration
   if (casep_log) then
