@@ -184,19 +184,66 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! Calculate strains based on configuration
   if (casep_log) then
-    ! Configuration I
-    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, 0.25_DP, p2_td, e23, &
+    ! Configuration I - Calculate three angular dislocation contributions
+    ! First angular dislocation: A angle, p1, -e13
+    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, -e13, &
                    exx, eyy, ezz, exy, exz, eyz)
+    
+    ! Second angular dislocation: B angle, p2, e12
+    call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, e12, &
+                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
+    exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
+    exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
+    
+    ! Third angular dislocation: C angle, p3, e23
+    call tdsetup_s(x_td, y_td, z_td, C_angle, bx, by, bz, nu, p3_td, e23, &
+                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
+    exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
+    exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
+    
   else if (casen_log) then
-    ! Configuration II
-    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, 0.25_DP, p2_td, e23, &
+    ! Configuration II - Calculate three angular dislocation contributions
+    ! First angular dislocation: A angle, p1, e13
+    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, e13, &
                    exx, eyy, ezz, exy, exz, eyz)
+    
+    ! Second angular dislocation: B angle, p2, -e12
+    call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, -e12, &
+                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
+    exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
+    exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
+    
+    ! Third angular dislocation: C angle, p3, -e23
+    call tdsetup_s(x_td, y_td, z_td, C_angle, bx, by, bz, nu, p3_td, -e23, &
+                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
+    exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
+    exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
+    
   else if (casez_log) then
     ! For points on the triangle, use average of positive and negative cases
-    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, 0.25_DP, p2_td, e23, &
+    ! Configuration I (positive)
+    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, -e13, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, 0.25_DP, p2_td, e23, &
+    call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, e12, &
                    exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
+    exx_p = exx_p + exx_n; eyy_p = eyy_p + eyy_n; ezz_p = ezz_p + ezz_n
+    exy_p = exy_p + exy_n; exz_p = exz_p + exz_n; eyz_p = eyz_p + eyz_n
+    call tdsetup_s(x_td, y_td, z_td, C_angle, bx, by, bz, nu, p3_td, e23, &
+                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
+    exx_p = exx_p + exx_n; eyy_p = eyy_p + eyy_n; ezz_p = ezz_p + ezz_n
+    exy_p = exy_p + exy_n; exz_p = exz_p + exz_n; eyz_p = eyz_p + eyz_n
+    
+    ! Configuration II (negative)
+    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, nu, p1_td, e13, &
+                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
+    call tdsetup_s(x_td, y_td, z_td, B_angle, -bx, -by, -bz, nu, p2_td, -e12, &
+                   exx, eyy, ezz, exy, exz, eyz)
+    exx_n = exx_n + exx; eyy_n = eyy_n + eyy; ezz_n = ezz_n + ezz
+    exy_n = exy_n + exy; exz_n = exz_n + exz; eyz_n = eyz_n + eyz
+    call tdsetup_s(x_td, y_td, z_td, C_angle, -bx, -by, -bz, nu, p3_td, -e23, &
+                   exx, eyy, ezz, exy, exz, eyz)
+    exx_n = exx_n + exx; eyy_n = eyy_n + eyy; ezz_n = ezz_n + ezz
+    exy_n = exy_n + exy; exz_n = exz_n + exz; eyz_n = eyz_n + eyz
     
     ! Average the results
     exx = (exx_p + exx_n) / 2.0_DP
