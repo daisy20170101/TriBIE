@@ -17,17 +17,17 @@ program test_nikkhoo
   real(DP), dimension(n_points, 6) :: stress, strain
   
   ! Initialize test data
-  x = [-1.0_DP, 1.0_DP, 0.0_DP, 0.0_DP]
-  y = [-1.0_DP, -1.0_DP, 1.0_DP, -1.0_DP]
-  z = [-1.0_DP, -1.0_DP, -1.0_DP, -2.0_DP]
+  x = [-1.0_DP/3.0_DP, -1.0_DP/3.0_DP, -1.0_DP/3.0_DP, 7.0_DP]
+  y = [-1.0_DP/3.0_DP, -1.0_DP/3.0_DP, -1.0_DP/3.0_DP, -1.0_DP]
+  z = [-3.0_DP, -14.0_DP/3.0_DP, -6.0_DP, -5.0_DP]
   
-  p1 = [-1.0_DP, 0.0_DP, -1.0_DP]
-  p2 = [1.0_DP, 0.0_DP, -1.0_DP]
-  p3 = [0.0_DP, 1.0_DP, -1.0_DP]
+  p1 = [-1.0_DP, -1.0_DP, -5.0_DP]
+  p2 = [1.0_DP, -1.0_DP, -5.0_DP]
+  p3 = [-1.0_DP, 1.0_DP, -4.0_DP]
   
   ss = 1.0_DP  ! Strike-slip
-  ds = 0.5_DP  ! Dip-slip
-  ts = 0.0_DP  ! Tensile-slip
+  ds = -1.0_DP  ! Dip-slip
+  ts = 2.0_DP  ! Tensile-slip
   
   mu = 3.0e10_DP      ! Shear modulus
   lambda = 3.0e10_DP  ! Lame's first parameter
