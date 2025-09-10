@@ -853,7 +853,7 @@ end if
              slipz1_inter,slipz1_tau,slipz1_sse, &
              slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
              xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-             n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2)         
+             n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map)         
      end if
 
      ! Check if simulation should continue
@@ -900,7 +900,7 @@ if(myid==master)then
           slipz1_inter,slipz1_tau,slipz1_sse, &
           slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
           xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-          n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2) 
+          n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
      !$OMP END MASTER
 
 end if
@@ -1467,7 +1467,7 @@ subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
      slipz1_inter,slipz1_tau,slipz1_sse,&
      slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
      xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-    n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2) 
+    n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
 
 
 USE mpi
@@ -1488,6 +1488,7 @@ real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),slipave_inter(Nt_a
       slipz1_v(Nt_all,ncos)
 integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
 integer :: intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all)
+integer :: mpi_to_mesh_map(Nt_all)  ! FIXED: Add mpi_to_mesh_map parameter
 
 ! HDF5 variables for time-series output
 integer(HID_T) :: file_id, dset_id, dspace_id
