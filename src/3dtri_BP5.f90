@@ -803,7 +803,8 @@ end if
 130 format(E20.13,2(1X,E15.7))
 
               icos = icos +1
-              tcos(icos) = t 
+              tcos(icos) = t
+              write(*,*) 'DEBUG: icos =', icos, 'ncos =', ncos, 't =', t 
 
               if(.not.end1.and.t - teve1.lt.2*tint_cos) then
                  teve1 = t !! to determine rupture contour output
@@ -1606,6 +1607,7 @@ end if
 
     if(icos==ncos)then
        ! HDF5 output for time-series variables instead of binary files
+       write(*,*) 'DEBUG: Triggering HDF5 output - icos =', icos, 'ncos =', ncos
           ! Initialize HDF5 if not already done
           if (.not. hdf5_initialized) then
              call h5open_f(hdferr)
@@ -1641,15 +1643,40 @@ end if
           ! FIXED: Use optimal chunk size that aligns with data access patterns
           ! Chunk size should be large enough to be efficient but not too large
           ! CRITICAL: Chunk size must not exceed actual data dimensions
-          chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(max(icos, 10), icos), HSIZE_T)/)
+          ! Use simple, safe chunking logic
+          if (icos <= 1) then
+             chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(1, HSIZE_T)/)
+          else
+             chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(icos, 100), HSIZE_T)/)
+          end if
+          
+          write(*,*) 'DEBUG: Creating HDF5 with icos =', icos, 'chunk_2d =', chunk_2d
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
+          if (hdferr /= 0) then
+             write(*,*) 'ERROR: Failed to create HDF5 dataset creation property list, hdferr =', hdferr
+             stop
+          end if
+          
           call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
+          if (hdferr /= 0) then
+             write(*,*) 'ERROR: Failed to set HDF5 chunk size, hdferr =', hdferr
+             stop
+          end if
           ! FIXED: Enable collective I/O for better parallel performance
           call h5pset_dxpl_mpio_f(dcpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
           
           call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
+          if (hdferr /= 0) then
+             write(*,*) 'ERROR: Failed to create HDF5 dataspace, hdferr =', hdferr
+             stop
+          end if
+          
           call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
+          if (hdferr /= 0) then
+             write(*,*) 'ERROR: Failed to create HDF5 dataset slipz1_v, hdferr =', hdferr
+             stop
+          end if
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
           
@@ -1664,7 +1691,11 @@ end if
           maxdims_1d = (/H5S_UNLIMITED_F/)
           ! FIXED: Use optimal chunk size for 1D time arrays
           ! CRITICAL: Chunk size must not exceed actual data dimensions
-          chunk_1d = (/INT(min(max(icos, 10), icos), HSIZE_T)/)
+          if (icos <= 1) then
+             chunk_1d = (/INT(1, HSIZE_T)/)
+          else
+             chunk_1d = (/INT(min(icos, 100), HSIZE_T)/)
+          end if
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
           call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
