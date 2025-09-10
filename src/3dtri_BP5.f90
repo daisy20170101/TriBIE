@@ -317,7 +317,7 @@ program main
 !!! modify output number
      ALLOCATE (slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos), &
           slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos), &
-          v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse) )
+          v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),slipz1_tau(Nt_all,ncos),slipz1_sse(Nt_all,nsse) )
      ALLOCATE(intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all),slipz1_v(Nt_all,ncos),ssetime(nsse)  )
 
      allocate(moment(nmv),Trup(Nt_all),rup(Nt_all),area(Nt_all))
@@ -817,6 +817,7 @@ end if
                  mesh_idx = mpi_to_mesh_map(i)
                  slipz1_cos(mesh_idx,icos) = slip_all(i)*1.d-3
                  slipz1_v(mesh_idx,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
+                 slipz1_tau(mesh_idx,icos)=tau1_all(i)
               end do
 
               tslipcos = 0.d0
@@ -1483,7 +1484,7 @@ real (DP) :: x(Nt),maxnum(nmv),moment(nmv),maxv(nmv),outs1(nmv,7,10),&
 	tmv(nmv),tas(nas),tcos(ncos),tnul(nnul),tsse(nsse),obvs(nmv,6,n_obv),obvstrk(nmv,2,np1),obvdp(nmv,2,np2)
 
 real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),&
-        v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse), &
+        v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,ncos),slipz1_sse(Nt_all,nsse), &
      v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),xi_all(Nt_all),x_all(Nt_all),&
       slipz1_v(Nt_all,ncos)
 integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
@@ -1605,8 +1606,6 @@ end if
 
     if(icos==ncos)then
        ! HDF5 output for time-series variables instead of binary files
-       ! CRITICAL FIX: Only master process should write to HDF5 to avoid race conditions
-       if (myid == master) then
           ! Initialize HDF5 if not already done
           if (.not. hdf5_initialized) then
              call h5open_f(hdferr)
@@ -1890,8 +1889,7 @@ end if
        
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
-       icos = 0 
-       end if  ! End of master process check for HDF5 writing
+       icos = 0
     
     end if
 
@@ -1903,8 +1901,6 @@ end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
-      ! CRITICAL FIX: Only master process should write to HDF5 to avoid race conditions
-      if (myid == master) then
          ! Initialize HDF5 if not already done
          if (.not. hdf5_initialized) then
             call h5open_f(hdferr)
@@ -2177,7 +2173,6 @@ end if
       ! Update global SSE counter for accumulative writing
       global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
-      end if  ! End of master process check for SSE HDF5 writing
    
   end if
 
