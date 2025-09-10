@@ -156,7 +156,8 @@ program debug_nikkhoo
   write(*,*) '  casez_log =', casez_log
   write(*,*) ''
   
-  ! Calculate stresses and strains
+  ! Calculate stresses and strains with detailed debugging
+  write(*,*) '=== Calling tdstress_hs ==='
   call tdstress_hs(x(1), y(1), z(1), p1, p2, p3, ss, ds, ts, mu, lambda, &
                    stress(1, :), strain(1, :))
   

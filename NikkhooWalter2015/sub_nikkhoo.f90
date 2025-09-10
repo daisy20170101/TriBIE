@@ -55,9 +55,21 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   call tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
                           sts_ms, str_ms)
   
+  write(*,*) '=== Main Dislocation Contribution ==='
+  write(*,*) 'Stress: Sxx=', sts_ms(1), 'Syy=', sts_ms(2), 'Szz=', sts_ms(3), &
+             'Sxy=', sts_ms(4), 'Sxz=', sts_ms(5), 'Syz=', sts_ms(6)
+  write(*,*) 'Strain: Exx=', str_ms(1), 'Eyy=', str_ms(2), 'Ezz=', str_ms(3), &
+             'Exy=', str_ms(4), 'Exz=', str_ms(5), 'Eyz=', str_ms(6)
+  
   ! Calculate harmonic function contribution
   call tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
                                sts_fsc, str_fsc)
+  
+  write(*,*) '=== Harmonic Function Contribution ==='
+  write(*,*) 'Stress: Sxx=', sts_fsc(1), 'Syy=', sts_fsc(2), 'Szz=', sts_fsc(3), &
+             'Sxy=', sts_fsc(4), 'Sxz=', sts_fsc(5), 'Syz=', sts_fsc(6)
+  write(*,*) 'Strain: Exx=', str_fsc(1), 'Eyy=', str_fsc(2), 'Ezz=', str_fsc(3), &
+             'Exy=', str_fsc(4), 'Exz=', str_fsc(5), 'Eyz=', str_fsc(6)
   
   ! Calculate image dislocation contribution
   p1_img = p1; p2_img = p2; p3_img = p3
@@ -68,17 +80,30 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   call tdstress_fs(x, y, z, p1_img, p2_img, p3_img, ss, ds, ts, mu, lambda, &
                           sts_is, str_is)
   
+  write(*,*) '=== Image Dislocation Contribution ==='
+  write(*,*) 'Stress: Sxx=', sts_is(1), 'Syy=', sts_is(2), 'Szz=', sts_is(3), &
+             'Sxy=', sts_is(4), 'Sxz=', sts_is(5), 'Syz=', sts_is(6)
+  write(*,*) 'Strain: Exx=', str_is(1), 'Eyy=', str_is(2), 'Ezz=', str_is(3), &
+             'Exy=', str_is(4), 'Exz=', str_is(5), 'Eyz=', str_is(6)
+  
   ! Special case for surface elements
   if (abs(p1_img(3)) < EPS .and. abs(p2_img(3)) < EPS .and. abs(p3_img(3)) < EPS) then
     sts_is(5) = -sts_is(5)  ! xz component
     sts_is(6) = -sts_is(6)  ! yz component
     str_is(5) = -str_is(5)  ! xz component
     str_is(6) = -str_is(6)  ! yz component
+    write(*,*) 'Applied surface element correction'
   end if
   
   ! Calculate total stress and strain
   stress = sts_ms + sts_is + sts_fsc
   strain = str_ms + str_is + str_fsc
+  
+  write(*,*) '=== Total Results ==='
+  write(*,*) 'Stress: Sxx=', stress(1), 'Syy=', stress(2), 'Szz=', stress(3), &
+             'Sxy=', stress(4), 'Sxz=', stress(5), 'Syz=', stress(6)
+  write(*,*) 'Strain: Exx=', strain(1), 'Eyy=', strain(2), 'Ezz=', strain(3), &
+             'Exy=', strain(4), 'Exz=', strain(5), 'Eyz=', strain(6)
 
 end subroutine tdstress_hs
 
