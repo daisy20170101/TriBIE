@@ -66,7 +66,9 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! call tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   !                              sts_fsc, str_fsc)
   
-
+  ! Initialize harmonic function variables to zero since call is commented out
+  sts_fsc = 0.0_DP
+  str_fsc = 0.0_DP
   
   write(*,*) '=== Harmonic Function Contribution ==='
   write(*,*) 'Stress: Sxx=', sts_fsc(1), 'Syy=', sts_fsc(2), 'Szz=', sts_fsc(3), &
