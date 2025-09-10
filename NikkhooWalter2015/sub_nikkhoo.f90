@@ -137,6 +137,7 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   integer :: trimode
   logical :: casep_log, casen_log, casez_log
   real(DP) :: exx, eyy, ezz, exy, exz, eyz
+  real(DP) :: exx_out, eyy_out, ezz_out, exy_out, exz_out, eyz_out
   real(DP) :: sxx, syy, szz, sxy, sxz, syz
   ! Local variables for casez_log
   real(DP) :: exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p
@@ -324,7 +325,7 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     exy = (exy_p + exy_n) / 2.0_DP
     exz = (exz_p + exz_n) / 2.0_DP
     eyz = (eyz_p + eyz_n) / 2.0_DP
-  end if
+    end if
   
   ! Transform strain tensor to EFCS
   write(*,*) 'Before tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
@@ -332,8 +333,17 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   write(*,*) 'A(1,:) =', A(1,1), A(1,2), A(1,3)
   write(*,*) 'A(2,:) =', A(2,1), A(2,2), A(2,3)
   write(*,*) 'A(3,:) =', A(3,1), A(3,2), A(3,3)
+  write(*,*) 'Matrix A (used in tens_trans):'
+  write(*,*) 'A(1,:) =', A(1,1), A(1,2), A(1,3)
+  write(*,*) 'A(2,:) =', A(2,1), A(2,2), A(2,3)
+  write(*,*) 'A(3,:) =', A(3,1), A(3,2), A(3,3)
   call tens_trans(exx, eyy, ezz, exy, exz, eyz, A, &
-                  exx, eyy, ezz, exy, exz, eyz)
+                  exx_out, eyy_out, ezz_out, exy_out, exz_out, eyz_out)
+  
+  ! Copy output back to input variables
+  exx = exx_out; eyy = eyy_out; ezz = ezz_out
+  exy = exy_out; exz = exz_out; eyz = eyz_out
+  
   write(*,*) 'After tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
   
   ! Calculate stress tensor
@@ -500,26 +510,62 @@ subroutine tens_trans(txx1, tyy1, tzz1, txy1, txz1, tyz1, A, &
   real(DP), dimension(3, 3), intent(in) :: A
   real(DP), intent(out) :: txx2, tyy2, tzz2, txy2, txz2, tyz2
   
-  txx2 = A(1,1)**2 * txx1 + 2*A(1,1)*A(1,2)*txy1 + 2*A(1,1)*A(1,3)*txz1 + &
-         2*A(1,2)*A(1,3)*tyz1 + A(1,2)**2 * tyy1 + A(1,3)**2 * tzz1
+  ! Local variables for linearized matrix (column-major order like MATLAB)
+  real(DP) :: A_lin(9)
   
-  tyy2 = A(2,1)**2 * txx1 + 2*A(2,1)*A(2,2)*txy1 + 2*A(2,1)*A(2,3)*txz1 + &
-         2*A(2,2)*A(2,3)*tyz1 + A(2,2)**2 * tyy1 + A(2,3)**2 * tzz1
+  ! Debug output
+  write(*,*) 'tens_trans input: txx1=', txx1, 'tyy1=', tyy1, 'tzz1=', tzz1, 'txy1=', txy1, 'txz1=', txz1, 'tyz1=', tyz1
+  write(*,*) 'tens_trans matrix A:'
+  write(*,*) 'A(1,:) =', A(1,1), A(1,2), A(1,3)
+  write(*,*) 'A(2,:) =', A(2,1), A(2,2), A(2,3)
+  write(*,*) 'A(3,:) =', A(3,1), A(3,2), A(3,3)
   
-  tzz2 = A(3,1)**2 * txx1 + 2*A(3,1)*A(3,2)*txy1 + 2*A(3,1)*A(3,3)*txz1 + &
-         2*A(3,2)*A(3,3)*tyz1 + A(3,2)**2 * tyy1 + A(3,3)**2 * tzz1
+  ! Convert 3x3 matrix to linearized format (column-major order like MATLAB)
+  ! MATLAB: A(1)=A(1,1), A(2)=A(2,1), A(3)=A(3,1), A(4)=A(1,2), A(5)=A(2,2), A(6)=A(3,2), A(7)=A(1,3), A(8)=A(2,3), A(9)=A(3,3)
+  A_lin(1) = A(1,1)  ! A(1,1)
+  A_lin(2) = A(2,1)  ! A(2,1)
+  A_lin(3) = A(3,1)  ! A(3,1)
+  A_lin(4) = A(1,2)  ! A(1,2)
+  A_lin(5) = A(2,2)  ! A(2,2)
+  A_lin(6) = A(3,2)  ! A(3,2)
+  A_lin(7) = A(1,3)  ! A(1,3)
+  A_lin(8) = A(2,3)  ! A(2,3)
+  A_lin(9) = A(3,3)  ! A(3,3)
   
-  txy2 = A(1,1)*A(2,1)*txx1 + (A(1,1)*A(2,2) + A(2,1)*A(1,2))*txy1 + &
-         (A(1,1)*A(2,3) + A(2,1)*A(1,3))*txz1 + (A(2,3)*A(1,2) + A(1,3)*A(2,2))*tyz1 + &
-         A(2,2)*A(1,2)*tyy1 + A(1,3)*A(2,3)*tzz1
+  ! Debug output for linearized matrix
+  write(*,*) 'Linearized matrix A_lin:'
+  write(*,*) 'A_lin(1-3) =', A_lin(1), A_lin(2), A_lin(3)
+  write(*,*) 'A_lin(4-6) =', A_lin(4), A_lin(5), A_lin(6)
+  write(*,*) 'A_lin(7-9) =', A_lin(7), A_lin(8), A_lin(9)
+  write(*,*) 'Expected MATLAB linearized:'
+  write(*,*) 'A_lin(1-3) = -0.000000 0.447214 0.894427'
+  write(*,*) 'A_lin(4-6) = -1.000000 -0.000000 0.000000'
+  write(*,*) 'A_lin(7-9) = 0.000000 -0.894427 0.447214'
   
-  txz2 = A(1,1)*A(3,1)*txx1 + (A(1,1)*A(3,2) + A(3,1)*A(1,2))*txy1 + &
-         (A(1,1)*A(3,3) + A(3,1)*A(1,3))*txz1 + (A(3,3)*A(1,2) + A(1,3)*A(3,2))*tyz1 + &
-         A(3,2)*A(1,2)*tyy1 + A(1,3)*A(3,3)*tzz1
+  ! Use the same formulas as MATLAB TensTrans function
+  txx2 = A_lin(1)**2*txx1 + 2*A_lin(1)*A_lin(4)*txy1 + 2*A_lin(1)*A_lin(7)*txz1 + 2*A_lin(4)*A_lin(7)*tyz1 + &
+         A_lin(4)**2*tyy1 + A_lin(7)**2*tzz1
   
-  tyz2 = A(2,1)*A(3,1)*txx1 + (A(3,1)*A(2,2) + A(2,1)*A(3,2))*txy1 + &
-         (A(3,1)*A(2,3) + A(2,1)*A(3,3))*txz1 + (A(2,3)*A(3,2) + A(3,3)*A(2,2))*tyz1 + &
-         A(2,2)*A(3,2)*tyy1 + A(2,3)*A(3,3)*tzz1
+  tyy2 = A_lin(2)**2*txx1 + 2*A_lin(2)*A_lin(5)*txy1 + 2*A_lin(2)*A_lin(8)*txz1 + 2*A_lin(5)*A_lin(8)*tyz1 + &
+         A_lin(5)**2*tyy1 + A_lin(8)**2*tzz1
+  
+  tzz2 = A_lin(3)**2*txx1 + 2*A_lin(3)*A_lin(6)*txy1 + 2*A_lin(3)*A_lin(9)*txz1 + 2*A_lin(6)*A_lin(9)*tyz1 + &
+         A_lin(6)**2*tyy1 + A_lin(9)**2*tzz1
+  
+  txy2 = A_lin(1)*A_lin(2)*txx1 + (A_lin(1)*A_lin(5) + A_lin(2)*A_lin(4))*txy1 + (A_lin(1)*A_lin(8) + &
+         A_lin(2)*A_lin(7))*txz1 + (A_lin(8)*A_lin(4) + A_lin(7)*A_lin(5))*tyz1 + A_lin(5)*A_lin(4)*tyy1 + &
+         A_lin(7)*A_lin(8)*tzz1
+  
+  txz2 = A_lin(1)*A_lin(3)*txx1 + (A_lin(1)*A_lin(6) + A_lin(3)*A_lin(4))*txy1 + (A_lin(1)*A_lin(9) + &
+         A_lin(3)*A_lin(7))*txz1 + (A_lin(9)*A_lin(4) + A_lin(7)*A_lin(6))*tyz1 + A_lin(6)*A_lin(4)*tyy1 + &
+         A_lin(7)*A_lin(9)*tzz1
+  
+  tyz2 = A_lin(2)*A_lin(3)*txx1 + (A_lin(3)*A_lin(5) + A_lin(2)*A_lin(6))*txy1 + (A_lin(3)*A_lin(8) + &
+         A_lin(2)*A_lin(9))*txz1 + (A_lin(8)*A_lin(6) + A_lin(9)*A_lin(5))*tyz1 + A_lin(5)*A_lin(6)*tyy1 + &
+         A_lin(8)*A_lin(9)*tzz1
+  
+  ! Debug output
+  write(*,*) 'tens_trans output: txx2=', txx2, 'tyy2=', tyy2, 'tzz2=', tzz2, 'txy2=', txy2, 'txz2=', txz2, 'tyz2=', tyz2
 
 end subroutine tens_trans
 
@@ -535,7 +581,7 @@ subroutine coord_trans(x1_in, x2_in, x3_in, A, X1_out, X2_out, X3_out)
   
   real(DP), dimension(3) :: r
   
-  r = matmul(A, [x1_in, x2_in, x3_in])
+  r = matmul(transpose(A), [x1_in, x2_in, x3_in])
   X1_out = r(1)
   X2_out = r(2)
   X3_out = r(3)
@@ -588,7 +634,7 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
     stress = 0.0_DP
     strain = 0.0_DP
     return
-  end if
+    end if
   
   ! Calculate coordinate system
   ey1 = [side_vec(1), side_vec(2), 0.0_DP]
@@ -737,8 +783,10 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   real(DP) :: denominator
   
   ! Calculate barycentric coordinates (following MATLAB implementation)
-  ! Note: MATLAB uses 2D coordinates (y, z) in TDCS, so we use p1(2:3), p2(2:3), p3(2:3)
-  denominator = (p2(2) - p3(2)) * (p1(1) - p3(1)) + (p3(1) - p2(1)) * (p1(2) - p3(2))
+  ! Note: MATLAB uses 2D coordinates (y, z) in TDCS
+  ! The function is called with (y_td, z_td, x_td), so x=y_td, y=z_td, z=x_td
+  ! p1, p2, p3 are 2D coordinates: p1(1)=y, p1(2)=z, etc.
+  denominator = (p2(1) - p3(1)) * (p1(1) - p3(1)) + (p3(1) - p2(1)) * (p1(2) - p3(2))
   
   if (abs(denominator) < 1.0e-15_DP) then
     ! Degenerate triangle case
@@ -746,8 +794,8 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
     return
     end if
   
-  a = ((p2(2) - p3(2)) * (x - p3(1)) + (p3(1) - p2(1)) * (y - p3(2))) / denominator
-  b = ((p3(2) - p1(2)) * (x - p3(1)) + (p1(1) - p3(1)) * (y - p3(2))) / denominator
+  a = ((p2(1) - p3(1)) * (x - p3(1)) + (p3(1) - p2(1)) * (y - p3(2))) / denominator
+  b = ((p3(1) - p1(1)) * (x - p3(1)) + (p1(1) - p3(1)) * (y - p3(2))) / denominator
   c = 1.0_DP - a - b
   
   ! Initialize to first configuration
@@ -795,15 +843,23 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   ! Transformation matrix A (following MATLAB: A = [[SideVec(3);-SideVec(2)] SideVec(2:3)]')
   ! MATLAB creates: [SideVec(3), SideVec(2); -SideVec(2), SideVec(3)] then transposes
   ! So the final 2x2 matrix is: [SideVec(3), -SideVec(2); SideVec(2), SideVec(3)]
-  A(1, 1) = side_vec(3)   ! SideVec(3) after transpose
-  A(1, 2) = -side_vec(2)  ! -SideVec(2) after transpose  
-  A(2, 1) = side_vec(2)   ! SideVec(2) after transpose
-  A(2, 2) = side_vec(3)   ! SideVec(3) after transpose
+  A(1, 1) = side_vec(3)   ! SideVec(3)
+  A(1, 2) = -side_vec(2)  ! -SideVec(2)
+  A(2, 1) = side_vec(2)   ! SideVec(2)
+  A(2, 2) = side_vec(3)   ! SideVec(3)
+  
+  ! Debug output for transformation matrix
+  write(*,*) 'tdsetup_s: side_vec =', side_vec
+  write(*,*) 'tdsetup_s: A matrix ='
+  write(*,*) 'A(1,:) =', A(1,1), A(1,2)
+  write(*,*) 'A(2,:) =', A(2,1), A(2,2)
   
   ! Transform coordinates of the calculation points from TDCS into ADCS
   ! MATLAB: r1 = A*[y'-TriVertex(2);z'-TriVertex(3)];
   y1 = A(1, 1) * (y - tri_vertex(2)) + A(1, 2) * (z - tri_vertex(3))
   z1 = A(2, 1) * (y - tri_vertex(2)) + A(2, 2) * (z - tri_vertex(3))
+  
+  write(*,*) 'tdsetup_s: y1 =', y1, 'z1 =', z1
   
   ! Transform the in-plane slip vector components from TDCS into ADCS
   ! MATLAB: r2 = A*[by;bz];
@@ -819,8 +875,8 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   ! MATLAB: B = [[1 0 0];[zeros(2,1),A']]; % 3x3 Transformation matrix
   ! MATLAB: [exx,eyy,ezz,exy,exz,eyz] = TensTrans(exx,eyy,ezz,exy,exz,eyz,B);
   B(1, 1) = 1.0_DP; B(1, 2) = 0.0_DP; B(1, 3) = 0.0_DP
-  B(2, 1) = 0.0_DP; B(2, 2) = A(1, 1); B(2, 3) = A(1, 2)  ! A'(1,1), A'(1,2)
-  B(3, 1) = 0.0_DP; B(3, 2) = A(2, 1); B(3, 3) = A(2, 2)  ! A'(2,1), A'(2,2)
+  B(2, 1) = 0.0_DP; B(2, 2) = A(1, 1); B(2, 3) = A(2, 1)  ! A'(1,1), A'(2,1)
+  B(3, 1) = 0.0_DP; B(3, 2) = A(1, 2); B(3, 3) = A(2, 2)  ! A'(1,2), A'(2,2)
   
   call tens_trans(exx_adcs, eyy_adcs, ezz_adcs, exy_adcs, exz_adcs, eyz_adcs, B, &
                   exx, eyy, ezz, exy, exz, eyz)
@@ -906,7 +962,7 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   exy = bx * rFi_ry / 2.0_DP + by * rFi_rx / 2.0_DP - &
         bx / (8.0_DP * PI * (1.0_DP - nu)) * (x * y2 / r2z2 - nu * x / rz + &
         x * y2 / r3z - nu * x * cosA / Wr + eta * x * S / Wr + &
-        eta * x * y / Wr3) - &
+        eta * x * y / Wr3) + &
         by / (8.0_DP * PI * (1.0_DP - nu)) * (x2 * y / r2z2 - nu * y / rz + &
         x2 * y / r3z + nu * cosA * S + x2 * y * cosA / Wr3 + &
         x2 * cosA * S / Wr) - &
@@ -915,7 +971,7 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   
   exz = bx * rFi_rz / 2.0_DP + bz * rFi_rx / 2.0_DP - &
         bx / (8.0_DP * PI * (1.0_DP - nu)) * (-x * y / r3 + nu * x * sinA / Wr + &
-        eta * x * C / Wr + eta * x * z / Wr3) - &
+        eta * x * C / Wr + eta * x * z / Wr3) + &
         by / (8.0_DP * PI * (1.0_DP - nu)) * (-x2 / r3 + nu / r + &
         nu * cosA * C + x2 * z * cosA / Wr3 + x2 * cosA * C / Wr) - &
         bz * sinA / (8.0_DP * PI * (1.0_DP - nu)) * (nu * C + x2 * C / Wr + &

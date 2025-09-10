@@ -31,7 +31,7 @@ program debug_nikkhoo
   ! Initialize test data (single point for debugging)
   x = [-1.0_DP/3.0_DP]
   y = [-1.0_DP/3.0_DP]
-  z = [-3.0_DP]
+  z = [-14.0_DP/3.0_DP]
   
   p1 = [-1.0_DP, -1.0_DP, -5.0_DP]
   p2 = [1.0_DP, -1.0_DP, -5.0_DP]
