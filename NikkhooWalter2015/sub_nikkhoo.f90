@@ -62,8 +62,11 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
              'Exy=', str_ms(4), 'Exz=', str_ms(5), 'Eyz=', str_ms(6)
   
   ! Calculate harmonic function contribution
-  call tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
-                               sts_fsc, str_fsc)
+  ! TEMPORARILY COMMENTED OUT TO DEBUG
+  ! call tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
+  !                              sts_fsc, str_fsc)
+  
+
   
   write(*,*) '=== Harmonic Function Contribution ==='
   write(*,*) 'Stress: Sxx=', sts_fsc(1), 'Syy=', sts_fsc(2), 'Szz=', sts_fsc(3), &
@@ -73,9 +76,14 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! Calculate image dislocation contribution
   p1_img = p1; p2_img = p2; p3_img = p3
-  p1_img(3) = -p1_img(3)
-  p2_img(3) = -p2_img(3)
-  p3_img(3) = -p3_img(3)
+  p1_img(3) = -p1(3)
+  p2_img(3) = -p2(3)
+  p3_img(3) = -p3(3)
+  
+  write(*,*) '=== Image Dislocation Debug ==='
+  write(*,*) 'Original triangle: P1=', p1, 'P2=', p2, 'P3=', p3
+  write(*,*) 'Image triangle: P1_img=', p1_img, 'P2_img=', p2_img, 'P3_img=', p3_img
+  write(*,*) 'Slip vector: ss=', ss, 'ds=', ds, 'ts=', ts
   
   call tdstress_fs(x, y, z, p1_img, p2_img, p3_img, ss, ds, ts, mu, lambda, &
                           sts_is, str_is)
@@ -147,6 +155,10 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   write(*,*) 'Input: x=', x, 'y=', y, 'z=', z
   write(*,*) 'P1=', p1, 'P2=', p2, 'P3=', p3
   write(*,*) 'ss=', ss, 'ds=', ds, 'ts=', ts
+  write(*,*) 'Triangle vertices being used:'
+  write(*,*) '  P1 = (', p1(1), ',', p1(2), ',', p1(3), ')'
+  write(*,*) '  P2 = (', p2(1), ',', p2(2), ',', p2(3), ')'
+  write(*,*) '  P3 = (', p3(1), ',', p3(2), ',', p3(3), ')'
   write(*,*) 'mu=', mu, 'lambda=', lambda
   
   ! Calculate Poisson's ratio
@@ -184,8 +196,7 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   call cross_product(vnorm, vstrike, vdip)
   write(*,*) 'vdip =', vdip
   
-  ! Transformation matrix (transpose as in MATLAB)
-  ! Transformation matrix (columns are unit vectors, matching MATLAB)
+  ! Transformation matrix (columns are unit vectors for coordinate transformations)
   A(:, 1) = vnorm
   A(:, 2) = vstrike
   A(:, 3) = vdip
@@ -275,22 +286,31 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     write(*,*) 'After third: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
   else if (casen_log) then
+    write(*,*) '=== Configuration II (casen_log) ==='
     ! Configuration II - Calculate three angular dislocation contributions
     ! First angular dislocation: A angle, p1, e13
+    write(*,*) 'First angular dislocation: A_angle=', A_angle, 'p1_td=', p1_td, 'e13=', e13
     call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, e13, &
                    exx, eyy, ezz, exy, exz, eyz)
+    write(*,*) 'After first: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
     ! Second angular dislocation: B angle, p2, -e12
+    write(*,*) 'Second angular dislocation: B_angle=', B_angle, 'p2_td=', p2_td, '-e12=', -e12
     call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, -e12, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
+    write(*,*) 'Second contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
     exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
     exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
+    write(*,*) 'After second: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
     ! Third angular dislocation: C angle, p3, -e23
+    write(*,*) 'Third angular dislocation: C_angle=', C_angle, 'p3_td=', p3_td, '-e23=', -e23
     call tdsetup_s(x_td, y_td, z_td, C_angle, bx, by, bz, nu, p3_td, -e23, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
+    write(*,*) 'Third contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
     exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
     exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
+    write(*,*) 'After third: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
   else if (casez_log) then
     ! For points on the triangle, use average of positive and negative cases
@@ -329,14 +349,8 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! Transform strain tensor to EFCS
   write(*,*) 'Before tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
-  write(*,*) 'Transformation matrix A:'
-  write(*,*) 'A(1,:) =', A(1,1), A(1,2), A(1,3)
-  write(*,*) 'A(2,:) =', A(2,1), A(2,2), A(2,3)
-  write(*,*) 'A(3,:) =', A(3,1), A(3,2), A(3,3)
-  write(*,*) 'Matrix A (used in tens_trans):'
-  write(*,*) 'A(1,:) =', A(1,1), A(1,2), A(1,3)
-  write(*,*) 'A(2,:) =', A(2,1), A(2,2), A(2,3)
-  write(*,*) 'A(3,:) =', A(3,1), A(3,2), A(3,3)
+  
+
   call tens_trans(exx, eyy, ezz, exy, exz, eyz, A, &
                   exx_out, eyy_out, ezz_out, exy_out, exz_out, eyz_out)
   
@@ -785,8 +799,9 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   ! Calculate barycentric coordinates (following MATLAB implementation)
   ! Note: MATLAB uses 2D coordinates (y, z) in TDCS
   ! The function is called with (y_td, z_td, x_td), so x=y_td, y=z_td, z=x_td
-  ! p1, p2, p3 are 2D coordinates: p1(1)=y, p1(2)=z, etc.
-  denominator = (p2(1) - p3(1)) * (p1(1) - p3(1)) + (p3(1) - p2(1)) * (p1(2) - p3(2))
+  ! p1, p2, p3 are 3D coordinates but MATLAB uses p1(2:3), p2(2:3), p3(2:3)
+  ! So p1(2)=y, p1(3)=z, etc.
+  denominator = (p2(2) - p3(2)) * (p1(2) - p3(2)) + (p3(2) - p2(2)) * (p1(3) - p3(3))
   
   if (abs(denominator) < 1.0e-15_DP) then
     ! Degenerate triangle case
@@ -794,8 +809,8 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
     return
     end if
   
-  a = ((p2(1) - p3(1)) * (x - p3(1)) + (p3(1) - p2(1)) * (y - p3(2))) / denominator
-  b = ((p3(1) - p1(1)) * (x - p3(1)) + (p1(1) - p3(1)) * (y - p3(2))) / denominator
+  a = ((p2(2) - p3(2)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
+  b = ((p3(2) - p1(2)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
   c = 1.0_DP - a - b
   
   ! Initialize to first configuration
