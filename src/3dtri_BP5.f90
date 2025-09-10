@@ -1640,7 +1640,8 @@ end if
           maxdims_2d = (/INT(Nt_all, HSIZE_T), H5S_UNLIMITED_F/)
           ! FIXED: Use optimal chunk size that aligns with data access patterns
           ! Chunk size should be large enough to be efficient but not too large
-          chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(max(icos, 50), 200), HSIZE_T)/)
+          ! CRITICAL: Chunk size must not exceed actual data dimensions
+          chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(max(icos, 10), icos), HSIZE_T)/)
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
           call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
@@ -1662,7 +1663,8 @@ end if
           dims_1d = (/INT(icos, HSIZE_T)/)
           maxdims_1d = (/H5S_UNLIMITED_F/)
           ! FIXED: Use optimal chunk size for 1D time arrays
-          chunk_1d = (/INT(min(max(icos, 100), 1000), HSIZE_T)/)
+          ! CRITICAL: Chunk size must not exceed actual data dimensions
+          chunk_1d = (/INT(min(max(icos, 10), icos), HSIZE_T)/)
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
           call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
@@ -1930,7 +1932,8 @@ end if
          dims_2d = (/INT(Nt_all, HSIZE_T), INT(nsse, HSIZE_T)/)
          maxdims_2d = (/INT(Nt_all, HSIZE_T), H5S_UNLIMITED_F/)
          ! FIXED: Use optimal chunk size for SSE data
-         chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(max(nsse, 50), 200), HSIZE_T)/)
+         ! CRITICAL: Chunk size must not exceed actual data dimensions
+         chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(max(nsse, 10), nsse), HSIZE_T)/)
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
@@ -1952,7 +1955,8 @@ end if
          dims_1d = (/INT(nsse, HSIZE_T)/)
          maxdims_1d = (/H5S_UNLIMITED_F/)
          ! FIXED: Use optimal chunk size for SSE 1D time arrays
-         chunk_1d = (/INT(min(max(nsse, 100), 1000), HSIZE_T)/)
+         ! CRITICAL: Chunk size must not exceed actual data dimensions
+         chunk_1d = (/INT(min(max(nsse, 10), nsse), HSIZE_T)/)
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
