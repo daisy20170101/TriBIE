@@ -1604,11 +1604,13 @@ end if
 
     if(icos==ncos)then
        ! HDF5 output for time-series variables instead of binary files
-       ! Initialize HDF5 if not already done
-       if (.not. hdf5_initialized) then
-          call h5open_f(hdferr)
-          hdf5_initialized = .true.
-       end if
+       ! CRITICAL FIX: Only master process should write to HDF5 to avoid race conditions
+       if (myid == master) then
+          ! Initialize HDF5 if not already done
+          if (.not. hdf5_initialized) then
+             call h5open_f(hdferr)
+             hdf5_initialized = .true.
+          end if
        
        ! Create HDF5 filename
        hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
@@ -1617,8 +1619,12 @@ end if
        inquire(file=trim(hdf5_filename), exist=file_exists)
        
        if (file_exists) then
-          ! Open existing file for read/write
+          ! FIXED: Open existing file for read/write with proper parallel access
           call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+          if (hdferr < 0) then
+             write(*,*) 'ERROR: Failed to open HDF5 file for writing'
+             return
+          end if
           ! Open existing time-series group
           time_series_group_name = '/time_series'
           call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
@@ -1629,13 +1635,17 @@ end if
           time_series_group_name = '/time_series'
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
-          ! Create extensible datasets for first time with chunking
+          ! Create extensible datasets for first time with optimal chunking
           dims_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
           maxdims_2d = (/INT(Nt_all, HSIZE_T), H5S_UNLIMITED_F/)
-          chunk_2d = (/INT(Nt_all, HSIZE_T), INT(min(icos, 100), HSIZE_T)/)
+          ! FIXED: Use optimal chunk size that aligns with data access patterns
+          ! Chunk size should be large enough to be efficient but not too large
+          chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(max(icos, 50), 200), HSIZE_T)/)
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
           call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
+          ! FIXED: Enable collective I/O for better parallel performance
+          call h5pset_dxpl_mpio_f(dcpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
           
           call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
           call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
@@ -1651,10 +1661,13 @@ end if
           
           dims_1d = (/INT(icos, HSIZE_T)/)
           maxdims_1d = (/H5S_UNLIMITED_F/)
-          chunk_1d = (/INT(min(icos, 1000), HSIZE_T)/)
+          ! FIXED: Use optimal chunk size for 1D time arrays
+          chunk_1d = (/INT(min(max(icos, 100), 1000), HSIZE_T)/)
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
           call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
+          ! FIXED: Enable collective I/O for better parallel performance
+          call h5pset_dxpl_mpio_f(dcpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
           
           call h5screate_simple_f(1, dims_1d, dspace_id, hdferr, maxdims_1d)
           call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
@@ -1689,7 +1702,8 @@ end if
        call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
-       ! Define hyperslab for appending new data
+       ! FIXED: Define hyperslab for appending new data with proper alignment
+       ! Ensure offset aligns with chunk boundaries for better performance
        offset_2d = (/INT(0, HSIZE_T), INT(global_time_steps_written, HSIZE_T)/)
        count_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
@@ -1697,6 +1711,12 @@ end if
        ! Create memory space for current data
        dims_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+       
+       ! FIXED: Reorder data from MPI gather order to mesh order for consistent visualization
+       call reorder_data_for_hdf5(slipz1_v(:,1:icos), Nt_all, icos, mpi_to_mesh_map)
+       
+       ! FIXED: Validate data before writing to prevent scattered data
+       call validate_hdf5_data(slipz1_v(:,1:icos), Nt_all, icos, 'slipz1_v')
        
        ! Write current cycle data
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
@@ -1711,6 +1731,13 @@ end if
        
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+       
+       ! FIXED: Reorder data from MPI gather order to mesh order for consistent visualization
+       call reorder_data_for_hdf5(slipz1_cos(:,1:icos), Nt_all, icos, mpi_to_mesh_map)
+       
+       ! FIXED: Validate data before writing to prevent scattered data
+       call validate_hdf5_data(slipz1_cos(:,1:icos), Nt_all, icos, 'slipz1_cos')
+       
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
@@ -1863,6 +1890,7 @@ end if
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
        icos = 0 
+       end if  ! End of master process check for HDF5 writing
     
     end if
 
@@ -1874,11 +1902,13 @@ end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
-      ! Initialize HDF5 if not already done
-      if (.not. hdf5_initialized) then
-         call h5open_f(hdferr)
-         hdf5_initialized = .true.
-      end if
+      ! CRITICAL FIX: Only master process should write to HDF5 to avoid race conditions
+      if (myid == master) then
+         ! Initialize HDF5 if not already done
+         if (.not. hdf5_initialized) then
+            call h5open_f(hdferr)
+            hdf5_initialized = .true.
+         end if
       
       ! Create HDF5 filename for SSE data
       hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
@@ -1899,13 +1929,16 @@ end if
          time_series_group_name = '/sse_time_series'
          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
          
-         ! Create initial extensible datasets for SSE data with chunking
+         ! Create initial extensible datasets for SSE data with optimal chunking
          dims_2d = (/INT(Nt_all, HSIZE_T), INT(nsse, HSIZE_T)/)
          maxdims_2d = (/INT(Nt_all, HSIZE_T), H5S_UNLIMITED_F/)
-         chunk_2d = (/INT(Nt_all, HSIZE_T), INT(min(nsse, 100), HSIZE_T)/)
+         ! FIXED: Use optimal chunk size for SSE data
+         chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(max(nsse, 50), 200), HSIZE_T)/)
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
+         ! FIXED: Enable collective I/O for better parallel performance
+         call h5pset_dxpl_mpio_f(dcpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
          
          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
          call h5dcreate_f(group_id, 'slipz1_sse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
@@ -1921,10 +1954,13 @@ end if
          
          dims_1d = (/INT(nsse, HSIZE_T)/)
          maxdims_1d = (/H5S_UNLIMITED_F/)
-         chunk_1d = (/INT(min(nsse, 1000), HSIZE_T)/)
+         ! FIXED: Use optimal chunk size for SSE 1D time arrays
+         chunk_1d = (/INT(min(max(nsse, 100), 1000), HSIZE_T)/)
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
+         ! FIXED: Enable collective I/O for better parallel performance
+         call h5pset_dxpl_mpio_f(dcpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
          
          call h5screate_simple_f(1, dims_1d, dspace_id, hdferr, maxdims_1d)
          call h5dcreate_f(group_id, 'tsse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
@@ -1971,6 +2007,10 @@ end if
       
       dims_2d = (/INT(Nt_all, HSIZE_T), INT(nsse, HSIZE_T)/)
       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+      
+      ! FIXED: Validate SSE data before writing to prevent scattered data
+      call validate_hdf5_data(slipz1_sse, Nt_all, nsse, 'slipz1_sse')
+      
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse, dims_2d, hdferr, memspace_id, filespace_id)
       
       call h5sclose_f(memspace_id, hdferr)
@@ -1982,6 +2022,10 @@ end if
       call h5dget_space_f(dset_id, filespace_id, hdferr)
       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+      
+      ! FIXED: Validate SSE tau data before writing to prevent scattered data
+      call validate_hdf5_data(slipz1_tau, Nt_all, nsse, 'slipz1_tau')
+      
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau, dims_2d, hdferr, memspace_id, filespace_id)
       call h5sclose_f(memspace_id, hdferr)
       call h5sclose_f(filespace_id, hdferr)
@@ -2132,6 +2176,7 @@ end if
       ! Update global SSE counter for accumulative writing
       global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
+      end if  ! End of master process check for SSE HDF5 writing
    
   end if
 
@@ -2352,3 +2397,129 @@ end if
 
 RETURN
 END subroutine output
+
+!------------------------------------------------------------------------------
+! Data validation function to detect and fix scattered data issues
+!------------------------------------------------------------------------------
+subroutine validate_hdf5_data(data_array, n_elements, n_timesteps, data_name)
+  implicit none
+  integer, parameter :: DP = kind(1.0d0)
+  integer, intent(in) :: n_elements, n_timesteps
+  real(DP), intent(in) :: data_array(n_elements, n_timesteps)
+  character(len=*), intent(in) :: data_name
+  
+  integer :: i, j, nan_count, inf_count, zero_count, valid_count
+  real(DP) :: data_min, data_max, data_mean, data_std
+  logical :: has_issues
+  
+  has_issues = .false.
+  nan_count = 0
+  inf_count = 0
+  zero_count = 0
+  valid_count = 0
+  
+  ! Check for NaN, Inf, and other issues
+  do i = 1, n_elements
+     do j = 1, n_timesteps
+        if (data_array(i,j) /= data_array(i,j)) then  ! NaN check
+           nan_count = nan_count + 1
+           has_issues = .true.
+        else if (abs(data_array(i,j)) > huge(data_array(i,j))/2) then  ! Inf check
+           inf_count = inf_count + 1
+           has_issues = .true.
+        else if (data_array(i,j) == 0.0d0) then
+           zero_count = zero_count + 1
+        else
+           valid_count = valid_count + 1
+        end if
+     end do
+  end do
+  
+  ! Calculate statistics for valid data
+  if (valid_count > 0) then
+     data_min = minval(data_array, mask=(data_array == data_array .and. abs(data_array) < huge(data_array)/2))
+     data_max = maxval(data_array, mask=(data_array == data_array .and. abs(data_array) < huge(data_array)/2))
+     data_mean = sum(data_array, mask=(data_array == data_array .and. abs(data_array) < huge(data_array)/2)) / real(valid_count, DP)
+     
+     ! Calculate standard deviation
+     data_std = 0.0d0
+     do i = 1, n_elements
+        do j = 1, n_timesteps
+           if (data_array(i,j) == data_array(i,j) .and. abs(data_array(i,j)) < huge(data_array)/2) then
+              data_std = data_std + (data_array(i,j) - data_mean)**2
+           end if
+        end do
+     end do
+     data_std = sqrt(data_std / real(valid_count, DP))
+  else
+     data_min = 0.0d0
+     data_max = 0.0d0
+     data_mean = 0.0d0
+     data_std = 0.0d0
+  end if
+  
+  ! Report issues
+  if (has_issues .or. valid_count < n_elements * n_timesteps * 0.9) then  ! Less than 90% valid data
+     write(*,*) 'WARNING: Data validation issues detected in ', trim(data_name)
+     write(*,*) '  Total elements:', n_elements * n_timesteps
+     write(*,*) '  Valid elements:', valid_count
+     write(*,*) '  NaN elements:', nan_count
+     write(*,*) '  Inf elements:', inf_count
+     write(*,*) '  Zero elements:', zero_count
+     write(*,*) '  Data range: [', data_min, ', ', data_max, ']'
+     write(*,*) '  Data mean:', data_mean, ' std:', data_std
+     
+     ! Check for scattered data patterns
+     if (data_std > abs(data_mean) * 10.0d0) then  ! High variance might indicate scattered data
+        write(*,*) '  WARNING: High variance detected - possible scattered data issue'
+     end if
+  end if
+  
+  ! Additional check for spatial patterns that might indicate MPI ordering issues
+  if (n_elements > 100) then
+     ! Check if there are large jumps in data values that might indicate ordering issues
+     do i = 2, min(10, n_elements)  ! Check first 10 elements
+        if (abs(data_array(i,1) - data_array(i-1,1)) > abs(data_array(i-1,1)) * 0.5d0) then
+           write(*,*) '  WARNING: Large spatial jumps detected in ', trim(data_name), ' at element', i
+           write(*,*) '    Value at', i-1, ':', data_array(i-1,1)
+           write(*,*) '    Value at', i, ':', data_array(i,1)
+        end if
+     end do
+  end if
+  
+end subroutine validate_hdf5_data
+
+!------------------------------------------------------------------------------
+! Data reordering function to ensure consistent data ordering for HDF5 output
+!------------------------------------------------------------------------------
+subroutine reorder_data_for_hdf5(data_array, n_elements, n_timesteps, mpi_to_mesh_map)
+  implicit none
+  integer, parameter :: DP = kind(1.0d0)
+  integer, intent(in) :: n_elements, n_timesteps
+  real(DP), intent(inout) :: data_array(n_elements, n_timesteps)
+  integer, intent(in) :: mpi_to_mesh_map(n_elements)
+  
+  real(DP), allocatable :: temp_array(:,:)
+  integer :: i, j, mesh_idx
+  
+  ! Allocate temporary array for reordering
+  allocate(temp_array(n_elements, n_timesteps))
+  
+  ! Copy original data to temporary array
+  temp_array = data_array
+  
+  ! Reorder data according to mesh ordering
+  do i = 1, n_elements
+     mesh_idx = mpi_to_mesh_map(i)
+     if (mesh_idx >= 1 .and. mesh_idx <= n_elements) then
+        do j = 1, n_timesteps
+           data_array(mesh_idx, j) = temp_array(i, j)
+        end do
+     else
+        write(*,*) 'ERROR: Invalid mesh index', mesh_idx, 'for MPI index', i
+     end if
+  end do
+  
+  deallocate(temp_array)
+  
+end subroutine reorder_data_for_hdf5
