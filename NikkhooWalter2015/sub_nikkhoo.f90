@@ -373,6 +373,64 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   real(DP), dimension(3, 3) :: A
   real(DP) :: bX_out, bY_out, bZ_out
   real(DP), dimension(6) :: stress1, strain1, stress2, strain2, stress3, strain3
+  ! Additional variables for point-in-triangle check
+  real(DP), dimension(3) :: vnorm_temp, vstrike_temp, vdip_temp, ey_temp, ez_temp
+  real(DP), dimension(3, 3) :: A_temp
+  real(DP), dimension(3) :: p1_td_temp, p2_td_temp, p3_td_temp
+  real(DP) :: x_td_temp, y_td_temp, z_td_temp
+  integer :: trimode_temp
+  
+  write(*,*) '=== DEBUG tdstress_harfunc START ==='
+  write(*,*) 'Input: x=', x, 'y=', y, 'z=', z
+  write(*,*) 'P1=', p1, 'P2=', p2, 'P3=', p3
+  write(*,*) 'ss=', ss, 'ds=', ds, 'ts=', ts
+  
+  ! Check if point is inside the triangle - harmonic function should be zero for points inside
+  ! We need to determine the triangle configuration using the same logic as tdstress_fs
+  
+  ! Calculate unit vectors (same as in tdstress_fs)
+  ey_temp = [0.0_DP, 1.0_DP, 0.0_DP]
+  ez_temp = [0.0_DP, 0.0_DP, 1.0_DP]
+  
+  call cross_product(p2 - p1, p3 - p1, vnorm_temp)
+  vnorm_temp = vnorm_temp / norm2(vnorm_temp)
+  
+  call cross_product(ez_temp, vnorm_temp, vstrike_temp)
+  if (norm2(vstrike_temp) < EPS) then
+    vstrike_temp = ey_temp * vnorm_temp(3)
+  end if
+  vstrike_temp = vstrike_temp / norm2(vstrike_temp)
+  
+  call cross_product(vnorm_temp, vstrike_temp, vdip_temp)
+  
+  ! Transformation matrix
+  A_temp(1, :) = vnorm_temp
+  A_temp(2, :) = vstrike_temp
+  A_temp(3, :) = vdip_temp
+  
+  ! Transform coordinates to TDCS
+  p1_td_temp = 0.0_DP
+  p2_td_temp = 0.0_DP
+  p3_td_temp = 0.0_DP
+  
+  call coord_trans(x - p2(1), y - p2(2), z - p2(3), A_temp, x_td_temp, y_td_temp, z_td_temp)
+  call coord_trans(p1(1) - p2(1), p1(2) - p2(2), p1(3) - p2(3), A_temp, p1_td_temp(1), p1_td_temp(2), p1_td_temp(3))
+  call coord_trans(p3(1) - p2(1), p3(2) - p2(2), p3(3) - p2(3), A_temp, p3_td_temp(1), p3_td_temp(2), p3_td_temp(3))
+  
+  ! Determine configuration
+  call trimode_finder(y_td_temp, z_td_temp, x_td_temp, p1_td_temp, p2_td_temp, p3_td_temp, trimode_temp)
+  
+  write(*,*) 'trimode_temp =', trimode_temp
+  
+  ! If point is inside triangle (trimode = 1), harmonic function should be zero
+  if (trimode_temp == 1) then
+    write(*,*) 'Point is inside triangle - harmonic function should be zero'
+    stress = 0.0_DP
+    strain = 0.0_DP
+    write(*,*) '=== DEBUG tdstress_harfunc END (zero result) ==='
+    write(*,*) ''
+    return
+  end if
   
   ! Slip vector components
   bx = ts; by = ss; bz = ds
@@ -400,13 +458,27 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   call coord_trans(bx, by, bz, A, bX_out, bY_out, bZ_out)
   
   ! Calculate contributions from each side
+  write(*,*) 'Calling angsetup_fsc_s for side P1-P2'
   call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p1, p2, mu, lambda, stress1, strain1)
+  write(*,*) 'Side P1-P2 result: stress=', stress1, 'strain=', strain1
+  
+  write(*,*) 'Calling angsetup_fsc_s for side P2-P3'
   call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p2, p3, mu, lambda, stress2, strain2)
+  write(*,*) 'Side P2-P3 result: stress=', stress2, 'strain=', strain2
+  
+  write(*,*) 'Calling angsetup_fsc_s for side P3-P1'
   call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p3, p1, mu, lambda, stress3, strain3)
+  write(*,*) 'Side P3-P1 result: stress=', stress3, 'strain=', strain3
   
   ! Total contribution
   stress = stress1 + stress2 + stress3
   strain = strain1 + strain2 + strain3
+  
+  write(*,*) '=== Final tdstress_harfunc Results ==='
+  write(*,*) 'Total stress:', stress
+  write(*,*) 'Total strain:', strain
+  write(*,*) '=== DEBUG tdstress_harfunc END ==='
+  write(*,*) ''
 
 end subroutine tdstress_harfunc
 
@@ -501,6 +573,9 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   side_vec = PB - PA
   beta = acos(-dot_product(side_vec, [0.0_DP, 0.0_DP, 1.0_DP]) / norm2(side_vec))
   
+  write(*,*) 'angsetup_fsc_s: PA=', PA, 'PB=', PB
+  write(*,*) 'side_vec=', side_vec, 'beta=', beta, 'rad =', beta * 180.0_DP / PI, 'deg'
+  
   ! Check for special cases
   if (abs(beta) < EPS .or. abs(PI - beta) < EPS) then
     stress = 0.0_DP
@@ -531,6 +606,9 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   ! Determine the best arteact-free configuration for the calculation
   ! points near the free surface
   I_mask = (beta * y1A) >= 0.0_DP
+  
+  write(*,*) 'y1A=', y1A, 'y2A=', y2A, 'y3A=', y3A
+  write(*,*) 'beta*y1A=', beta * y1A, 'I_mask=', I_mask
   
   ! Initialize arrays
   v11A = 0.0_DP; v22A = 0.0_DP; v33A = 0.0_DP
