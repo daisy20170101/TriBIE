@@ -184,9 +184,10 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   write(*,*) 'vdip =', vdip
   
   ! Transformation matrix (transpose as in MATLAB)
-  A(1, :) = vnorm
-  A(2, :) = vstrike
-  A(3, :) = vdip
+  ! Transformation matrix (columns are unit vectors, matching MATLAB)
+  A(:, 1) = vnorm
+  A(:, 2) = vstrike
+  A(:, 3) = vdip
   write(*,*) 'Transformation matrix A:'
   write(*,*) 'A(1,:) =', A(1, 1), A(1, 2), A(1, 3)
   write(*,*) 'A(2,:) =', A(2, 1), A(2, 2), A(2, 3)
@@ -326,8 +327,14 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   end if
   
   ! Transform strain tensor to EFCS
-  call tens_trans(exx, eyy, ezz, exy, exz, eyz, transpose(A), &
+  write(*,*) 'Before tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+  write(*,*) 'Transformation matrix A:'
+  write(*,*) 'A(1,:) =', A(1,1), A(1,2), A(1,3)
+  write(*,*) 'A(2,:) =', A(2,1), A(2,2), A(2,3)
+  write(*,*) 'A(3,:) =', A(3,1), A(3,2), A(3,3)
+  call tens_trans(exx, eyy, ezz, exy, exz, eyz, A, &
                   exx, eyy, ezz, exy, exz, eyz)
+  write(*,*) 'After tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
   
   ! Calculate stress tensor
   sxx = 2.0_DP * mu * exx + lambda * (exx + eyy + ezz)
