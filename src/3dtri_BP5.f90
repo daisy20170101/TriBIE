@@ -1667,6 +1667,11 @@ end if
        ! HDF5 output for time-series variables instead of binary files
        write(*,*) 'DEBUG: Triggering HDF5 output - icos =', icos, 'ncos =', ncos
        
+       ! CRITICAL: Synchronize all MPI processes before HDF5 output
+       call MPI_Barrier(MPI_COMM_WORLD, ierr)
+       
+       ! Only master MPI process should do HDF5 output to avoid deadlock
+       if(myid == master) then
        !$OMP MASTER
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
@@ -2036,6 +2041,10 @@ end if
        global_time_steps_written = global_time_steps_written + icos
        icos = 0
        !$OMP END MASTER
+       end if  ! Close if(myid == master)
+       
+       ! CRITICAL: Synchronize all MPI processes after HDF5 output
+       call MPI_Barrier(MPI_COMM_WORLD, ierr)
       
     end if
 
@@ -2047,6 +2056,11 @@ end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
+      ! CRITICAL: Synchronize all MPI processes before SSE HDF5 output
+      call MPI_Barrier(MPI_COMM_WORLD, ierr)
+      
+      ! Only master MPI process should do HDF5 output to avoid deadlock
+      if(myid == master) then
       !$OMP MASTER
          ! Initialize HDF5 if not already done
          if (.not. hdf5_initialized) then
@@ -2356,6 +2370,10 @@ end if
       global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
       !$OMP END MASTER
+      end if  ! Close if(myid == master)
+      
+      ! CRITICAL: Synchronize all MPI processes after SSE HDF5 output
+      call MPI_Barrier(MPI_COMM_WORLD, ierr)
      
   end if
 
