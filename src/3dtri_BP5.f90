@@ -500,8 +500,7 @@ end if
 
   if(myid==master)then
      CALL resdep(Nt_all,hnucl, &
-          xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all, &
-          sendcounts,displs,start_indices,size)
+          xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all)
   end if
 
 
