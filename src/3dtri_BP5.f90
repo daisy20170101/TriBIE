@@ -1667,8 +1667,6 @@ end if
        ! HDF5 output for time-series variables instead of binary files
        write(*,*) 'DEBUG: Triggering HDF5 output - icos =', icos, 'ncos =', ncos
        
-       ! CRITICAL: Only master MPI process should do HDF5 output to avoid deadlock
-       if(myid == master) then
        !$OMP MASTER
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
@@ -2038,10 +2036,6 @@ end if
        global_time_steps_written = global_time_steps_written + icos
        icos = 0
        !$OMP END MASTER
-       end if  ! Close if(myid == master)
-       
-       ! CRITICAL: Synchronize all MPI processes after HDF5 output
-       call MPI_Barrier(MPI_COMM_WORLD, ierr)
     
     end if
 
@@ -2053,8 +2047,6 @@ end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
-      ! CRITICAL: Only master MPI process should do HDF5 output to avoid deadlock
-      if(myid == master) then
       !$OMP MASTER
          ! Initialize HDF5 if not already done
          if (.not. hdf5_initialized) then
@@ -2364,10 +2356,6 @@ end if
       global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
       !$OMP END MASTER
-      end if  ! Close if(myid == master)
-      
-      ! CRITICAL: Synchronize all MPI processes after SSE HDF5 output
-      call MPI_Barrier(MPI_COMM_WORLD, ierr)
    
   end if
 
@@ -2456,8 +2444,6 @@ else
 
    if(isse<nsse.and.isse>0)then
       ! Write partial SSE data to the same HDF5 file as main SSE output
-      ! CRITICAL: Only master MPI process should do HDF5 output to avoid deadlock
-      if(myid == master) then
       !$OMP MASTER
       ! Initialize HDF5 if not already done
       if (.not. hdf5_initialized) then
@@ -2507,16 +2493,10 @@ else
       
       isse = 0
       !$OMP END MASTER
-      end if  ! Close if(myid == master)
-      
-      ! CRITICAL: Synchronize all MPI processes after partial SSE HDF5 output
-      call MPI_Barrier(MPI_COMM_WORLD, ierr)
   end if
 
      if((icos>0).and.(icos<ncos))then
        ! Write partial cosine slip data to the same HDF5 file as main cosine slip output
-       ! CRITICAL: Only master MPI process should do HDF5 output to avoid deadlock
-       if(myid == master) then
        !$OMP MASTER
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
@@ -2567,10 +2547,6 @@ else
        
        icos = 0 
        !$OMP END MASTER
-       end if  ! Close if(myid == master)
-       
-       ! CRITICAL: Synchronize all MPI processes after partial cosine slip HDF5 output
-       call MPI_Barrier(MPI_COMM_WORLD, ierr)
       end if
 
                  
