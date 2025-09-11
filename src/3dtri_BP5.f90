@@ -2571,7 +2571,6 @@ else
        inul = 0 
 	end if
 
-end if  ! Close if(isse==nsse)then ... else
 
  110    format(E22.14,7(1X,E15.7))
  120    format(E20.13,4X,E20.13,4X,I6)
