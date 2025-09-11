@@ -2571,6 +2571,8 @@ else
        inul = 0 
 	end if
 
+end if  ! Close if(isse==nsse)then ... else
+
  110    format(E22.14,7(1X,E15.7))
  120    format(E20.13,4X,E20.13,4X,I6)
  130    format(E22.14,2(1X,E15.7))
@@ -2582,7 +2584,7 @@ else
  700    format(E13.6)
  900    format(E15.8)
 
-end if  ! Close if(Ioutput == 0)then ... else
+end if  ! Close if(Ioutput == 0)then
 
 RETURN
 END subroutine output
