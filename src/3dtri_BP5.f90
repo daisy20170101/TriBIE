@@ -906,13 +906,14 @@ end if
      ! Output velocity and slip records
      if(myid==master)then 
         Ioutput = 0 
-        
+        !$OMP MASTER
         call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
              tmv,tas,tcos,tnul,tsse,maxv,moment,outs1,maxnum,msse1,msse2, areasse1,areasse2,&
              slipz1_inter,slipz1_tau,slipz1_sse, &
              slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
              xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
              n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map)         
+         !$OMP END MASTER
      end if
 
      ! Check if simulation should continue
@@ -1566,7 +1567,7 @@ character(len=256) :: time_series_group_name
 logical :: file_exists, file_exists_sse, mesh_group_exists
 integer :: ios
 integer(HSIZE_T) :: offset_1d(1), count_1d(1), offset_2d(2), count_2d(2)
-integer(HID_T) :: memspace_id, filespace_id, dcpl_id, dxpl_id, fapl_id
+integer(HID_T) :: memspace_id, filespace_id, dcpl_id
 integer(HSIZE_T) :: chunk_2d(2), chunk_1d(1)
 
 ! Mesh variables for GTS file reading
@@ -1668,11 +1669,8 @@ end if
        write(*,*) 'DEBUG: Triggering HDF5 output - icos =', icos, 'ncos =', ncos
        
        ! CRITICAL: Synchronize all MPI processes before HDF5 output
-       call MPI_Barrier(MPI_COMM_WORLD, ierr)
        
        ! Only master MPI process should do HDF5 output to avoid deadlock
-       if(myid == master) then
-       !$OMP MASTER
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
           call h5open_f(hdferr)
@@ -1686,11 +1684,8 @@ end if
        inquire(file=trim(hdf5_filename), exist=file_exists)
        
        if (file_exists) then
-          ! FIXED: Open existing file for read/write with MPI driver for collective I/O
-          call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
-          call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
-          call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr, fapl_id)
-          call h5pclose_f(fapl_id, hdferr)
+          ! Open existing file for read/write (single-process access)
+          call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
           if (hdferr < 0) then
              write(*,*) 'ERROR: Failed to open HDF5 file for writing'
              ! Skip HDF5 operations if file open failed
@@ -1701,10 +1696,7 @@ end if
           call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
        else
           ! Create new file and initialize datasets with extensible dimensions
-          call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
-          call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
-          call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr, fapl_id)
-          call h5pclose_f(fapl_id, hdferr)
+          call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
           ! Create time-series group
           time_series_group_name = '/time_series'
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
@@ -1818,17 +1810,12 @@ end if
        ! FIXED: Reorder data from MPI gather order to mesh order for consistent visualization
        call reorder_data_for_hdf5(slipz1_v(:,1:icos), Nt_all, icos, mpi_to_mesh_map)
        
-       ! Set up collective I/O for data transfer
-       call h5pcreate_f(H5P_DATASET_XFER_F, dxpl_id, hdferr)
-       call h5pset_dxpl_mpio_f(dxpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
-       
        ! Write current cycle data
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id, dxpl_id)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
        call h5dclose_f(dset_id, hdferr)
-       call h5pclose_f(dxpl_id, hdferr)
        
        ! Write slipz1_cos data using hyperslab selection
        call h5dopen_f(group_id, 'slipz1_cos', dset_id, hdferr)
@@ -1837,19 +1824,14 @@ end if
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
-       ! Set up collective I/O for data transfer
-       call h5pcreate_f(H5P_DATASET_XFER_F, dxpl_id, hdferr)
-       call h5pset_dxpl_mpio_f(dxpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
-       
        ! FIXED: Reorder data from MPI gather order to mesh order for consistent visualization
        call reorder_data_for_hdf5(slipz1_cos(:,1:icos), Nt_all, icos, mpi_to_mesh_map)
        
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id, dxpl_id)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
        call h5dclose_f(dset_id, hdferr)
-       call h5pclose_f(dxpl_id, hdferr)
        
        ! Write time array using hyperslab selection
        call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
@@ -1862,16 +1844,11 @@ end if
        dims_1d = (/INT(icos, HSIZE_T)/)
        call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
        
-       ! Set up collective I/O for data transfer
-       call h5pcreate_f(H5P_DATASET_XFER_F, dxpl_id, hdferr)
-       call h5pset_dxpl_mpio_f(dxpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
-       
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr, memspace_id, filespace_id, dxpl_id)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
        call h5dclose_f(dset_id, hdferr)
-       call h5pclose_f(dxpl_id, hdferr)
        
        ! Close time-series group
        call h5gclose_f(group_id, hdferr)
@@ -2040,12 +2017,8 @@ end if
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
        icos = 0
-       !$OMP END MASTER
-       end if  ! Close if(myid == master)
        
-       ! CRITICAL: Synchronize all MPI processes after HDF5 output
-       call MPI_Barrier(MPI_COMM_WORLD, ierr)
-      
+       ! CRITICAL: Synchronize all MPI processes after HDF5 output      
     end if
 
 
@@ -2057,11 +2030,8 @@ end if
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
       ! CRITICAL: Synchronize all MPI processes before SSE HDF5 output
-      call MPI_Barrier(MPI_COMM_WORLD, ierr)
       
       ! Only master MPI process should do HDF5 output to avoid deadlock
-      if(myid == master) then
-      !$OMP MASTER
          ! Initialize HDF5 if not already done
          if (.not. hdf5_initialized) then
             call h5open_f(hdferr)
@@ -2076,19 +2046,13 @@ end if
       
       if (file_exists_sse) then
          ! Open existing file for read/write (accumulative mode for SSE)
-         call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
-         call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
-         call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr, fapl_id)
-         call h5pclose_f(fapl_id, hdferr)
+         call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
          ! Open existing SSE time-series group
          time_series_group_name = '/sse_time_series'
          call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
       else
          ! Create new file with extensible datasets for SSE
-         call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
-         call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
-         call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr, fapl_id)
-         call h5pclose_f(fapl_id, hdferr)
+         call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
          ! Create SSE time-series group
          time_series_group_name = '/sse_time_series'
          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
@@ -2369,11 +2333,8 @@ end if
       ! Update global SSE counter for accumulative writing
       global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
-      !$OMP END MASTER
-      end if  ! Close if(myid == master)
       
       ! CRITICAL: Synchronize all MPI processes after SSE HDF5 output
-      call MPI_Barrier(MPI_COMM_WORLD, ierr)
      
   end if
 
@@ -2462,7 +2423,6 @@ else
 
    if(isse<nsse.and.isse>0)then
       ! Write partial SSE data to the same HDF5 file as main SSE output
-      !$OMP MASTER
       ! Initialize HDF5 if not already done
       if (.not. hdf5_initialized) then
          call h5open_f(hdferr)
@@ -2471,10 +2431,7 @@ else
       
       ! Open existing HDF5 file for SSE data (append mode)
       hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
-      call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
-      call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
-      call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr, fapl_id)
-      call h5pclose_f(fapl_id, hdferr)
+      call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
       
       ! Open existing SSE time-series group
       time_series_group_name = '/sse_time_series'
@@ -2510,12 +2467,10 @@ else
       write(*,*) 'Partial SSE data written to HDF5: ', trim(hdf5_filename)
       
       isse = 0
-      !$OMP END MASTER
   end if
 
      if((icos>0).and.(icos<ncos))then
        ! Write partial cosine slip data to the same HDF5 file as main cosine slip output
-       !$OMP MASTER
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
           call h5open_f(hdferr)
@@ -2524,10 +2479,7 @@ else
        
        ! Open existing HDF5 file for cosine slip data (append mode)
        hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
-       call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
-       call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
-       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr, fapl_id)
-       call h5pclose_f(fapl_id, hdferr)
+       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
        
        ! Open existing time-series group
        time_series_group_name = '/time_series'
@@ -2564,7 +2516,6 @@ else
        write(*,*) 'Partial cosine slip data written to HDF5: ', trim(hdf5_filename)
        
        icos = 0 
-       !$OMP END MASTER
       end if
 
                  
