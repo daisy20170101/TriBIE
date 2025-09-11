@@ -500,19 +500,77 @@ end if
 
   if(myid==master)then
      CALL resdep(Nt_all,hnucl, &
-          xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all)
+          xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all, &
+          sendcounts,displs,start_indices,size)
   end if
 
 
    call MPI_Barrier(MPI_COMM_WORLD,ierr)
    call MPI_Scatterv(cca_all,sendcounts,displs,MPI_Real8,cca,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for cca, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(ccb_all,sendcounts,displs,MPI_Real8,ccb,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for ccb, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(xLf_all,sendcounts,displs,MPI_Real8,xLf,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for xLf, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(seff_all,sendcounts,displs,MPI_Real8,seff,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for seff, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(vi_all,sendcounts,displs,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for vi, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(x_all,sendcounts,displs,MPI_Real8,x,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for x, ierr =', ierr, 'on process', myid
+      stop
+   end if
 
   call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  
+  ! Validate scattered parameters for each process
+  write(*,*) 'Process', myid, 'scattered parameters validation:'
+  write(*,*) '  Local cells:', local_cells
+  write(*,*) '  First few cca values:', cca(1:min(5, local_cells))
+  write(*,*) '  First few ccb values:', ccb(1:min(5, local_cells))
+  write(*,*) '  First few xLf values:', xLf(1:min(5, local_cells))
+  write(*,*) '  First few seff values:', seff(1:min(5, local_cells))
+  
+  ! Check for invalid values
+  do i = 1, local_cells
+     if (cca(i) <= 0.0d0) then
+        write(*,*) 'ERROR: Non-positive cca(i) at i=', i, ' value=', cca(i), 'on process', myid
+        stop
+     end if
+     if (ccb(i) < 0.0d0) then
+        write(*,*) 'ERROR: Negative ccb(i) at i=', i, ' value=', ccb(i), 'on process', myid
+        stop
+     end if
+     if (xLf(i) <= 0.0d0) then
+        write(*,*) 'ERROR: Non-positive xLf(i) at i=', i, ' value=', xLf(i), 'on process', myid
+        stop
+     end if
+     if (seff(i) <= 0.0d0) then
+        write(*,*) 'ERROR: Non-positive seff(i) at i=', i, ' value=', seff(i), 'on process', myid
+        stop
+     end if
+  end do
   
   call CPU_TIME(tmbegin)
 
@@ -1240,14 +1298,16 @@ end subroutine rkqs
 
     subroutine resdep(Nt_all,hnucl, &
          xilock1,xilock2,cca_all,ccb_all,xLf_all, &
-         seff_all,x_all,z_all,vi_all)
+         seff_all,x_all,z_all,vi_all, &
+         sendcounts,displs,start_indices,size)
       USE mpi
       USE phy3d_module_non, only: yrs,p18,Nl,Nd,Nab,xmu,xnu,gamma, &
            Iprofile,foldername,jobname,profile
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer, parameter :: DN=9
-      integer :: k,i,j,kk,Iperb,record,l,m,nn,Nt,Nt_all
+      integer :: k,i,j,kk,Iperb,record,l,m,nn,Nt,Nt_all,proc,local_idx,mpi_idx,size
+      integer :: sendcounts(0:size-1), displs(0:size-1), start_indices(0:size-1)
 
       real (DP) :: temp(DN),dep(DN),dist(DN),ptemp(Nt_all), &
            ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, & 
@@ -1329,13 +1389,87 @@ end subroutine rkqs
 
  !need to address when j=1 and j=Nd_all!! same in the old openmp f90 file!
 
-      open(444,file='var'//jobname,status='old')
-       do i=1,Nt_all
-        read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
-        ccab_all(i) = cca_all(i) - ccb_all(i)
-        vi_all(i) = vi_all(i)*yrs*1d3
-       end do
+      open(444,file='var'//jobname,status='old', iostat=ios)
+      if (ios /= 0) then
+         write(*,*) 'ERROR: Failed to open var file: var'//jobname, 'iostat =', ios
+         stop
+      end if
+      
+      write(*,*) 'DEBUG: Reading parameters from var'//jobname
+      do i=1,Nt_all
+         read(444,*, iostat=ios) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
+         if (ios /= 0) then
+            write(*,*) 'ERROR: Failed to read parameters for element', i, 'iostat =', ios
+            close(444)
+            stop
+         end if
+         ccab_all(i) = cca_all(i) - ccb_all(i)
+         vi_all(i) = vi_all(i)*yrs*1d3
+         
+         ! Validate parameters
+         if (cca_all(i) <= 0.0d0) then
+            write(*,*) 'ERROR: Non-positive cca_all(i) at i=', i, ' value=', cca_all(i)
+            close(444)
+            stop
+         end if
+         if (ccb_all(i) < 0.0d0) then
+            write(*,*) 'ERROR: Negative ccb_all(i) at i=', i, ' value=', ccb_all(i)
+            close(444)
+            stop
+         end if
+         if (xLf_all(i) <= 0.0d0) then
+            write(*,*) 'ERROR: Non-positive xLf_all(i) at i=', i, ' value=', xLf_all(i)
+            close(444)
+            stop
+         end if
+         if (seff_all(i) <= 0.0d0) then
+            write(*,*) 'ERROR: Non-positive seff_all(i) at i=', i, ' value=', seff_all(i)
+            close(444)
+            stop
+         end if
+      end do
       close(444)
+      
+      write(*,*) 'DEBUG: Successfully read parameters for', Nt_all, 'elements'
+      write(*,*) 'DEBUG: First few cca_all values (mesh order):', cca_all(1:min(5, Nt_all))
+      write(*,*) 'DEBUG: First few ccb_all values (mesh order):', ccb_all(1:min(5, Nt_all))
+      write(*,*) 'DEBUG: First few xLf_all values (mesh order):', xLf_all(1:min(5, Nt_all))
+      
+      ! CRITICAL FIX: Reorder parameters from mesh order to MPI order for correct scattering
+      ! The parameters were read in mesh order, but MPI_Scatterv expects them in process order
+      real(DP), allocatable :: temp_cca(:), temp_ccb(:), temp_xLf(:), temp_seff(:), temp_vi(:)
+      allocate(temp_cca(Nt_all), temp_ccb(Nt_all), temp_xLf(Nt_all), temp_seff(Nt_all), temp_vi(Nt_all))
+      
+      ! Store original mesh-ordered values
+      temp_cca = cca_all
+      temp_ccb = ccb_all  
+      temp_xLf = xLf_all
+      temp_seff = seff_all
+      temp_vi = vi_all
+      
+      ! Reorder to MPI process order using the same mapping logic as output
+      do i = 1, Nt_all
+         ! Find which MPI process and local index this mesh element belongs to
+         do proc = 0, size-1
+            if (i >= start_indices(proc) .and. i < start_indices(proc) + sendcounts(proc)) then
+               local_idx = i - start_indices(proc) + 1
+               mpi_idx = displs(proc) + local_idx
+               cca_all(mpi_idx) = temp_cca(i)
+               ccb_all(mpi_idx) = temp_ccb(i)
+               xLf_all(mpi_idx) = temp_xLf(i)
+               seff_all(mpi_idx) = temp_seff(i)
+               vi_all(mpi_idx) = temp_vi(i)
+               exit
+            end if
+         end do
+      end do
+      
+      deallocate(temp_cca, temp_ccb, temp_xLf, temp_seff, temp_vi)
+      
+      write(*,*) 'DEBUG: Parameters reordered to MPI process order'
+      write(*,*) 'DEBUG: First few cca_all values (MPI order):', cca_all(1:min(5, Nt_all))
+      write(*,*) 'DEBUG: First few ccb_all values (MPI order):', ccb_all(1:min(5, Nt_all))
+      write(*,*) 'DEBUG: First few xLf_all values (MPI order):', xLf_all(1:min(5, Nt_all))
 
 
       !     To save info about some of the quantities
@@ -1507,6 +1641,7 @@ integer :: global_sse_steps_written = 0   ! Total SSE time steps written across 
 character(len=256) :: hdf5_filename, xdmf_filename
 character(len=256) :: time_series_group_name
 logical :: file_exists, file_exists_sse, mesh_group_exists
+integer :: ios
 integer(HSIZE_T) :: offset_1d(1), count_1d(1), offset_2d(2), count_2d(2)
 integer(HID_T) :: memspace_id, filespace_id, dcpl_id, dxpl_id
 integer(HSIZE_T) :: chunk_2d(2), chunk_1d(1)
@@ -1812,8 +1947,29 @@ end if
        
        ! Add mesh data to HDF5
        ! Read GTS file and store mesh information
-       open(98, file='triangular_mesh.gts', status='old', action='read')
-       read(98,*) n_vertices, n_edges_dummy, n_cells
+       inquire(file='triangular_mesh.gts', exist=file_exists)
+       if (.not. file_exists) then
+          write(*,*) 'ERROR: triangular_mesh.gts file not found!'
+          write(*,*) 'This file should contain the mesh geometry matching the simulation.'
+          write(*,*) 'Please ensure triangular_mesh.gts exists in the current directory.'
+          stop
+       end if
+       
+       open(98, file='triangular_mesh.gts', status='old', action='read', iostat=ios)
+       if (ios /= 0) then
+          write(*,*) 'ERROR: Failed to open triangular_mesh.gts, iostat =', ios
+          stop
+       end if
+       
+       read(98,*, iostat=ios) n_vertices, n_edges_dummy, n_cells
+       if (ios /= 0) then
+          write(*,*) 'ERROR: Failed to read mesh dimensions from triangular_mesh.gts, iostat =', ios
+          close(98)
+          stop
+       end if
+       
+       write(*,*) 'DEBUG: Reading mesh from triangular_mesh.gts:'
+       write(*,*) '  Vertices:', n_vertices, 'Edges:', n_edges_dummy, 'Cells:', n_cells
        
        ! Allocate temporary arrays
        allocate(vertex_coords(n_vertices, 3))
@@ -1821,16 +1977,32 @@ end if
        
        ! Read vertex coordinates
        do i = 1, n_vertices
-          read(98,*) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+          read(98,*, iostat=ios) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+          if (ios /= 0) then
+             write(*,*) 'ERROR: Failed to read vertex', i, 'from triangular_mesh.gts, iostat =', ios
+             close(98)
+             stop
+          end if
        end do
        
        ! Read cell connectivity (indices start from 0 in GTS, which is correct for Paraview)
        do i = 1, n_cells
-          read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
-                    ! Keep 0-based indexing for Paraview compatibility
-          cell_connectivity(i, :) = cell_connectivity(i, :) -1
+          read(98,*, iostat=ios) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+          if (ios /= 0) then
+             write(*,*) 'ERROR: Failed to read cell', i, 'from triangular_mesh.gts, iostat =', ios
+             close(98)
+             stop
+          end if
+          ! Keep 0-based indexing for Paraview compatibility
+          cell_connectivity(i, :) = cell_connectivity(i, :) - 1
        end do
        close(98)
+       
+       write(*,*) 'DEBUG: Successfully read mesh with', n_vertices, 'vertices and', n_cells, 'cells'
+       write(*,*) 'DEBUG: First few vertex coordinates:'
+       do i = 1, min(5, n_vertices)
+          write(*,*) '  Vertex', i, ':', vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+       end do
        
        ! Write mesh data to HDF5 - check if mesh group already exists
        call h5lexists_f(file_id, '/mesh', mesh_group_exists, hdferr)
@@ -2097,8 +2269,29 @@ end if
       
       ! Add mesh data to HDF5
       ! Read GTS file and store mesh information
-      open(98, file='triangular_mesh.gts', status='old', action='read')
-      read(98,*) n_vertices, n_edges_dummy, n_cells
+      inquire(file='triangular_mesh.gts', exist=file_exists)
+      if (.not. file_exists) then
+         write(*,*) 'ERROR: triangular_mesh.gts file not found!'
+         write(*,*) 'This file should contain the mesh geometry matching the simulation.'
+         write(*,*) 'Please ensure triangular_mesh.gts exists in the current directory.'
+         stop
+      end if
+      
+      open(98, file='triangular_mesh.gts', status='old', action='read', iostat=ios)
+      if (ios /= 0) then
+         write(*,*) 'ERROR: Failed to open triangular_mesh.gts, iostat =', ios
+         stop
+      end if
+      
+      read(98,*, iostat=ios) n_vertices, n_edges_dummy, n_cells
+      if (ios /= 0) then
+         write(*,*) 'ERROR: Failed to read mesh dimensions from triangular_mesh.gts, iostat =', ios
+         close(98)
+         stop
+      end if
+      
+      write(*,*) 'DEBUG: Reading SSE mesh from triangular_mesh.gts:'
+      write(*,*) '  Vertices:', n_vertices, 'Edges:', n_edges_dummy, 'Cells:', n_cells
       
       ! Allocate temporary arrays
       allocate(vertex_coords(n_vertices, 3))
@@ -2106,16 +2299,28 @@ end if
       
       ! Read vertex coordinates
       do i = 1, n_vertices
-         read(98,*) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+         read(98,*, iostat=ios) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+         if (ios /= 0) then
+            write(*,*) 'ERROR: Failed to read vertex', i, 'from triangular_mesh.gts, iostat =', ios
+            close(98)
+            stop
+         end if
       end do
       
       ! Read cell connectivity (indices start from 0 in GTS, which is correct for Paraview)
       do i = 1, n_cells
-         read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
-         ! change 1-based to 0-based indexing for Paraview compatibility
-         cell_connectivity(i, :) = cell_connectivity(i, :) -1
+         read(98,*, iostat=ios) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+         if (ios /= 0) then
+            write(*,*) 'ERROR: Failed to read cell', i, 'from triangular_mesh.gts, iostat =', ios
+            close(98)
+            stop
+         end if
+         ! Keep 0-based indexing for Paraview compatibility
+         cell_connectivity(i, :) = cell_connectivity(i, :) - 1
       end do
       close(98)
+      
+      write(*,*) 'DEBUG: Successfully read SSE mesh with', n_vertices, 'vertices and', n_cells, 'cells'
       
       ! Write mesh data to HDF5 - check if mesh group already exists
       call h5lexists_f(file_id, '/mesh', mesh_group_exists, hdferr)
