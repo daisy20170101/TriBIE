@@ -1306,7 +1306,7 @@ end subroutine rkqs
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer, parameter :: DN=9
-      integer :: k,i,j,kk,Iperb,record,l,m,nn,Nt,Nt_all,proc,local_idx,mpi_idx,size
+      integer :: k,i,j,kk,Iperb,record,l,m,nn,Nt,Nt_all,proc,local_idx,mpi_idx,size,ios
       integer :: sendcounts(0:size-1), displs(0:size-1), start_indices(0:size-1)
 
       real (DP) :: temp(DN),dep(DN),dist(DN),ptemp(Nt_all), &
@@ -1437,8 +1437,7 @@ end subroutine rkqs
       
       ! CRITICAL FIX: Reorder parameters from mesh order to MPI order for correct scattering
       ! The parameters were read in mesh order, but MPI_Scatterv expects them in process order
-      real(DP), allocatable :: temp_cca(:), temp_ccb(:), temp_xLf(:), temp_seff(:), temp_vi(:)
-      allocate(temp_cca(Nt_all), temp_ccb(Nt_all), temp_xLf(Nt_all), temp_seff(Nt_all), temp_vi(Nt_all))
+      real(DP) :: temp_cca(Nt_all), temp_ccb(Nt_all), temp_xLf(Nt_all), temp_seff(Nt_all), temp_vi(Nt_all)
       
       ! Store original mesh-ordered values
       temp_cca = cca_all
@@ -1464,7 +1463,6 @@ end subroutine rkqs
          end do
       end do
       
-      deallocate(temp_cca, temp_ccb, temp_xLf, temp_seff, temp_vi)
       
       write(*,*) 'DEBUG: Parameters reordered to MPI process order'
       write(*,*) 'DEBUG: First few cca_all values (MPI order):', cca_all(1:min(5, Nt_all))
