@@ -1761,8 +1761,6 @@ end if
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
           call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
-          ! FIXED: Enable collective I/O for better parallel performance
-          call h5pset_dxpl_mpio_f(dcpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
           
           call h5screate_simple_f(1, dims_1d, dspace_id, hdferr, maxdims_1d)
           call h5dcreate_f(group_id, 'tcos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
@@ -2066,8 +2064,6 @@ end if
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
-         ! FIXED: Enable collective I/O for better parallel performance
-         call h5pset_dxpl_mpio_f(dcpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
          
          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
          call h5dcreate_f(group_id, 'slipz1_sse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
@@ -2089,8 +2085,6 @@ end if
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
-         ! FIXED: Enable collective I/O for better parallel performance
-         call h5pset_dxpl_mpio_f(dcpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
          
          call h5screate_simple_f(1, dims_1d, dspace_id, hdferr, maxdims_1d)
          call h5dcreate_f(group_id, 'tsse', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
