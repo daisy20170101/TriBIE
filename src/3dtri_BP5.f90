@@ -1641,7 +1641,7 @@ character(len=256) :: time_series_group_name
 logical :: file_exists, file_exists_sse, mesh_group_exists
 integer :: ios
 integer(HSIZE_T) :: offset_1d(1), count_1d(1), offset_2d(2), count_2d(2)
-integer(HID_T) :: memspace_id, filespace_id, dcpl_id, dxpl_id
+integer(HID_T) :: memspace_id, filespace_id, dcpl_id, dxpl_id, fapl_id
 integer(HSIZE_T) :: chunk_2d(2), chunk_1d(1)
 
 ! Mesh variables for GTS file reading
@@ -1754,8 +1754,11 @@ end if
        inquire(file=trim(hdf5_filename), exist=file_exists)
        
        if (file_exists) then
-          ! FIXED: Open existing file for read/write with proper parallel access
-          call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+          ! FIXED: Open existing file for read/write with MPI driver for collective I/O
+          call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
+          call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
+          call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr, fapl_id)
+          call h5pclose_f(fapl_id, hdferr)
           if (hdferr < 0) then
              write(*,*) 'ERROR: Failed to open HDF5 file for writing'
              return
@@ -1765,7 +1768,10 @@ end if
           call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
        else
           ! Create new file and initialize datasets with extensible dimensions
-          call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+          call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
+          call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
+          call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr, fapl_id)
+          call h5pclose_f(fapl_id, hdferr)
           ! Create time-series group
           time_series_group_name = '/time_series'
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
@@ -2132,13 +2138,19 @@ end if
       
       if (file_exists_sse) then
          ! Open existing file for read/write (accumulative mode for SSE)
-         call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+         call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
+         call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
+         call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr, fapl_id)
+         call h5pclose_f(fapl_id, hdferr)
          ! Open existing SSE time-series group
          time_series_group_name = '/sse_time_series'
          call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
       else
          ! Create new file with extensible datasets for SSE
-         call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+         call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
+         call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
+         call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr, fapl_id)
+         call h5pclose_f(fapl_id, hdferr)
          ! Create SSE time-series group
          time_series_group_name = '/sse_time_series'
          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
@@ -2521,7 +2533,10 @@ else
       
       ! Open existing HDF5 file for SSE data (append mode)
       hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
-      call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+      call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
+      call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
+      call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr, fapl_id)
+      call h5pclose_f(fapl_id, hdferr)
       
       ! Open existing SSE time-series group
       time_series_group_name = '/sse_time_series'
@@ -2569,7 +2584,10 @@ else
        
        ! Open existing HDF5 file for cosine slip data (append mode)
        hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
-       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+       call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, hdferr)
+       call h5pset_fapl_mpio_f(fapl_id, MPI_COMM_WORLD, MPI_INFO_NULL, hdferr)
+       call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr, fapl_id)
+       call h5pclose_f(fapl_id, hdferr)
        
        ! Open existing time-series group
        time_series_group_name = '/time_series'
