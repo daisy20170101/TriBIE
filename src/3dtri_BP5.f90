@@ -1666,11 +1666,13 @@ end if
     if(icos==ncos)then
        ! HDF5 output for time-series variables instead of binary files
        write(*,*) 'DEBUG: Triggering HDF5 output - icos =', icos, 'ncos =', ncos
-          ! Initialize HDF5 if not already done
-          if (.not. hdf5_initialized) then
-             call h5open_f(hdferr)
-             hdf5_initialized = .true.
-          end if
+       
+       !$OMP MASTER
+       ! Initialize HDF5 if not already done
+       if (.not. hdf5_initialized) then
+          call h5open_f(hdferr)
+          hdf5_initialized = .true.
+       end if
        
        ! Create HDF5 filename
        hdf5_filename = trim(foldername)//'timeseries_data_'//trim(jobname)//'.h5'
@@ -1810,9 +1812,6 @@ end if
        ! FIXED: Reorder data from MPI gather order to mesh order for consistent visualization
        call reorder_data_for_hdf5(slipz1_v(:,1:icos), Nt_all, icos, mpi_to_mesh_map)
        
-       ! FIXED: Validate data before writing to prevent scattered data
-       call validate_hdf5_data(slipz1_v(:,1:icos), Nt_all, icos, 'slipz1_v')
-       
        ! Set up collective I/O for data transfer
        call h5pcreate_f(H5P_DATASET_XFER_F, dxpl_id, hdferr)
        call h5pset_dxpl_mpio_f(dxpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
@@ -1838,9 +1837,6 @@ end if
        
        ! FIXED: Reorder data from MPI gather order to mesh order for consistent visualization
        call reorder_data_for_hdf5(slipz1_cos(:,1:icos), Nt_all, icos, mpi_to_mesh_map)
-       
-       ! FIXED: Validate data before writing to prevent scattered data
-       call validate_hdf5_data(slipz1_cos(:,1:icos), Nt_all, icos, 'slipz1_cos')
        
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id, dxpl_id)
        
@@ -2038,6 +2034,7 @@ end if
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
        icos = 0
+       !$OMP END MASTER
     
     end if
 
@@ -2049,6 +2046,7 @@ end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
+      !$OMP MASTER
          ! Initialize HDF5 if not already done
          if (.not. hdf5_initialized) then
             call h5open_f(hdferr)
@@ -2161,9 +2159,6 @@ end if
       dims_2d = (/INT(Nt_all, HSIZE_T), INT(nsse, HSIZE_T)/)
       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
       
-      ! FIXED: Validate SSE data before writing to prevent scattered data
-      call validate_hdf5_data(slipz1_sse, Nt_all, nsse, 'slipz1_sse')
-      
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse, dims_2d, hdferr, memspace_id, filespace_id)
       
       call h5sclose_f(memspace_id, hdferr)
@@ -2175,9 +2170,6 @@ end if
       call h5dget_space_f(dset_id, filespace_id, hdferr)
       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
-      
-      ! FIXED: Validate SSE tau data before writing to prevent scattered data
-      call validate_hdf5_data(slipz1_tau, Nt_all, nsse, 'slipz1_tau')
       
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau, dims_2d, hdferr, memspace_id, filespace_id)
       call h5sclose_f(memspace_id, hdferr)
@@ -2362,6 +2354,7 @@ end if
       ! Update global SSE counter for accumulative writing
       global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
+      !$OMP END MASTER
    
   end if
 
@@ -2450,6 +2443,7 @@ else
 
    if(isse<nsse.and.isse>0)then
       ! Write partial SSE data to the same HDF5 file as main SSE output
+      !$OMP MASTER
       ! Initialize HDF5 if not already done
       if (.not. hdf5_initialized) then
          call h5open_f(hdferr)
@@ -2497,10 +2491,12 @@ else
       write(*,*) 'Partial SSE data written to HDF5: ', trim(hdf5_filename)
       
       isse = 0
+      !$OMP END MASTER
   end if
 
      if((icos>0).and.(icos<ncos))then
        ! Write partial cosine slip data to the same HDF5 file as main cosine slip output
+       !$OMP MASTER
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
           call h5open_f(hdferr)
@@ -2549,6 +2545,7 @@ else
        write(*,*) 'Partial cosine slip data written to HDF5: ', trim(hdf5_filename)
        
        icos = 0 
+       !$OMP END MASTER
       end if
 
                  
@@ -2589,96 +2586,6 @@ end if
 RETURN
 END subroutine output
 
-!------------------------------------------------------------------------------
-! Data validation function to detect and fix scattered data issues
-!------------------------------------------------------------------------------
-subroutine validate_hdf5_data(data_array, n_elements, n_timesteps, data_name)
-  implicit none
-  integer, parameter :: DP = kind(1.0d0)
-  integer, intent(in) :: n_elements, n_timesteps
-  real(DP), intent(in) :: data_array(n_elements, n_timesteps)
-  character(len=*), intent(in) :: data_name
-  
-  integer :: i, j, nan_count, inf_count, zero_count, valid_count
-  real(DP) :: data_min, data_max, data_mean, data_std
-  logical :: has_issues
-  
-  has_issues = .false.
-  nan_count = 0
-  inf_count = 0
-  zero_count = 0
-  valid_count = 0
-  
-  ! Check for NaN, Inf, and other issues
-  do i = 1, n_elements
-     do j = 1, n_timesteps
-        if (data_array(i,j) /= data_array(i,j)) then  ! NaN check
-           nan_count = nan_count + 1
-           has_issues = .true.
-        else if (abs(data_array(i,j)) > huge(data_array(i,j))/2) then  ! Inf check
-           inf_count = inf_count + 1
-           has_issues = .true.
-        else if (data_array(i,j) == 0.0d0) then
-           zero_count = zero_count + 1
-        else
-           valid_count = valid_count + 1
-        end if
-     end do
-  end do
-  
-  ! Calculate statistics for valid data
-  if (valid_count > 0) then
-     data_min = minval(data_array, mask=(data_array == data_array .and. abs(data_array) < huge(data_array)/2))
-     data_max = maxval(data_array, mask=(data_array == data_array .and. abs(data_array) < huge(data_array)/2))
-     data_mean = sum(data_array, mask=(data_array == data_array .and. abs(data_array) < huge(data_array)/2)) / real(valid_count, DP)
-     
-     ! Calculate standard deviation
-     data_std = 0.0d0
-     do i = 1, n_elements
-        do j = 1, n_timesteps
-           if (data_array(i,j) == data_array(i,j) .and. abs(data_array(i,j)) < huge(data_array)/2) then
-              data_std = data_std + (data_array(i,j) - data_mean)**2
-           end if
-        end do
-     end do
-     data_std = sqrt(data_std / real(valid_count, DP))
-  else
-     data_min = 0.0d0
-     data_max = 0.0d0
-     data_mean = 0.0d0
-     data_std = 0.0d0
-  end if
-  
-  ! Report issues
-  if (has_issues .or. valid_count < n_elements * n_timesteps * 0.9) then  ! Less than 90% valid data
-     write(*,*) 'WARNING: Data validation issues detected in ', trim(data_name)
-     write(*,*) '  Total elements:', n_elements * n_timesteps
-     write(*,*) '  Valid elements:', valid_count
-     write(*,*) '  NaN elements:', nan_count
-     write(*,*) '  Inf elements:', inf_count
-     write(*,*) '  Zero elements:', zero_count
-     write(*,*) '  Data range: [', data_min, ', ', data_max, ']'
-     write(*,*) '  Data mean:', data_mean, ' std:', data_std
-     
-     ! Check for scattered data patterns
-     if (data_std > abs(data_mean) * 10.0d0) then  ! High variance might indicate scattered data
-        write(*,*) '  WARNING: High variance detected - possible scattered data issue'
-     end if
-  end if
-  
-  ! Additional check for spatial patterns that might indicate MPI ordering issues
-  if (n_elements > 100) then
-     ! Check if there are large jumps in data values that might indicate ordering issues
-     do i = 2, min(10, n_elements)  ! Check first 10 elements
-        if (abs(data_array(i,1) - data_array(i-1,1)) > abs(data_array(i-1,1)) * 0.5d0) then
-           write(*,*) '  WARNING: Large spatial jumps detected in ', trim(data_name), ' at element', i
-           write(*,*) '    Value at', i-1, ':', data_array(i-1,1)
-           write(*,*) '    Value at', i, ':', data_array(i,1)
-        end if
-     end do
-  end if
-  
-end subroutine validate_hdf5_data
 
 !------------------------------------------------------------------------------
 ! Data reordering function to ensure consistent data ordering for HDF5 output
