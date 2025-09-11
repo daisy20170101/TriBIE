@@ -2569,9 +2569,7 @@ else
     if(inul == nnul)then
        ! Null slip data collection completed - no output files needed
        inul = 0 
-	end if
-
-end if 
+	end if 
 
  110    format(E22.14,7(1X,E15.7))
  120    format(E20.13,4X,E20.13,4X,I6)
