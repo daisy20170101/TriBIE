@@ -1667,6 +1667,7 @@ end if
        ! HDF5 output for time-series variables instead of binary files
        write(*,*) 'DEBUG: Triggering HDF5 output - icos =', icos, 'ncos =', ncos
        
+       !$OMP MASTER
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
           call h5open_f(hdferr)
@@ -2034,7 +2035,8 @@ end if
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
        icos = 0
-    
+       !$OMP END MASTER
+      
     end if
 
 
@@ -2045,6 +2047,7 @@ end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
+      !$OMP MASTER
          ! Initialize HDF5 if not already done
          if (.not. hdf5_initialized) then
             call h5open_f(hdferr)
@@ -2352,7 +2355,8 @@ end if
       ! Update global SSE counter for accumulative writing
       global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
-   
+      !$OMP END MASTER
+     
   end if
 
 
