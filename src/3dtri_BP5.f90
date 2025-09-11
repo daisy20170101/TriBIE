@@ -1314,6 +1314,7 @@ end subroutine rkqs
            hnucl
       real (DP) :: cca_all(Nt_all),ccb_all(Nt_all),ccab_all(Nt_all), &
            xLf_all(Nt_all),seff_all(Nt_all),x_all(Nt_all),z_all(Nt_all),vi_all(Nt_all)
+      real (DP) :: temp_cca(Nt_all), temp_ccb(Nt_all), temp_xLf(Nt_all), temp_seff(Nt_all), temp_vi(Nt_all)
 
       real (DP) ::a(Nab),tpr(Nab),zp(Nab),b(nab),ab(nab)
 
@@ -1437,7 +1438,6 @@ end subroutine rkqs
       
       ! CRITICAL FIX: Reorder parameters from mesh order to MPI order for correct scattering
       ! The parameters were read in mesh order, but MPI_Scatterv expects them in process order
-      real(DP) :: temp_cca(Nt_all), temp_ccb(Nt_all), temp_xLf(Nt_all), temp_seff(Nt_all), temp_vi(Nt_all)
       
       ! Store original mesh-ordered values
       temp_cca = cca_all
