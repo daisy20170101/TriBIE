@@ -1508,7 +1508,7 @@ character(len=256) :: hdf5_filename, xdmf_filename
 character(len=256) :: time_series_group_name
 logical :: file_exists, file_exists_sse, mesh_group_exists
 integer(HSIZE_T) :: offset_1d(1), count_1d(1), offset_2d(2), count_2d(2)
-integer(HID_T) :: memspace_id, filespace_id, dcpl_id
+integer(HID_T) :: memspace_id, filespace_id, dcpl_id, dxpl_id
 integer(HSIZE_T) :: chunk_2d(2), chunk_1d(1)
 
 ! Mesh variables for GTS file reading
@@ -1663,8 +1663,6 @@ end if
              write(*,*) 'ERROR: Failed to set HDF5 chunk size, hdferr =', hdferr
              stop
           end if
-          ! FIXED: Enable collective I/O for better parallel performance
-          call h5pset_dxpl_mpio_f(dcpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
           
           call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
           if (hdferr /= 0) then
@@ -1751,12 +1749,17 @@ end if
        ! FIXED: Validate data before writing to prevent scattered data
        call validate_hdf5_data(slipz1_v(:,1:icos), Nt_all, icos, 'slipz1_v')
        
+       ! Set up collective I/O for data transfer
+       call h5pcreate_f(H5P_DATASET_XFER_F, dxpl_id, hdferr)
+       call h5pset_dxpl_mpio_f(dxpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
+       
        ! Write current cycle data
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id, dxpl_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
        call h5dclose_f(dset_id, hdferr)
+       call h5pclose_f(dxpl_id, hdferr)
        
        ! Write slipz1_cos data using hyperslab selection
        call h5dopen_f(group_id, 'slipz1_cos', dset_id, hdferr)
@@ -1765,17 +1768,22 @@ end if
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
+       ! Set up collective I/O for data transfer
+       call h5pcreate_f(H5P_DATASET_XFER_F, dxpl_id, hdferr)
+       call h5pset_dxpl_mpio_f(dxpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
+       
        ! FIXED: Reorder data from MPI gather order to mesh order for consistent visualization
        call reorder_data_for_hdf5(slipz1_cos(:,1:icos), Nt_all, icos, mpi_to_mesh_map)
        
        ! FIXED: Validate data before writing to prevent scattered data
        call validate_hdf5_data(slipz1_cos(:,1:icos), Nt_all, icos, 'slipz1_cos')
        
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id, dxpl_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
        call h5dclose_f(dset_id, hdferr)
+       call h5pclose_f(dxpl_id, hdferr)
        
        ! Write time array using hyperslab selection
        call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
@@ -1787,11 +1795,17 @@ end if
        
        dims_1d = (/INT(icos, HSIZE_T)/)
        call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
-       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr, memspace_id, filespace_id)
+       
+       ! Set up collective I/O for data transfer
+       call h5pcreate_f(H5P_DATASET_XFER_F, dxpl_id, hdferr)
+       call h5pset_dxpl_mpio_f(dxpl_id, H5FD_MPIO_COLLECTIVE_F, hdferr)
+       
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr, memspace_id, filespace_id, dxpl_id)
        
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
        call h5dclose_f(dset_id, hdferr)
+       call h5pclose_f(dxpl_id, hdferr)
        
        ! Close time-series group
        call h5gclose_f(group_id, hdferr)
