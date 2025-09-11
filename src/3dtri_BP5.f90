@@ -1688,7 +1688,8 @@ end if
           call h5pclose_f(fapl_id, hdferr)
           if (hdferr < 0) then
              write(*,*) 'ERROR: Failed to open HDF5 file for writing'
-             return
+             ! Skip HDF5 operations if file open failed
+             goto 1000
           end if
           ! Open existing time-series group
           time_series_group_name = '/time_series'
@@ -2034,7 +2035,7 @@ end if
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
        icos = 0
-       !$OMP END MASTER
+1000   !$OMP END MASTER
     
     end if
 
