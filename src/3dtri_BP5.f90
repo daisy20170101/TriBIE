@@ -1535,7 +1535,7 @@ USE phy3d_module_non, only: xmu,nmv,nas,ncos,nnul,nsse,yrs,Vpl,Nl, &
 use hdf5  ! Add HDF5 support
 implicit none
 integer, parameter :: DP = kind(1.0d0)
-integer :: Nt,Nt_all,i,j,k,l,kk,inul,imv,ias,icos,isse,Ioutput,Isnapshot,ix1,ix2,ix3,ix4,n_obv,np1,np2
+integer :: Nt,Nt_all,i,j,k,l,kk,inul,imv,ias,icos,isse,Ioutput,Isnapshot,ix1,ix2,ix3,ix4,n_obv,np1,np2,ierr
 
 real (DP) :: x(Nt),maxnum(nmv),moment(nmv),maxv(nmv),outs1(nmv,7,10),&
         msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
