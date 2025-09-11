@@ -1298,23 +1298,20 @@ end subroutine rkqs
 
     subroutine resdep(Nt_all,hnucl, &
          xilock1,xilock2,cca_all,ccb_all,xLf_all, &
-         seff_all,x_all,z_all,vi_all, &
-         sendcounts,displs,start_indices,size)
+         seff_all,x_all,z_all,vi_all)
       USE mpi
       USE phy3d_module_non, only: yrs,p18,Nl,Nd,Nab,xmu,xnu,gamma, &
            Iprofile,foldername,jobname,profile
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer, parameter :: DN=9
-      integer :: k,i,j,kk,Iperb,record,l,m,nn,Nt,Nt_all,proc,local_idx,mpi_idx,size,ios
-      integer :: sendcounts(0:size-1), displs(0:size-1), start_indices(0:size-1)
+      integer :: k,i,j,kk,Iperb,record,l,m,nn,Nt,Nt_all
 
       real (DP) :: temp(DN),dep(DN),dist(DN),ptemp(Nt_all), &
            ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, & 
            hnucl
       real (DP) :: cca_all(Nt_all),ccb_all(Nt_all),ccab_all(Nt_all), &
            xLf_all(Nt_all),seff_all(Nt_all),x_all(Nt_all),z_all(Nt_all),vi_all(Nt_all)
-      real (DP) :: temp_cca(Nt_all), temp_ccb(Nt_all), temp_xLf(Nt_all), temp_seff(Nt_all), temp_vi(Nt_all)
 
       real (DP) ::a(Nab),tpr(Nab),zp(Nab),b(nab),ab(nab)
 
@@ -1390,84 +1387,13 @@ end subroutine rkqs
 
  !need to address when j=1 and j=Nd_all!! same in the old openmp f90 file!
 
-      open(444,file='var'//jobname,status='old', iostat=ios)
-      if (ios /= 0) then
-         write(*,*) 'ERROR: Failed to open var file: var'//jobname, 'iostat =', ios
-         stop
-      end if
-      
-      write(*,*) 'DEBUG: Reading parameters from var'//jobname
-      do i=1,Nt_all
-         read(444,*, iostat=ios) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
-         if (ios /= 0) then
-            write(*,*) 'ERROR: Failed to read parameters for element', i, 'iostat =', ios
-            close(444)
-            stop
-         end if
-         ccab_all(i) = cca_all(i) - ccb_all(i)
-         vi_all(i) = vi_all(i)*yrs*1d3
-         
-         ! Validate parameters
-         if (cca_all(i) <= 0.0d0) then
-            write(*,*) 'ERROR: Non-positive cca_all(i) at i=', i, ' value=', cca_all(i)
-            close(444)
-            stop
-         end if
-         if (ccb_all(i) < 0.0d0) then
-            write(*,*) 'ERROR: Negative ccb_all(i) at i=', i, ' value=', ccb_all(i)
-            close(444)
-            stop
-         end if
-         if (xLf_all(i) <= 0.0d0) then
-            write(*,*) 'ERROR: Non-positive xLf_all(i) at i=', i, ' value=', xLf_all(i)
-            close(444)
-            stop
-         end if
-         if (seff_all(i) <= 0.0d0) then
-            write(*,*) 'ERROR: Non-positive seff_all(i) at i=', i, ' value=', seff_all(i)
-            close(444)
-            stop
-         end if
-      end do
+      open(444,file='var'//jobname,status='old')
+       do i=1,Nt_all
+        read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
+        ccab_all(i) = cca_all(i) - ccb_all(i)
+        vi_all(i) = vi_all(i)*yrs*1d3
+       end do
       close(444)
-      
-      write(*,*) 'DEBUG: Successfully read parameters for', Nt_all, 'elements'
-      write(*,*) 'DEBUG: First few cca_all values (mesh order):', cca_all(1:min(5, Nt_all))
-      write(*,*) 'DEBUG: First few ccb_all values (mesh order):', ccb_all(1:min(5, Nt_all))
-      write(*,*) 'DEBUG: First few xLf_all values (mesh order):', xLf_all(1:min(5, Nt_all))
-      
-      ! CRITICAL FIX: Reorder parameters from mesh order to MPI order for correct scattering
-      ! The parameters were read in mesh order, but MPI_Scatterv expects them in process order
-      
-      ! Store original mesh-ordered values
-      temp_cca = cca_all
-      temp_ccb = ccb_all  
-      temp_xLf = xLf_all
-      temp_seff = seff_all
-      temp_vi = vi_all
-      
-      ! Reorder to MPI process order using the same mapping logic as output
-      do i = 1, Nt_all
-         ! Find which MPI process and local index this mesh element belongs to
-         do proc = 0, size-1
-            if (i >= start_indices(proc) .and. i < start_indices(proc) + sendcounts(proc)) then
-               local_idx = i - start_indices(proc) + 1
-               mpi_idx = displs(proc) + local_idx
-               cca_all(mpi_idx) = temp_cca(i)
-               ccb_all(mpi_idx) = temp_ccb(i)
-               xLf_all(mpi_idx) = temp_xLf(i)
-               seff_all(mpi_idx) = temp_seff(i)
-               vi_all(mpi_idx) = temp_vi(i)
-               exit
-            end if
-         end do
-      end do
-      
-      
-      write(*,*) 'DEBUG: Parameters reordered to MPI process order'
-      write(*,*) 'DEBUG: First few cca_all values (MPI order):', cca_all(1:min(5, Nt_all))
-      write(*,*) 'DEBUG: First few ccb_all values (MPI order):', ccb_all(1:min(5, Nt_all))
-      write(*,*) 'DEBUG: First few xLf_all values (MPI order):', xLf_all(1:min(5, Nt_all))
 
 
       !     To save info about some of the quantities
