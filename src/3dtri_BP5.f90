@@ -1690,7 +1690,7 @@ end if
              write(*,*) 'ERROR: Failed to open HDF5 file for writing'
              ! Skip HDF5 operations if file open failed
              ! Continue with the rest of the code
-          else
+          end if
           ! Open existing time-series group
           time_series_group_name = '/time_series'
           call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
@@ -2035,7 +2035,6 @@ end if
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
        icos = 0
-       end if  ! Close the else clause for HDF5 file open error handling
        !$OMP END MASTER
     
     end if
