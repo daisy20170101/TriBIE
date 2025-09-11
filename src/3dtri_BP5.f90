@@ -2584,8 +2584,6 @@ end if  ! Close if(isse==nsse)then ... else
  700    format(E13.6)
  900    format(E15.8)
 
-end if  ! Close if(Ioutput == 0)then
-
 RETURN
 END subroutine output
 
