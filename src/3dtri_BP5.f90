@@ -255,8 +255,8 @@ program main
      if (myid == master .and. allocated(mpi_to_mesh_map)) then
         write(*,*) 'Element mapping created: MPI order -> Mesh order'
         write(*,*) 'Start indices for each process:', start_indices
-        write(*,*) 'First 10 mappings:', mpi_to_mesh_map(1:min(10,Nt_all))
-        write(*,*) 'Last 10 mappings:', mpi_to_mesh_map(max(1,Nt_all-9):Nt_all)
+        write(*,*) 'second 300 mappings:', mpi_to_mesh_map(301:min(600,Nt_all))
+        write(*,*) 'thried 300 mappings:', mpi_to_mesh_map(601:min(900,Nt_all))
      end if
      
      if (myid == master) then
