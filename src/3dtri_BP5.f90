@@ -1851,6 +1851,19 @@ end if
        ! Close time-series group
        call h5gclose_f(group_id, hdferr)
        
+       ! VALIDATION: Write binary files for HDF5 validation
+       ! Write slipz1_v data to binary file for validation
+       open(unit=100, file=trim(foldername)//'slipz1_cos'//jobname, form='unformatted', access='stream', position='append', status='unknown')
+       write(100) slipz1_v(:,1:icos)
+       close(100)
+       write(*,*) 'Validation: slipz1_v data written to ', trim(foldername)//'slipz1_appendix.dat'
+       
+       ! Write tcos data to binary file for validation
+       open(unit=101, file=trim(foldername)//'t-cos'//jobname, form='unformatted', access='stream', position='append', status='unknown')
+       write(101) tcos(1:icos)
+       close(101)
+       write(*,*) 'Validation: tcos data written to ', trim(foldername)//'t-cos.dat'
+       
        ! Add mesh data to HDF5
        ! Read GTS file and store mesh information
        inquire(file='triangular_mesh.gts', exist=file_exists)
@@ -2323,6 +2336,19 @@ end if
       
       write(*,*) 'SSE time-series data written to HDF5: ', trim(hdf5_filename)
       write(*,*) 'SSE XDMF visualization file created: ', trim(xdmf_filename)
+      
+      ! VALIDATION: Write binary files for SSE HDF5 validation
+      ! Write slipz1_sse data to binary file for validation
+      open(unit=102, file=trim(foldername)//'slipz1_sse'//jobname, form='unformatted', access='stream', position='append', status='unknown')
+      write(102) slipz1_sse(:,1:nsse)
+      close(102)
+      write(*,*) 'Validation: slipz1_sse data written to ', trim(foldername)//'slipz1_sse_appendix.dat'
+      
+      ! Write tsse data to binary file for validation
+      open(unit=103, file=trim(foldername)//'t-sse'//jobname, form='unformatted', access='stream', position='append', status='unknown')
+      write(103) tsse(1:nsse)
+      close(103)
+      write(*,*) 'Validation: tsse data written to ', trim(foldername)//'t-sse.dat'
       
       ! Update global SSE counter for accumulative writing
       global_sse_steps_written = global_sse_steps_written + nsse
