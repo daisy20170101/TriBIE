@@ -1805,8 +1805,7 @@ end if
        dims_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
-       ! FIXED: Reorder data from MPI gather order to mesh order for consistent visualization
-       call reorder_data_for_hdf5(slipz1_v(:,1:icos), Nt_all, icos, mpi_to_mesh_map)
+       ! Data is already in mesh order from lines 875-877, no reordering needed
        
        ! Write current cycle data
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
@@ -1822,8 +1821,7 @@ end if
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
        
-       ! FIXED: Reorder data from MPI gather order to mesh order for consistent visualization
-       call reorder_data_for_hdf5(slipz1_cos(:,1:icos), Nt_all, icos, mpi_to_mesh_map)
+       ! Data is already in mesh order from lines 875-877, no reordering needed
        
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
        
