@@ -756,28 +756,36 @@ end if
      
      if(myid == master) then
         ! Master process gathers all data
-        call MPI_Gather(yt,2*local_cells,MPI_Real8,yt_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(yt0,2*local_cells,MPI_Real8,yt0_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipinc,local_cells,MPI_Real8,slipinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slip,local_cells,MPI_Real8,slip_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipds,local_cells,MPI_Real8,slipds_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau1,local_cells,MPI_Real8,tau1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau2,local_cells,MPI_Real8,tau2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy1,local_cells,MPI_Real8,phy1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy2,local_cells,MPI_Real8,phy2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        ! DEBUG: Check what data we're gathering
+        write(*,*) 'DEBUG: Gathering data from process', myid, 'local_cells =', local_cells
+        write(*,*) 'DEBUG: First 5 slip values from master:', slip(1:min(5,local_cells))
+        call MPI_Gatherv(yt,2*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt0,2*local_cells,MPI_Real8,yt0_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipinc,local_cells,MPI_Real8,slipinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slip,local_cells,MPI_Real8,slip_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipds,local_cells,MPI_Real8,slipds_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(tau1,local_cells,MPI_Real8,tau1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(tau2,local_cells,MPI_Real8,tau2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(phy1,local_cells,MPI_Real8,phy1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(phy2,local_cells,MPI_Real8,phy2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        
+        ! DEBUG: Check gathered data order
+        write(*,*) 'DEBUG: First 10 gathered slip values:', slip_all(1:min(10,Nt_all))
+        write(*,*) 'DEBUG: Process distribution - sendcounts:', sendcounts
+        write(*,*) 'DEBUG: Process distribution - displs:', displs
      else
         ! Non-master processes send their data
-        call MPI_Gather(yt,2*local_cells,MPI_Real8,yt_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(yt0,2*local_cells,MPI_Real8,yt0_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipinc,local_cells,MPI_Real8,slipinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slip,local_cells,MPI_Real8,slip_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipds,local_cells,MPI_Real8,slipds_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau1,local_cells,MPI_Real8,tau1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau2,local_cells,MPI_Real8,tau2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy1,local_cells,MPI_Real8,phy1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy2,local_cells,MPI_Real8,phy2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt,2*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt0,2*local_cells,MPI_Real8,yt0_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipinc,local_cells,MPI_Real8,slipinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slip,local_cells,MPI_Real8,slip_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipds,local_cells,MPI_Real8,slipds_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(tau1,local_cells,MPI_Real8,tau1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(tau2,local_cells,MPI_Real8,tau2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(phy1,local_cells,MPI_Real8,phy1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(phy2,local_cells,MPI_Real8,phy2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      end if
 
      ! Output calculations (only master process)
