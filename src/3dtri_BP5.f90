@@ -255,8 +255,20 @@ program main
      if (myid == master .and. allocated(mpi_to_mesh_map)) then
         write(*,*) 'Element mapping created: MPI order -> Mesh order'
         write(*,*) 'Start indices for each process:', start_indices
+        write(*,*) 'Send counts for each process:', sendcounts
+        write(*,*) 'Displacements for each process:', displs
+        write(*,*) 'First 10 mappings:', mpi_to_mesh_map(1:min(10,Nt_all))
+        write(*,*) 'Last 10 mappings:', mpi_to_mesh_map(max(1,Nt_all-9):Nt_all)
         write(*,*) 'second 300 mappings:', mpi_to_mesh_map(301:min(600,Nt_all))
-        write(*,*) 'thried 300 mappings:', mpi_to_mesh_map(601:min(900,Nt_all))
+        write(*,*) 'third 300 mappings:', mpi_to_mesh_map(601:min(900,Nt_all))
+        
+        ! Check if mapping is monotonic (should be for correct ordering)
+        write(*,*) 'Checking mapping monotonicity...'
+        do i = 1, min(10, Nt_all-1)
+           if (mpi_to_mesh_map(i+1) < mpi_to_mesh_map(i)) then
+              write(*,*) 'WARNING: Non-monotonic mapping at index', i, ':', mpi_to_mesh_map(i), '->', mpi_to_mesh_map(i+1)
+           end if
+        end do
      end if
      
      if (myid == master) then
@@ -869,14 +881,21 @@ end if
                  end1=.true.
               end if
 
-              ! Calculate coseismic slip with proper element mapping
+              ! Calculate coseismic slip WITHOUT element mapping (for testing)
               do i=1,Nt_all
-                 ! Map from MPI gather order to mesh order for visualization
-                 mesh_idx = mpi_to_mesh_map(i)
-                 slipz1_cos(mesh_idx,icos) = slip_all(i)*1.d-3
-                 slipz1_v(mesh_idx,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
-                 slipz1_tau(mesh_idx,icos)=tau1_all(i)
+                 ! Use direct MPI gather order (no mapping)
+                 slipz1_cos(i,icos) = slip_all(i)*1.d-3
+                 slipz1_v(i,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
+                 slipz1_tau(i,icos)=tau1_all(i)
               end do
+              
+              ! DEBUG: Check data ordering for first few elements (no mapping)
+              if (myid == master .and. icos == 1) then
+                 write(*,*) 'DEBUG: Data ordering check for first 10 elements (NO MAPPING):'
+                 do i = 1, min(10, Nt_all)
+                    write(*,*) 'Index:', i, 'slipz1_v:', slipz1_v(i,icos)
+                 end do
+              end if
 
               tslipcos = 0.d0
            end if
