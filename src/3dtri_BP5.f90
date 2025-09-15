@@ -250,27 +250,7 @@ program main
            mpi_to_mesh_map(mpi_idx) = global_idx
         end do
      end do
-     
-     ! Verify mapping consistency (optional debug)
-     if (myid == master .and. allocated(mpi_to_mesh_map)) then
-        write(*,*) 'Element mapping created: MPI order -> Mesh order'
-        write(*,*) 'Start indices for each process:', start_indices
-        write(*,*) 'Send counts for each process:', sendcounts
-        write(*,*) 'Displacements for each process:', displs
-        write(*,*) 'First 10 mappings:', mpi_to_mesh_map(1:min(10,Nt_all))
-        write(*,*) 'Last 10 mappings:', mpi_to_mesh_map(max(1,Nt_all-9):Nt_all)
-        write(*,*) 'second 300 mappings:', mpi_to_mesh_map(301:min(600,Nt_all))
-        write(*,*) 'third 300 mappings:', mpi_to_mesh_map(601:min(900,Nt_all))
-        
-        ! Check if mapping is monotonic (should be for correct ordering)
-        write(*,*) 'Checking mapping monotonicity...'
-        do i = 1, min(10, Nt_all-1)
-           if (mpi_to_mesh_map(i+1) < mpi_to_mesh_map(i)) then
-              write(*,*) 'WARNING: Non-monotonic mapping at index', i, ':', mpi_to_mesh_map(i), '->', mpi_to_mesh_map(i+1)
-           end if
-        end do
-     end if
-     
+          
      if (myid == master) then
         write(*,*) 'MPI_Scatterv distribution:'
         do i = 0, size-1
@@ -1554,6 +1534,9 @@ real (DP) :: x(Nt),maxnum(nmv),moment(nmv),maxv(nmv),outs1(nmv,7,10),&
         msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
 	tmv(nmv),tas(nas),tcos(ncos),tnul(nnul),tsse(nsse),obvs(nmv,6,n_obv),obvstrk(nmv,2,np1),obvdp(nmv,2,np2)
 
+! Persistent array for storing all time values across subroutine calls
+real (DP), allocatable, SAVE :: tcos_all(:)
+
 real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),&
         v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,ncos),slipz1_sse(Nt_all,nsse), &
      v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),xi_all(Nt_all),x_all(Nt_all),&
@@ -1588,6 +1571,12 @@ real(DP), allocatable :: vertex_coords(:,:)
 integer*4, allocatable :: cell_connectivity(:,:)
 real(DP), allocatable :: vertex_coords_transposed(:,:)
 integer*4, allocatable :: cell_connectivity_transposed(:,:)
+
+! Allocate tcos_all for storing all time values (only on first call)
+if (.not. allocated(tcos_all)) then
+   allocate(tcos_all(10000))
+   tcos_all = 0.d0
+end if
 
 ! MPI variables
 integer :: myid, master
@@ -2011,14 +2000,19 @@ end if
           write(99,'(A,I0,A)') '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
           write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
           write(99,'(A)') '    </Geometry>'
-          write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Use step index as time for now
-          write(99,'(A)') '    <Attribute Name="slipz1_v" Center="Cell">'
+          ! Use actual time value from tcos_all (with bounds check)
+          if (i <= size(tcos_all)) then
+             write(99,'(A,E15.8,A)') '    <Time Value="', tcos_all(i), '"/>'
+          else
+             write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Fallback to step index
+          end if
+          write(99,'(A)') '    <Attribute Name="slip_rate" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
           write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '    <Attribute Name="slipz1_cos" Center="Cell">'
+          write(99,'(A)') '    <Attribute Name="fault_slip" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
           write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
@@ -2035,8 +2029,12 @@ end if
        write(*,*) 'Time-series data written to HDF5: ', trim(hdf5_filename)
        write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
        
+       ! Copy tcos to tcos_all before resetting for next cycle
+       tcos_all(global_time_steps_written+1:global_time_steps_written+icos) = tcos(1:icos)
+       
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
+       
        icos = 0
        
        ! CRITICAL: Synchronize all MPI processes after HDF5 output      
@@ -2324,13 +2322,13 @@ end if
          write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
          write(99,'(A)') '    </Geometry>'
          write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Use step index as time for now
-         write(99,'(A)') '    <Attribute Name="slipz1_sse" Center="Cell">'
+         write(99,'(A)') '    <Attribute Name="SSE_slip_rate" Center="Cell">'
          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
          write(99,'(A)') '     </DataItem>'
          write(99,'(A)') '    </Attribute>'
-         write(99,'(A)') '    <Attribute Name="slipz1_tau" Center="Cell">'
+         write(99,'(A)') '    <Attribute Name="shear_stress" Center="Cell">'
          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
