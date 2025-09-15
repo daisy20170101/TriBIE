@@ -1572,15 +1572,17 @@ integer*4, allocatable :: cell_connectivity(:,:)
 real(DP), allocatable :: vertex_coords_transposed(:,:)
 integer*4, allocatable :: cell_connectivity_transposed(:,:)
 
+
+! MPI variables
+integer :: myid, master
+master = 0
+
 ! Allocate tcos_all for storing all time values (only on first call)
 if (.not. allocated(tcos_all)) then
    allocate(tcos_all(10000))
    tcos_all = 0.d0
 end if
 
-! MPI variables
-integer :: myid, master
-master = 0
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, hdferr)
 
 if(Ioutput == 0)then    !output during run 
