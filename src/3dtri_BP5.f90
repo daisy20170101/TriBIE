@@ -756,9 +756,6 @@ end if
      
      if(myid == master) then
         ! Master process gathers all data
-        ! DEBUG: Check what data we're gathering
-        write(*,*) 'DEBUG: Gathering data from process', myid, 'local_cells =', local_cells
-        write(*,*) 'DEBUG: First 5 slip values from master:', slip(1:min(5,local_cells))
         call MPI_Gatherv(yt,2*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(yt0,2*local_cells,MPI_Real8,yt0_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(slipinc,local_cells,MPI_Real8,slipinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -769,11 +766,6 @@ end if
         call MPI_Gatherv(tau2,local_cells,MPI_Real8,tau2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy1,local_cells,MPI_Real8,phy1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy2,local_cells,MPI_Real8,phy2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        
-        ! DEBUG: Check gathered data order
-        write(*,*) 'DEBUG: First 10 gathered slip values:', slip_all(1:min(10,Nt_all))
-        write(*,*) 'DEBUG: Process distribution - sendcounts:', sendcounts
-        write(*,*) 'DEBUG: Process distribution - displs:', displs
      else
         ! Non-master processes send their data
         call MPI_Gatherv(yt,2*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -894,16 +886,9 @@ end if
                  ! Use direct MPI gather order (no mapping)
                  slipz1_cos(i,icos) = slip_all(i)*1.d-3
                  slipz1_v(i,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
-                 slipz1_tau(i,icos)=tau1_all(i)
+                 slipz1_tau(i,icos) = tau1_all(i)
               end do
               
-              ! DEBUG: Check data ordering for first few elements (no mapping)
-              if (myid == master .and. icos == 1) then
-                 write(*,*) 'DEBUG: Data ordering check for first 10 elements (NO MAPPING):'
-                 do i = 1, min(10, Nt_all)
-                    write(*,*) 'Index:', i, 'slipz1_v:', slipz1_v(i,icos)
-                 end do
-              end if
 
               tslipcos = 0.d0
            end if
