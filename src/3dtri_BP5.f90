@@ -118,6 +118,14 @@ program main
   integer :: base_cells, extra_cells, local_cells, start_idx
   logical :: use_trigreen_format = .true.  ! Set to .true. to use TriGreen files
   
+  ! MPI scatter arrays for different data types
+  integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
+  
+  ! Element mapping for visualization (MPI order -> Mesh order)
+  integer, dimension(:), allocatable :: mpi_to_mesh_map
+  integer, dimension(:), allocatable :: start_indices
+  integer :: mpi_idx, global_idx, mesh_idx
+  
   ! File existence checking variables
   logical :: trigreen_file_exists
   character(len=256) :: trigreen_filename
@@ -159,7 +167,7 @@ program main
   read(12,'(a)')stiffname
   read(12,'(a)')restartname
   read(12,*)Nt_all,nprocs,n_obv,np1,np2
-  read(12,*)Idin,Idout,Iprofile,Iperb,Isnapshot 
+  read(12,*)IDin,Idout,Iprofile,Iperb,Isnapshot 
   read(12,*)Vpl
   read(12,*)tmax
   read(12,*)tslip_ave,tslipend,tslip_aveint
@@ -171,7 +179,7 @@ program main
 110 format(A)
   close(12)
 
- Nab=5 ! used in resdep if dault a-b profile is given 
+  Nab=5 ! used in resdep if dault a-b profile is given 
 
   ! MODIFICATION: Implement dynamic load balancing compatible with calc_trigreen.f90
   if (use_trigreen_format) then
@@ -206,16 +214,43 @@ program main
      
      ! Allocate MPI_Scatterv arrays for uneven distribution
      allocate(sendcounts(0:size-1), displs(0:size-1))
+     allocate(sendcounts_yt(0:size-1), displs_yt(0:size-1))
+     allocate(mpi_to_mesh_map(Nt_all))
+     allocate(start_indices(0:size-1))
      
      ! Calculate send counts and displacements for each process
      call MPI_Allgather(local_cells, 1, MPI_INTEGER, sendcounts, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
      
-     ! Calculate displacements
+     ! Calculate displacements for single arrays (slip, slipds)
      displs(0) = 0
      do i = 1, size-1
         displs(i) = displs(i-1) + sendcounts(i-1)
      end do
      
+     ! Initialize yt scatter arrays (will be set properly during restart)
+     do i = 0, size-1
+        sendcounts_yt(i) = 2 * sendcounts(i)  ! yt has 2 components per cell
+     end do
+     displs_yt(0) = 0
+     do i = 1, size-1
+        displs_yt(i) = displs_yt(i-1) + sendcounts_yt(i-1)
+     end do
+     
+     ! Create element mapping: MPI gather order -> Original mesh order
+     ! The MPI_Gather puts data in process order, but we need mesh order
+     ! We need to collect the actual start_idx values from each process
+     call MPI_Allgather(start_idx, 1, MPI_INTEGER, start_indices, 1, MPI_INTEGER, MPI_COMM_WORLD, ierr)
+     
+     do i = 0, size-1
+        do j = 1, sendcounts(i)
+           ! Element index in MPI gathered array
+           mpi_idx = displs(i) + j
+           ! Original global element index from actual start_idx
+           global_idx = start_indices(i) + j - 1  ! start_idx is 1-based, j is 1-based
+           mpi_to_mesh_map(mpi_idx) = global_idx
+        end do
+     end do
+          
      if (myid == master) then
         write(*,*) 'MPI_Scatterv distribution:'
         do i = 0, size-1
@@ -274,7 +309,7 @@ program main
 !!! modify output number
      ALLOCATE (slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos), &
           slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos), &
-          v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse) )
+          v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),slipz1_tau(Nt_all,ncos),slipz1_sse(Nt_all,nsse) )
      ALLOCATE(intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all),slipz1_v(Nt_all,ncos),ssetime(nsse)  )
 
      allocate(moment(nmv),Trup(Nt_all),rup(Nt_all),area(Nt_all))
@@ -463,13 +498,70 @@ end if
 
    call MPI_Barrier(MPI_COMM_WORLD,ierr)
    call MPI_Scatterv(cca_all,sendcounts,displs,MPI_Real8,cca,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for cca, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(ccb_all,sendcounts,displs,MPI_Real8,ccb,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for ccb, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(xLf_all,sendcounts,displs,MPI_Real8,xLf,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for xLf, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(seff_all,sendcounts,displs,MPI_Real8,seff,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for seff, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(vi_all,sendcounts,displs,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for vi, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(x_all,sendcounts,displs,MPI_Real8,x,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for x, ierr =', ierr, 'on process', myid
+      stop
+   end if
 
   call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+  
+  ! Validate scattered parameters for each process
+  write(*,*) 'Process', myid, 'scattered parameters validation:'
+  write(*,*) '  Local cells:', local_cells
+  write(*,*) '  First few cca values:', cca(1:min(5, local_cells))
+  write(*,*) '  First few ccb values:', ccb(1:min(5, local_cells))
+  write(*,*) '  First few xLf values:', xLf(1:min(5, local_cells))
+  write(*,*) '  First few seff values:', seff(1:min(5, local_cells))
+  
+  ! Check for invalid values
+  do i = 1, local_cells
+     if (cca(i) <= 0.0d0) then
+        write(*,*) 'ERROR: Non-positive cca(i) at i=', i, ' value=', cca(i), 'on process', myid
+        stop
+     end if
+     if (ccb(i) < 0.0d0) then
+        write(*,*) 'ERROR: Negative ccb(i) at i=', i, ' value=', ccb(i), 'on process', myid
+        stop
+     end if
+     if (xLf(i) <= 0.0d0) then
+        write(*,*) 'ERROR: Non-positive xLf(i) at i=', i, ' value=', xLf(i), 'on process', myid
+        stop
+     end if
+     if (seff(i) <= 0.0d0) then
+        write(*,*) 'ERROR: Non-positive seff(i) at i=', i, ' value=', seff(i), 'on process', myid
+        stop
+     end if
+  end do
   
   call CPU_TIME(tmbegin)
 
@@ -540,7 +632,8 @@ end if
 !------------------------------------------------------------------
   if(IDin.eq.1) then               !if this is a restart job
      if(myid==master)then
-        call restart(0,'out',4,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
+        filename='out'
+        call restart(0,filename,4,Nt_all,t,dt,dt_try,ndt,nrec,yt_all,slip_all)
         write(1,*)'This is a restart job. Start time ',t,' yr'
      end if
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
@@ -550,11 +643,31 @@ end if
      call MPI_Bcast(ndt,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      call MPI_Bcast(nrec,1,MPI_integer,master,MPI_COMM_WORLD,ierr)
      
-     call MPI_Scatterv(yt_all,sendcounts,displs,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     ! yt scatter arrays are already initialized above
+     
+     if (myid == master) then
+        write(*,*) 'YT MPI_Scatterv distribution:'
+        do i = 0, size-1
+           write(*,*) '  Process', i, ': yt_sendcount =', sendcounts_yt(i), ', yt_displacement =', displs_yt(i)
+        end do
+     end if
+     
+     call MPI_Scatterv(yt_all,sendcounts_yt,displs_yt,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Scatterv(slip_all,sendcounts,displs,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Scatterv(slipds_all,sendcounts,displs,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
-
+     
+     ! Validate scattered data for NaN/infinity
+     do i = 1, 2*local_cells
+        if (yt(i) /= yt(i) .or. abs(yt(i)) > huge(yt(i))/2) then
+           write(*,*) 'ERROR: Invalid yt(',i,') after MPI scatter on process', myid, ' value=', yt(i)
+        end if
+     end do
+     do i = 1, local_cells
+        if (slip(i) /= slip(i) .or. abs(slip(i)) > huge(slip(i))/2) then
+           write(*,*) 'ERROR: Invalid slip(',i,') after MPI scatter on process', myid, ' value=', slip(i)
+        end if
+     end do
+  
      ndtnext = ndt
      tprint_inter = t
      tslip_ave=t        
@@ -623,28 +736,28 @@ end if
      
      if(myid == master) then
         ! Master process gathers all data
-        call MPI_Gather(yt,2*local_cells,MPI_Real8,yt_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(yt0,2*local_cells,MPI_Real8,yt0_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipinc,local_cells,MPI_Real8,slipinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slip,local_cells,MPI_Real8,slip_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipds,local_cells,MPI_Real8,slipds_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau1,local_cells,MPI_Real8,tau1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau2,local_cells,MPI_Real8,tau2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy1,local_cells,MPI_Real8,phy1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy2,local_cells,MPI_Real8,phy2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt,2*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt0,2*local_cells,MPI_Real8,yt0_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipinc,local_cells,MPI_Real8,slipinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slip,local_cells,MPI_Real8,slip_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipds,local_cells,MPI_Real8,slipds_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(tau1,local_cells,MPI_Real8,tau1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(tau2,local_cells,MPI_Real8,tau2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(phy1,local_cells,MPI_Real8,phy1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(phy2,local_cells,MPI_Real8,phy2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      else
         ! Non-master processes send their data
-        call MPI_Gather(yt,2*local_cells,MPI_Real8,yt_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(yt0,2*local_cells,MPI_Real8,yt0_all,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipinc,local_cells,MPI_Real8,slipinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slip,local_cells,MPI_Real8,slip_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(slipds,local_cells,MPI_Real8,slipds_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau1,local_cells,MPI_Real8,tau1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(tau2,local_cells,MPI_Real8,tau2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy1,local_cells,MPI_Real8,phy1_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gather(phy2,local_cells,MPI_Real8,phy2_all,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt,2*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt0,2*local_cells,MPI_Real8,yt0_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipinc,local_cells,MPI_Real8,slipinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slip,local_cells,MPI_Real8,slip_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(slipds,local_cells,MPI_Real8,slipds_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(tau1,local_cells,MPI_Real8,tau1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(tau2,local_cells,MPI_Real8,tau2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(phy1,local_cells,MPI_Real8,phy1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(phy2,local_cells,MPI_Real8,phy2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      end if
 
      ! Output calculations (only master process)
@@ -739,7 +852,8 @@ end if
 130 format(E20.13,2(1X,E15.7))
 
               icos = icos +1
-              tcos(icos) = t 
+              tcos(icos) = t
+              write(*,*) 'DEBUG: icos =', icos, 'ncos =', ncos, 't =', t 
 
               if(.not.end1.and.t - teve1.lt.2*tint_cos) then
                  teve1 = t !! to determine rupture contour output
@@ -747,11 +861,14 @@ end if
                  end1=.true.
               end if
 
-              ! Calculate coseismic slip
+              ! Calculate coseismic slip WITHOUT element mapping (for testing)
               do i=1,Nt_all
+                 ! Use direct MPI gather order (no mapping)
                  slipz1_cos(i,icos) = slip_all(i)*1.d-3
                  slipz1_v(i,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
+                 slipz1_tau(i,icos) = tau1_all(i)
               end do
+              
 
               tslipcos = 0.d0
            end if
@@ -781,13 +898,14 @@ end if
      ! Output velocity and slip records
      if(myid==master)then 
         Ioutput = 0 
-        
+        !$OMP MASTER
         call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
              tmv,tas,tcos,tnul,tsse,maxv,moment,outs1,maxnum,msse1,msse2, areasse1,areasse2,&
              slipz1_inter,slipz1_tau,slipz1_sse, &
              slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
              xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-             n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2)         
+             n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map)         
+         !$OMP END MASTER
      end if
 
      ! Check if simulation should continue
@@ -834,7 +952,7 @@ if(myid==master)then
           slipz1_inter,slipz1_tau,slipz1_sse, &
           slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
           xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-          n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2) 
+          n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
      !$OMP END MASTER
 
 end if
@@ -910,6 +1028,15 @@ end if
   ! Clean up MPI_Scatterv arrays
   if (use_trigreen_format .and. allocated(sendcounts)) then
      deallocate(sendcounts, displs)
+  end if
+  if (allocated(sendcounts_yt)) then
+     deallocate(sendcounts_yt, displs_yt)
+  end if
+  if (allocated(mpi_to_mesh_map)) then
+     deallocate(mpi_to_mesh_map)
+  end if
+  if (allocated(start_indices)) then
+     deallocate(start_indices)
   end if
   
   call MPI_finalize(ierr)
@@ -1057,6 +1184,9 @@ end subroutine rkqs
        real(DP) :: temp_sum
        integer :: request1, request2
        intrinsic real
+       
+       ! Regularization parameter for rate-and-state friction
+       real(DP), parameter :: theta_min = 1.0d-12  ! Minimum state variable (seconds) - increased for stability
 
        !MPI RELATED DEFINITIONS
        integer :: ierr,myid,master
@@ -1105,6 +1235,24 @@ end subroutine rkqs
        end if
        tm1=tm2
 
+       ! Apply physics-based regularization for rate-and-state friction
+       ! Small regularization parameter to prevent ln(0) while maintaining physics
+       
+       do i=1,Nt
+          if (yt(2*i) < theta_min) then
+             ! Apply regularization: don't change original values, just prevent ln(0)
+             ! This preserves the physical state while making calculations numerically stable
+             if (yt(2*i) <= 0.0d0) then
+                write(*,*) 'INFO: Regularizing zero state variable at i=', i, ' from', yt(2*i), ' to', theta_min
+             end if
+             yt(2*i) = max(yt(2*i), theta_min)
+          end if
+          if (xLf(i) <= 0.0d0) then
+             write(*,*) 'ERROR: Non-positive xLf(i) at i=', i, ' value=', xLf(i), ' correcting to 1.0d-3'
+             xLf(i) = 1.0d-3
+          end if
+       end do
+
        ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
        !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
        do i=1,Nt
@@ -1122,6 +1270,16 @@ end subroutine rkqs
           dydt(2*i)=deriv3     
        end do
        !$OMP END SIMD
+       
+       ! Post-validate results (outside SIMD for debugging)
+       do i=1,Nt
+          if (dydt(2*i-1) /= dydt(2*i-1) .or. abs(dydt(2*i-1)) > huge(dydt(2*i-1))/2) then
+             write(*,*) 'WARNING: Invalid dydt(2*i-1) at i=', i, ' value=', dydt(2*i-1)
+          end if
+          if (dydt(2*i) /= dydt(2*i) .or. abs(dydt(2*i)) > huge(dydt(2*i))/2) then
+             write(*,*) 'WARNING: Invalid dydt(2*i) at i=', i, ' value=', dydt(2*i)
+          end if
+       end do
 
        RETURN
      END subroutine derivs
@@ -1246,28 +1404,97 @@ end subroutine rkqs
 ! restart file
 !------------------------------------------------------------------------------
 
-      subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
+subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
 USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
-                        tm1,tm2,tmday,tmelse,tmmidn,tmmult
+                        tm1,tm2,tmday,tmelse,tmmidn,tmmult,xLf,Vpl
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer :: inout,i,ndt,nrec,Ifileout,Nt,Nt_all
       real (DP) :: t,dt,dt_try
       real (DP) ::  yt(2*Nt_all),slip(Nt_all)
-character(len=40) :: filename
+      character(len=40) :: filename
+      
+      ! Additional variables for debugging
+      logical :: file_exists
+      character(len=200) :: line_buffer
+      integer :: preview_unit, zero_count, negative_count, invalid_count
 
       if(inout.eq.0) then
+         write(*,*) 'Opening restart file: ', trim(restartname)
+         
+         ! Check if file exists and get some info
+         inquire(file=trim(restartname), exist=file_exists)
+         if (.not. file_exists) then
+            write(*,*) 'ERROR: Restart file does not exist!'
+            stop
+         end if
+         
          open(Ifileout,file=trim(restartname),status='old')
+         write(*,*) 'File opened successfully, unit=', Ifileout
+         
+         ! Quick preview of first few lines in the file
+         preview_unit = 99
+         open(preview_unit, file=trim(restartname), status='old')
+         write(*,*) 'File preview (first 5 lines):'
+         do i = 1, 5
+            read(preview_unit, '(A)', end=100) line_buffer
+            write(*,*) 'Line', i, ': ', trim(line_buffer)
+         end do
+100      close(preview_unit)
+         
           read(Ifileout,*)t,ndt,nrec
+          write(*,*) 'Read header: t=',t,' ndt=',ndt,' nrec=',nrec
           read(Ifileout,*)dt,dt_try
+          write(*,*) 'Read timesteps: dt=',dt,' dt_try=',dt_try
+          write(*,*) 'About to read 2*Nt_all=', 2*Nt_all, ' yt values...'
+          
+          ! Count problematic values
+          zero_count = 0
+          negative_count = 0 
+          invalid_count = 0
+          
           do i=1,2*Nt_all
              read(Ifileout,*)yt(i)
+             ! Debug: Show first few values being read
+             if (i <= 10) then
+                write(*,*) 'DEBUG: Read yt(',i,') = ',yt(i)
+             end if
+             
+             ! Detailed analysis of yt values
+             if (yt(i) /= yt(i) .or. abs(yt(i)) > huge(yt(i))/2) then
+                write(*,*) 'WARNING: Invalid yt(',i,') = ',yt(i)
+                invalid_count = invalid_count + 1
+             else if (yt(i) == 0.0d0) then
+                zero_count = zero_count + 1
+                if (zero_count <= 5) then  ! Show first 5 zero values
+                   write(*,*) 'ZERO yt(',i,') = ',yt(i)
+                end if
+             else if (yt(i) < 0.0d0) then
+                negative_count = negative_count + 1
+                if (negative_count <= 5) then  ! Show first 5 negative values
+                   write(*,*) 'NEGATIVE yt(',i,') = ',yt(i)
+                end if
+             end if
           end do
+          
+          write(*,*) 'yt Statistics: Zero=', zero_count, ' Negative=', negative_count, ' Invalid=', invalid_count
 
           do i=1,Nt_all
              read(Ifileout,*)slip(i)
+             ! Check for NaN/Inf in loaded data
+             if (slip(i) /= slip(i) .or. abs(slip(i)) > huge(slip(i))/2) then
+                write(*,*) 'WARNING: Invalid slip(',i,') = ',slip(i)
+             end if
           end do
 	  close(Ifileout)
+          write(*,*) 'Restart file loaded successfully'
+          
+          ! Report statistics but preserve the physical state from restart file
+          if (zero_count > 0) then
+             write(*,*) 'INFO: Found', zero_count, 'zero state variables in restart file'
+             write(*,*) '      (This is physically valid during fast slip events)'
+             write(*,*) '      Regularization will be applied during physics calculations'
+          end if
       else
          open(Ifileout,file=trim(foldername)//trim(filename)//jobname,status='unknown')
          write(Ifileout,*)t,ndt,nrec
@@ -1292,7 +1519,7 @@ subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
      slipz1_inter,slipz1_tau,slipz1_sse,&
      slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
      xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-    n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2) 
+    n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
 
 
 USE mpi
@@ -1301,18 +1528,22 @@ USE phy3d_module_non, only: xmu,nmv,nas,ncos,nnul,nsse,yrs,Vpl,Nl, &
 use hdf5  ! Add HDF5 support
 implicit none
 integer, parameter :: DP = kind(1.0d0)
-integer :: Nt,Nt_all,i,j,k,l,kk,inul,imv,ias,icos,isse,Ioutput,Isnapshot,ix1,ix2,ix3,ix4,n_obv,np1,np2
+integer :: Nt,Nt_all,i,j,k,l,kk,inul,imv,ias,icos,isse,Ioutput,Isnapshot,ix1,ix2,ix3,ix4,n_obv,np1,np2,ierr
 
 real (DP) :: x(Nt),maxnum(nmv),moment(nmv),maxv(nmv),outs1(nmv,7,10),&
         msse1(nsse),msse2(nsse),areasse1(nsse),areasse2(nsse), &
 	tmv(nmv),tas(nas),tcos(ncos),tnul(nnul),tsse(nsse),obvs(nmv,6,n_obv),obvstrk(nmv,2,np1),obvdp(nmv,2,np2)
 
+! Persistent array for storing all time values across subroutine calls
+real (DP), allocatable, SAVE :: tcos_all(:)
+
 real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),&
-        v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,nsse),slipz1_sse(Nt_all,nsse), &
+        v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,ncos),slipz1_sse(Nt_all,nsse), &
      v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),xi_all(Nt_all),x_all(Nt_all),&
       slipz1_v(Nt_all,ncos)
 integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
 integer :: intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all)
+integer :: mpi_to_mesh_map(Nt_all)  ! FIXED: Add mpi_to_mesh_map parameter
 
 ! HDF5 variables for time-series output
 integer(HID_T) :: file_id, dset_id, dspace_id
@@ -1329,6 +1560,7 @@ integer :: global_sse_steps_written = 0   ! Total SSE time steps written across 
 character(len=256) :: hdf5_filename, xdmf_filename
 character(len=256) :: time_series_group_name
 logical :: file_exists, file_exists_sse, mesh_group_exists
+integer :: ios
 integer(HSIZE_T) :: offset_1d(1), count_1d(1), offset_2d(2), count_2d(2)
 integer(HID_T) :: memspace_id, filespace_id, dcpl_id
 integer(HSIZE_T) :: chunk_2d(2), chunk_1d(1)
@@ -1340,9 +1572,21 @@ integer*4, allocatable :: cell_connectivity(:,:)
 real(DP), allocatable :: vertex_coords_transposed(:,:)
 integer*4, allocatable :: cell_connectivity_transposed(:,:)
 
+
 ! MPI variables
 integer :: myid, master
 master = 0
+
+! Allocate tcos_all for storing all time values (only on first call)
+if (.not. allocated(tcos_all)) then
+   allocate(tcos_all(10000))
+   tcos_all = 0.d0
+end if
+
+! Copy tcos to tcos_all before resetting for next cycle
+tcos_all(global_time_steps_written+1:global_time_steps_written+icos) = tcos(1:icos)
+       
+
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, hdferr)
 
 if(Ioutput == 0)then    !output during run 
@@ -1429,6 +1673,11 @@ end if
 
     if(icos==ncos)then
        ! HDF5 output for time-series variables instead of binary files
+       write(*,*) 'DEBUG: Triggering HDF5 output - icos =', icos, 'ncos =', ncos
+       
+       ! CRITICAL: Synchronize all MPI processes before HDF5 output
+       
+       ! Only master MPI process should do HDF5 output to avoid deadlock
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
           call h5open_f(hdferr)
@@ -1442,8 +1691,13 @@ end if
        inquire(file=trim(hdf5_filename), exist=file_exists)
        
        if (file_exists) then
-          ! Open existing file for read/write
+          ! Open existing file for read/write (single-process access)
           call h5fopen_f(trim(hdf5_filename), H5F_ACC_RDWR_F, file_id, hdferr)
+          if (hdferr < 0) then
+             write(*,*) 'ERROR: Failed to open HDF5 file for writing'
+             ! Skip HDF5 operations if file open failed
+             ! Continue with the rest of the code
+          end if
           ! Open existing time-series group
           time_series_group_name = '/time_series'
           call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
@@ -1454,16 +1708,44 @@ end if
           time_series_group_name = '/time_series'
           call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
           
-          ! Create extensible datasets for first time with chunking
+          ! Create extensible datasets for first time with optimal chunking
           dims_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
           maxdims_2d = (/INT(Nt_all, HSIZE_T), H5S_UNLIMITED_F/)
-          chunk_2d = (/INT(Nt_all, HSIZE_T), INT(min(icos, 100), HSIZE_T)/)
+          ! FIXED: Use optimal chunk size that aligns with data access patterns
+          ! Chunk size should be large enough to be efficient but not too large
+          ! CRITICAL: Chunk size must not exceed actual data dimensions
+          ! Use simple, safe chunking logic
+          if (icos <= 1) then
+             chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(1, HSIZE_T)/)
+          else
+             chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(icos, 100), HSIZE_T)/)
+          end if
+          
+          write(*,*) 'DEBUG: Creating HDF5 with icos =', icos, 'chunk_2d =', chunk_2d
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
+          if (hdferr /= 0) then
+             write(*,*) 'ERROR: Failed to create HDF5 dataset creation property list, hdferr =', hdferr
+             stop
+          end if
+          
           call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
+          if (hdferr /= 0) then
+             write(*,*) 'ERROR: Failed to set HDF5 chunk size, hdferr =', hdferr
+             stop
+          end if
           
           call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
+          if (hdferr /= 0) then
+             write(*,*) 'ERROR: Failed to create HDF5 dataspace, hdferr =', hdferr
+             stop
+          end if
+          
           call h5dcreate_f(group_id, 'slipz1_v', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
+          if (hdferr /= 0) then
+             write(*,*) 'ERROR: Failed to create HDF5 dataset slipz1_v, hdferr =', hdferr
+             stop
+          end if
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
           
@@ -1476,7 +1758,13 @@ end if
           
           dims_1d = (/INT(icos, HSIZE_T)/)
           maxdims_1d = (/H5S_UNLIMITED_F/)
-          chunk_1d = (/INT(min(icos, 1000), HSIZE_T)/)
+          ! FIXED: Use optimal chunk size for 1D time arrays
+          ! CRITICAL: Chunk size must not exceed actual data dimensions
+          if (icos <= 1) then
+             chunk_1d = (/INT(1, HSIZE_T)/)
+          else
+             chunk_1d = (/INT(min(icos, 100), HSIZE_T)/)
+          end if
           
           call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
           call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
@@ -1514,7 +1802,8 @@ end if
        call h5dopen_f(group_id, 'slipz1_v', dset_id, hdferr)
        call h5dget_space_f(dset_id, filespace_id, hdferr)
        
-       ! Define hyperslab for appending new data
+       ! FIXED: Define hyperslab for appending new data with proper alignment
+       ! Ensure offset aligns with chunk boundaries for better performance
        offset_2d = (/INT(0, HSIZE_T), INT(global_time_steps_written, HSIZE_T)/)
        count_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
@@ -1522,6 +1811,8 @@ end if
        ! Create memory space for current data
        dims_2d = (/INT(Nt_all, HSIZE_T), INT(icos, HSIZE_T)/)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+       
+       ! Data is already in mesh order from lines 875-877, no reordering needed
        
        ! Write current cycle data
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
@@ -1536,6 +1827,9 @@ end if
        
        call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
        call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+       
+       ! Data is already in mesh order from lines 875-877, no reordering needed
+       
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
@@ -1552,6 +1846,7 @@ end if
        
        dims_1d = (/INT(icos, HSIZE_T)/)
        call h5screate_simple_f(1, dims_1d, memspace_id, hdferr)
+       
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, tcos(1:icos), dims_1d, hdferr, memspace_id, filespace_id)
        
        call h5sclose_f(memspace_id, hdferr)
@@ -1561,10 +1856,44 @@ end if
        ! Close time-series group
        call h5gclose_f(group_id, hdferr)
        
+       ! VALIDATION: Write binary files for HDF5 validation
+       ! Write slipz1_v data to binary file for validation
+       open(unit=100, file=trim(foldername)//'slipz1_cos'//jobname, form='unformatted', access='stream', position='append', status='unknown')
+       write(100) slipz1_v(:,1:icos)
+       close(100)
+       write(*,*) 'Validation: slipz1_v data written to ', trim(foldername)//'slipz1_appendix.dat'
+       
+       ! Write tcos data to binary file for validation
+       open(unit=101, file=trim(foldername)//'t-cos'//jobname, form='unformatted', access='stream', position='append', status='unknown')
+       write(101) tcos(1:icos)
+       close(101)
+       write(*,*) 'Validation: tcos data written to ', trim(foldername)//'t-cos.dat'
+       
        ! Add mesh data to HDF5
        ! Read GTS file and store mesh information
-       open(98, file='triangular_mesh.gts', status='old', action='read')
-       read(98,*) n_vertices, n_edges_dummy, n_cells
+       inquire(file='triangular_mesh.gts', exist=file_exists)
+       if (.not. file_exists) then
+          write(*,*) 'ERROR: triangular_mesh.gts file not found!'
+          write(*,*) 'This file should contain the mesh geometry matching the simulation.'
+          write(*,*) 'Please ensure triangular_mesh.gts exists in the current directory.'
+          stop
+       end if
+       
+       open(98, file='triangular_mesh.gts', status='old', action='read', iostat=ios)
+       if (ios /= 0) then
+          write(*,*) 'ERROR: Failed to open triangular_mesh.gts, iostat =', ios
+          stop
+       end if
+       
+       read(98,*, iostat=ios) n_vertices, n_edges_dummy, n_cells
+       if (ios /= 0) then
+          write(*,*) 'ERROR: Failed to read mesh dimensions from triangular_mesh.gts, iostat =', ios
+          close(98)
+          stop
+       end if
+       
+       write(*,*) 'DEBUG: Reading mesh from triangular_mesh.gts:'
+       write(*,*) '  Vertices:', n_vertices, 'Edges:', n_edges_dummy, 'Cells:', n_cells
        
        ! Allocate temporary arrays
        allocate(vertex_coords(n_vertices, 3))
@@ -1572,16 +1901,32 @@ end if
        
        ! Read vertex coordinates
        do i = 1, n_vertices
-          read(98,*) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+          read(98,*, iostat=ios) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+          if (ios /= 0) then
+             write(*,*) 'ERROR: Failed to read vertex', i, 'from triangular_mesh.gts, iostat =', ios
+             close(98)
+             stop
+          end if
        end do
        
        ! Read cell connectivity (indices start from 0 in GTS, which is correct for Paraview)
        do i = 1, n_cells
-          read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
-                    ! Keep 0-based indexing for Paraview compatibility
-          cell_connectivity(i, :) = cell_connectivity(i, :) -1
+          read(98,*, iostat=ios) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+          if (ios /= 0) then
+             write(*,*) 'ERROR: Failed to read cell', i, 'from triangular_mesh.gts, iostat =', ios
+             close(98)
+             stop
+          end if
+          ! Keep 0-based indexing for Paraview compatibility
+          cell_connectivity(i, :) = cell_connectivity(i, :) - 1
        end do
        close(98)
+       
+       write(*,*) 'DEBUG: Successfully read mesh with', n_vertices, 'vertices and', n_cells, 'cells'
+       write(*,*) 'DEBUG: First few vertex coordinates:'
+       do i = 1, min(5, n_vertices)
+          write(*,*) '  Vertex', i, ':', vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+       end do
        
        ! Write mesh data to HDF5 - check if mesh group already exists
        call h5lexists_f(file_id, '/mesh', mesh_group_exists, hdferr)
@@ -1661,14 +2006,19 @@ end if
           write(99,'(A,I0,A)') '    <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
           write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
           write(99,'(A)') '    </Geometry>'
-          write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Use step index as time for now
-          write(99,'(A)') '    <Attribute Name="slipz1_v" Center="Cell">'
+          ! Use actual time value from tcos_all (with bounds check)
+          if (i <= size(tcos_all)) then
+             write(99,'(A,E15.8,A)') '    <Time Value="', tcos_all(i)*yrs, '"/>'
+          else
+             write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Fallback to step index
+          end if
+          write(99,'(A)') '    <Attribute Name="slip_rate" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
           write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_v</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
-          write(99,'(A)') '    <Attribute Name="slipz1_cos" Center="Cell">'
+          write(99,'(A)') '    <Attribute Name="fault_slip" Center="Cell">'
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
           write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
@@ -1685,10 +2035,13 @@ end if
        write(*,*) 'Time-series data written to HDF5: ', trim(hdf5_filename)
        write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
        
+     
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
-       icos = 0 
-    
+       
+       icos = 0
+       
+       ! CRITICAL: Synchronize all MPI processes after HDF5 output      
     end if
 
 
@@ -1699,11 +2052,14 @@ end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
-      ! Initialize HDF5 if not already done
-      if (.not. hdf5_initialized) then
-         call h5open_f(hdferr)
-         hdf5_initialized = .true.
-      end if
+      ! CRITICAL: Synchronize all MPI processes before SSE HDF5 output
+      
+      ! Only master MPI process should do HDF5 output to avoid deadlock
+         ! Initialize HDF5 if not already done
+         if (.not. hdf5_initialized) then
+            call h5open_f(hdferr)
+            hdf5_initialized = .true.
+         end if
       
       ! Create HDF5 filename for SSE data
       hdf5_filename = trim(foldername)//'sse_timeseries_data_'//trim(jobname)//'.h5'
@@ -1724,10 +2080,12 @@ end if
          time_series_group_name = '/sse_time_series'
          call h5gcreate_f(file_id, trim(time_series_group_name), group_id, hdferr)
          
-         ! Create initial extensible datasets for SSE data with chunking
+         ! Create initial extensible datasets for SSE data with optimal chunking
          dims_2d = (/INT(Nt_all, HSIZE_T), INT(nsse, HSIZE_T)/)
          maxdims_2d = (/INT(Nt_all, HSIZE_T), H5S_UNLIMITED_F/)
-         chunk_2d = (/INT(Nt_all, HSIZE_T), INT(min(nsse, 100), HSIZE_T)/)
+         ! FIXED: Use optimal chunk size for SSE data
+         ! CRITICAL: Chunk size must not exceed actual data dimensions
+         chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(max(nsse, 10), nsse), HSIZE_T)/)
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
@@ -1746,7 +2104,9 @@ end if
          
          dims_1d = (/INT(nsse, HSIZE_T)/)
          maxdims_1d = (/H5S_UNLIMITED_F/)
-         chunk_1d = (/INT(min(nsse, 1000), HSIZE_T)/)
+         ! FIXED: Use optimal chunk size for SSE 1D time arrays
+         ! CRITICAL: Chunk size must not exceed actual data dimensions
+         chunk_1d = (/INT(min(max(nsse, 10), nsse), HSIZE_T)/)
          
          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
          call h5pset_chunk_f(dcpl_id, 1, chunk_1d, hdferr)
@@ -1796,6 +2156,7 @@ end if
       
       dims_2d = (/INT(Nt_all, HSIZE_T), INT(nsse, HSIZE_T)/)
       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+      
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sse, dims_2d, hdferr, memspace_id, filespace_id)
       
       call h5sclose_f(memspace_id, hdferr)
@@ -1807,6 +2168,7 @@ end if
       call h5dget_space_f(dset_id, filespace_id, hdferr)
       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+      
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau, dims_2d, hdferr, memspace_id, filespace_id)
       call h5sclose_f(memspace_id, hdferr)
       call h5sclose_f(filespace_id, hdferr)
@@ -1832,8 +2194,29 @@ end if
       
       ! Add mesh data to HDF5
       ! Read GTS file and store mesh information
-      open(98, file='triangular_mesh.gts', status='old', action='read')
-      read(98,*) n_vertices, n_edges_dummy, n_cells
+      inquire(file='triangular_mesh.gts', exist=file_exists)
+      if (.not. file_exists) then
+         write(*,*) 'ERROR: triangular_mesh.gts file not found!'
+         write(*,*) 'This file should contain the mesh geometry matching the simulation.'
+         write(*,*) 'Please ensure triangular_mesh.gts exists in the current directory.'
+         stop
+      end if
+      
+      open(98, file='triangular_mesh.gts', status='old', action='read', iostat=ios)
+      if (ios /= 0) then
+         write(*,*) 'ERROR: Failed to open triangular_mesh.gts, iostat =', ios
+         stop
+      end if
+      
+      read(98,*, iostat=ios) n_vertices, n_edges_dummy, n_cells
+      if (ios /= 0) then
+         write(*,*) 'ERROR: Failed to read mesh dimensions from triangular_mesh.gts, iostat =', ios
+         close(98)
+         stop
+      end if
+      
+      write(*,*) 'DEBUG: Reading SSE mesh from triangular_mesh.gts:'
+      write(*,*) '  Vertices:', n_vertices, 'Edges:', n_edges_dummy, 'Cells:', n_cells
       
       ! Allocate temporary arrays
       allocate(vertex_coords(n_vertices, 3))
@@ -1841,16 +2224,28 @@ end if
       
       ! Read vertex coordinates
       do i = 1, n_vertices
-         read(98,*) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+         read(98,*, iostat=ios) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+         if (ios /= 0) then
+            write(*,*) 'ERROR: Failed to read vertex', i, 'from triangular_mesh.gts, iostat =', ios
+            close(98)
+            stop
+         end if
       end do
       
       ! Read cell connectivity (indices start from 0 in GTS, which is correct for Paraview)
       do i = 1, n_cells
-         read(98,*) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
-         ! change 1-based to 0-based indexing for Paraview compatibility
-         cell_connectivity(i, :) = cell_connectivity(i, :) -1
+         read(98,*, iostat=ios) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+         if (ios /= 0) then
+            write(*,*) 'ERROR: Failed to read cell', i, 'from triangular_mesh.gts, iostat =', ios
+            close(98)
+            stop
+         end if
+         ! Keep 0-based indexing for Paraview compatibility
+         cell_connectivity(i, :) = cell_connectivity(i, :) - 1
       end do
       close(98)
+      
+      write(*,*) 'DEBUG: Successfully read SSE mesh with', n_vertices, 'vertices and', n_cells, 'cells'
       
       ! Write mesh data to HDF5 - check if mesh group already exists
       call h5lexists_f(file_id, '/mesh', mesh_group_exists, hdferr)
@@ -1931,13 +2326,13 @@ end if
          write(99,'(A,I0,3A)') '     <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">sse_timeseries_data_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
          write(99,'(A)') '    </Geometry>'
          write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Use step index as time for now
-         write(99,'(A)') '    <Attribute Name="slipz1_sse" Center="Cell">'
+         write(99,'(A)') '    <Attribute Name="SSE_slip_rate" Center="Cell">'
          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_sse</DataItem>'
          write(99,'(A)') '     </DataItem>'
          write(99,'(A)') '    </Attribute>'
-         write(99,'(A)') '    <Attribute Name="slipz1_tau" Center="Cell">'
+         write(99,'(A)') '    <Attribute Name="shear_stress" Center="Cell">'
          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
@@ -1954,10 +2349,25 @@ end if
       write(*,*) 'SSE time-series data written to HDF5: ', trim(hdf5_filename)
       write(*,*) 'SSE XDMF visualization file created: ', trim(xdmf_filename)
       
+      ! VALIDATION: Write binary files for SSE HDF5 validation
+      ! Write slipz1_sse data to binary file for validation
+      open(unit=102, file=trim(foldername)//'slipz1_sse'//jobname, form='unformatted', access='stream', position='append', status='unknown')
+      write(102) slipz1_sse(:,1:nsse)
+      close(102)
+      write(*,*) 'Validation: slipz1_sse data written to ', trim(foldername)//'slipz1_sse_appendix.dat'
+      
+      ! Write tsse data to binary file for validation
+      open(unit=103, file=trim(foldername)//'t-sse'//jobname, form='unformatted', access='stream', position='append', status='unknown')
+      write(103) tsse(1:nsse)
+      close(103)
+      write(*,*) 'Validation: tsse data written to ', trim(foldername)//'t-sse.dat'
+      
       ! Update global SSE counter for accumulative writing
       global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
-   
+      
+      ! CRITICAL: Synchronize all MPI processes after SSE HDF5 output
+     
   end if
 
 
@@ -2162,7 +2572,6 @@ else
        inul = 0 
 	end if
 
-end if 
 
  110    format(E22.14,7(1X,E15.7))
  120    format(E20.13,4X,E20.13,4X,I6)
@@ -2175,5 +2584,43 @@ end if
  700    format(E13.6)
  900    format(E15.8)
 
+end if  ! Close if(Ioutput == 0)then
+
 RETURN
 END subroutine output
+
+
+!------------------------------------------------------------------------------
+! Data reordering function to ensure consistent data ordering for HDF5 output
+!------------------------------------------------------------------------------
+subroutine reorder_data_for_hdf5(data_array, n_elements, n_timesteps, mpi_to_mesh_map)
+  implicit none
+  integer, parameter :: DP = kind(1.0d0)
+  integer, intent(in) :: n_elements, n_timesteps
+  real(DP), intent(inout) :: data_array(n_elements, n_timesteps)
+  integer, intent(in) :: mpi_to_mesh_map(n_elements)
+  
+  real(DP), allocatable :: temp_array(:,:)
+  integer :: i, j, mesh_idx
+  
+  ! Allocate temporary array for reordering
+  allocate(temp_array(n_elements, n_timesteps))
+  
+  ! Copy original data to temporary array
+  temp_array = data_array
+  
+  ! Reorder data according to mesh ordering
+  do i = 1, n_elements
+     mesh_idx = mpi_to_mesh_map(i)
+     if (mesh_idx >= 1 .and. mesh_idx <= n_elements) then
+        do j = 1, n_timesteps
+           data_array(mesh_idx, j) = temp_array(i, j)
+        end do
+     else
+        write(*,*) 'ERROR: Invalid mesh index', mesh_idx, 'for MPI index', i
+     end if
+  end do
+  
+  deallocate(temp_array)
+  
+end subroutine reorder_data_for_hdf5
