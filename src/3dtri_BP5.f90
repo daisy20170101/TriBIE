@@ -1583,6 +1583,10 @@ if (.not. allocated(tcos_all)) then
    tcos_all = 0.d0
 end if
 
+! Copy tcos to tcos_all before resetting for next cycle
+tcos_all(global_time_steps_written+1:global_time_steps_written+icos) = tcos(1:icos)
+       
+
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, hdferr)
 
 if(Ioutput == 0)then    !output during run 
@@ -2004,7 +2008,7 @@ end if
           write(99,'(A)') '    </Geometry>'
           ! Use actual time value from tcos_all (with bounds check)
           if (i <= size(tcos_all)) then
-             write(99,'(A,E15.8,A)') '    <Time Value="', tcos_all(i), '"/>'
+             write(99,'(A,E15.8,A)') '    <Time Value="', tcos_all(i)*yrs, '"/>'
           else
              write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Fallback to step index
           end if
@@ -2031,9 +2035,7 @@ end if
        write(*,*) 'Time-series data written to HDF5: ', trim(hdf5_filename)
        write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
        
-       ! Copy tcos to tcos_all before resetting for next cycle
-       tcos_all(global_time_steps_written+1:global_time_steps_written+icos) = tcos(1:icos)
-       
+     
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
        
