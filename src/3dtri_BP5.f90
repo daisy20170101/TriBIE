@@ -61,7 +61,7 @@ program main
        tslip_ave,tslipend,tslip_aveint, tmax, &
        tslipsse,tslipcos,tstart1,tend1,tstart2,tend2,tstart3,tend3, &
        tssestart,tsseend, &
-       xilock1,xilock2,x4,z1,z2,z3,&
+       xilock1,xilock2,x4,z1,z2,z3
 
   real (DP) ::  tmbegin,tmrun,tautmp
   
