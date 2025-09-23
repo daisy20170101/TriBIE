@@ -68,15 +68,15 @@ program main
   
   ! Pore fluid pressure variables
   real (DP) :: hz,gfun,gfun2,gfunb,gfun2b,dt_pf1
-  real (DP) :: alpha,beta,phi,q0,toff,pi
-  real (DP), external :: heavi
+  real (DP) :: beta,phi,q0,toff,pi
+  ! heavi is now imported from module
   real (DP), DIMENSION(:), ALLOCATABLE :: dt_pf
   
 
 
 
   real (DP), DIMENSION(:), ALLOCATABLE :: x,z,xi,yt,yt0,dydt,yt_scale, &
-       slip,slipinc,slipds,slipdsinc,sr,vi,pore_fluid,dvel
+       slip,slipinc,slipds,slipdsinc,sr,vi,pore_fluid
 
   !Arrays only defined at master cpu
   real (DP), DIMENSION(:), ALLOCATABLE :: x_all,xi_all,z_all,&
@@ -128,6 +128,7 @@ program main
   
   ! MPI scatter arrays for different data types
   integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
+  integer, dimension(:), allocatable :: sendcounts, displs
   
   ! Element mapping for visualization (MPI order -> Mesh order)
   integer, dimension(:), allocatable :: mpi_to_mesh_map
@@ -475,7 +476,7 @@ end if
            !$OMP CRITICAL
            write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
            !$OMP END CRITICAL
-	end if
+        end if
         if(stiff(i,j) /= stiff(i,j))then  ! Check for NaN using IEEE standard
           stiff(i,j)=0.d0
           !$OMP CRITICAL
@@ -630,23 +631,25 @@ end if
      
      ! Initialize physics variables with proper values
      do j=1,Nt
-        yt(2*j-1)=vi(j)
-        if(vi(j).gt.1e-4) yt(2*j-1)=3*vi(j)
+        yt(3*j-2)=vi(j)
+        if(vi(j).gt.1e-4) yt(3*j-2)=3*vi(j)
 
         phy1(j)=1.0
         phy2(j)=0.0
 
-        help=(yt(2*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
-        tau1(j)=(seff(j)-pore_fluid(j))*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(2*j-1)
+        help=(yt(3*j-2)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
+        tau1(j)=(seff(j)-pore_fluid(j))*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(3*j-2)
         tau2(j) = 0.0
         phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
         phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
 
-        yt(2*j) = xLf(j)/Vint
+        yt(3*j-1) = xLf(j)/Vint
+        yt(3*j) = 1.0d0  ! Initialize third component (state variable)
         slip(j)=0.d0
         slipds(j)=0.d0
-        yt0(2*j-1)=yt(2*j-1)
-        yt0(2*j) = yt(2*j)
+        yt0(3*j-2)=yt(3*j-2)
+        yt0(3*j-1) = yt(3*j-1)
+        yt0(3*j) = yt(3*j)
      end do
   end if
 
@@ -678,7 +681,7 @@ end if
      call MPI_Scatterv(slipds_all,sendcounts,displs,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      
      ! Validate scattered data for NaN/infinity
-     do i = 1, 2*local_cells
+     do i = 1, 3*local_cells
         if (yt(i) /= yt(i) .or. abs(yt(i)) > huge(yt(i))/2) then
            write(*,*) 'ERROR: Invalid yt(',i,') after MPI scatter on process', myid, ' value=', yt(i)
         end if
@@ -711,27 +714,27 @@ end if
   cyclecont=.true.
 
   ! Set communication parameters
-  comm_count = 2*local_cells
+  comm_count = 3*local_cells
   comm_tag = 0
 
   ! Initialize blocking parameters
   block_size = 64  ! Optimal block size for cache
 
   if(myid == master) then
-     allocate(send_buffer(2*Nt_all))
-     allocate(recv_buffer(2*Nt_all))
+     allocate(send_buffer(3*Nt_all))
+     allocate(recv_buffer(3*Nt_all))
   end if
   ! Main simulation loop
   do while(cyclecont) 
 
-     call derivs(myid,dydt,2*local_cells,Nt_all,local_cells,t,yt,z_all,x) 
+     call derivs(myid,dydt,3*local_cells,Nt_all,local_cells,t,yt,z_all,x) 
 
-     do j=1,2*local_cells
+     do j=1,3*local_cells
         yt_scale(j)=dabs(yt(j))+dabs(dt_try*dydt(j))
         yt0(j) = yt(j)
      end do
      
-     CALL rkqs(myid,yt,dydt,2*local_cells,Nt_all,local_cells,t,dt_try,accuracy,yt_scale, &
+     CALL rkqs(myid,yt,dydt,3*local_cells,Nt_all,local_cells,t,dt_try,accuracy,yt_scale, &
           dt_did,dt_next,z_all,x)
 
      dt = dt_did
@@ -740,23 +743,23 @@ end if
      ! Physics calculations for each cell
      do i=1,local_cells
 
-      G_val = compute_G(z(i),t,apha)
-      G_vall_off = compute_G(z(i),t-toff,apha)
-      pore_fuild(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
-      write(*,,*) 'pf:',pore_fuild(i),yt(3*i-2)
+      G_val = compute_G(z(i),t,alpha)
+      G_val_off = compute_G(z(i),t-toff,alpha)
+      pore_fluid(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
+      write(*,*) 'pf:',pore_fluid(i),yt(3*i-2)
 
       dvel(i) = max(1d-16,0.1*dabs(dydt(3*i-2)))
 
       if(12.0/1d-6/dvel(i).lt.dt_pf) dt_pf = max(0.0010, dvel(i))
 
 
-        tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(2*i-1)*phy1(i)
-        help=(yt(2*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(2*i)/xLf(i)))/cca(i))
+        tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(3*i-2)*phy1(i)
+        help=(yt(3*i-2)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         tau1(i) = (seff(i)-pore_fluid(i))*cca(i)*dlog(help+dsqrt(1+help**2))
         tau2(i) = tau1(i)/phy1(i)*phy2(i)
 
-        slipinc(i) = 0.5*(yt0(2*i-1)+yt(2*i-1))*dt
-        slipdsinc(i)=0.5*(yt0(2*i-1)+yt(2*i-1))*dt*phy2(i)/phy1(i)
+        slipinc(i) = 0.5*(yt0(3*i-2)+yt(3*i-2))*dt
+        slipdsinc(i)=0.5*(yt0(3*i-2)+yt(3*i-2))*dt*phy2(i)/phy1(i)
         slip(i) = slip(i) + slipinc(i)
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
@@ -810,27 +813,27 @@ end if
         
         ! Find max velocity and calculate moment
         do i=1,Nt_all
-           if(yt_all(2*i-1).ge.maxv(imv))then
-              maxv(imv)=yt_all(2*i-1)
+           if(yt_all(3*i-2).ge.maxv(imv))then
+              maxv(imv)=yt_all(3*i-2)
               maxnum(imv)=i
            end if
    
-          if(.not.rup(i).and.yt_all(2*i-1)/yrs.ge.vcos)then
+          if(.not.rup(i).and.yt_all(3*i-2)/yrs.ge.vcos)then
              Trup(i)=t*yrs
              rup(i)=.true.
           end if
-           moment(imv) = moment(imv)+0.5*(yt0_all(2*i-1)+yt_all(2*i-1))/yrs*1d-3*area(i)*xmu*1d6*1d5
+           moment(imv) = moment(imv)+0.5*(yt0_all(3*i-2)+yt_all(3*i-2))/yrs*1d-3*area(i)*xmu*1d6*1d5
         end do
 
         ! SEAS output variables
         do i = 1,10
          outs1(imv,1,i) = slip_all(s1(i))*1.d-3 ! meter
          outs1(imv,2,i) = slipds_all(s1(i))*1.d-3
-         outs1(imv,3,i) =  dlog10(yt_all(2*s1(i)-1)*1.d-3/yrs) ! log10(V) m/s
-         outs1(imv,4,i) =  dlog10(max(yt_all(2*s1(i)-1)*1.d-3/yrs*phy2_all(s1(i))/phy1_all(s1(i)),1d-20))
+         outs1(imv,3,i) =  dlog10(yt_all(3*s1(i)-2)*1.d-3/yrs) ! log10(V) m/s
+         outs1(imv,4,i) =  dlog10(max(yt_all(3*s1(i)-2)*1.d-3/yrs*phy2_all(s1(i))/phy1_all(s1(i)),1d-20))
          outs1(imv,5,i) = tau1_all(s1(i))/10 ! MPa
          outs1(imv,6,i) = tau2_all(s1(i))/10
-         outs1(imv,7,i) = dlog10(yt_all(2*s1(i))*yrs) ! log10(theta)
+         outs1(imv,7,i) = dlog10(yt_all(3*s1(i))*yrs) ! log10(theta)
         end do
 
         do i=1,np1
@@ -851,9 +854,9 @@ end if
            disp2=0d0
            disp3=0d0
           do j=1,Nt_all
-             vel1 = vel1 + surf1(i,j)*(yt0_all(2*j-1)+yt_all(2*j-1))*0.5
-             vel2 = vel2 + surf2(i,j)*(yt0_all(2*j-1)+yt_all(2*j-1))*0.5
-             vel3 = vel3 + surf3(i,j)*(yt0_all(2*j-1)+yt_all(2*j-1))*0.5
+             vel1 = vel1 + surf1(i,j)*(yt0_all(3*j-2)+yt_all(3*j-2))*0.5
+             vel2 = vel2 + surf2(i,j)*(yt0_all(3*j-2)+yt_all(3*j-2))*0.5
+             vel3 = vel3 + surf3(i,j)*(yt0_all(3*j-2)+yt_all(3*j-2))*0.5
           
            disp1=disp1+surf1(i,j)*slip_all(j)
            disp2=disp2+surf2(i,j)*slip_all(j)
@@ -906,7 +909,7 @@ end if
               do i=1,Nt_all
                  ! Use direct MPI gather order (no mapping)
                  slipz1_cos(i,icos) = slip_all(i)*1.d-3
-                 slipz1_v(i,icos) = dlog10(yt_all(2*i-1)*1.d-3/yrs) 
+                 slipz1_v(i,icos) = dlog10(yt_all(3*i-2)*1.d-3/yrs) 
                  slipz1_tau(i,icos) = tau1_all(i)
               end do
               
@@ -1061,10 +1064,10 @@ end if
   end if
 
 
-  DEALLOCATE (stiff,vi,sr)
-  DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale)
+  DEALLOCATE (stiff,sr)
+  DEALLOCATE (x,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
-  DEALLOCATE (cca,ccb,xLf,seff,pore_fluid,dvel,dt_pf)
+  DEALLOCATE (cca,ccb,xLf,seff,pore_fluid,dt_pf)
   
   ! Clean up MPI_Scatterv arrays
   if (use_trigreen_format .and. allocated(sendcounts)) then
@@ -1210,7 +1213,7 @@ end subroutine rkqs
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
        USE mpi
        USE phy3d_module_bp6, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
-            tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs,pore_fluid
+            tm1,tm2,tmday,tmelse,tmmidn,tmmult,pore_fluid
        implicit none
        integer, parameter :: DP = kind(1.0d0)
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
@@ -1238,7 +1241,7 @@ end subroutine rkqs
         
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
-          zz(i)=yt(2*i-1)-Vpl
+          zz(i)=yt(3*i-2)-Vpl
        end do
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
@@ -1281,13 +1284,13 @@ end subroutine rkqs
        ! Small regularization parameter to prevent ln(0) while maintaining physics
        
        do i=1,Nt
-          if (yt(2*i) < theta_min) then
+          if (yt(3*i) < theta_min) then
              ! Apply regularization: don't change original values, just prevent ln(0)
              ! This preserves the physical state while making calculations numerically stable
-             if (yt(2*i) <= 0.0d0) then
-                write(*,*) 'INFO: Regularizing zero state variable at i=', i, ' from', yt(2*i), ' to', theta_min
+             if (yt(3*i) <= 0.0d0) then
+                write(*,*) 'INFO: Regularizing zero state variable at i=', i, ' from', yt(3*i), ' to', theta_min
              end if
-             yt(2*i) = max(yt(2*i), theta_min)
+             yt(3*i) = max(yt(3*i), theta_min)
           end if
           if (xLf(i) <= 0.0d0) then
              write(*,*) 'ERROR: Non-positive xLf(i) at i=', i, ' value=', xLf(i), ' correcting to 1.0d-3'
@@ -1314,8 +1317,8 @@ end subroutine rkqs
            (dGdt_val * heavi(t) + G_val * dirac_delta(t))
 
 !aging             
-	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
-!slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
+          deriv3 = 1-yt(3*i-2)*yt(3*i)/xLf(i)
+!slip law         deriv3 = -yt(3*i-2)*yt(3*i)/xLf(i)*dlog(yt(3*i-2)*yt(3*i)/xLf(i))
           ! add dpf/dt in the  term
           dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3 + frc* dydt(3*i -2 ))/(eta+deriv2) ! total shear traction
           dydt(3*i)=deriv3     
@@ -1324,11 +1327,14 @@ end subroutine rkqs
        
        ! Post-validate results (outside SIMD for debugging)
        do i=1,Nt
-          if (dydt(2*i-1) /= dydt(2*i-1) .or. abs(dydt(2*i-1)) > huge(dydt(2*i-1))/2) then
-             write(*,*) 'WARNING: Invalid dydt(2*i-1) at i=', i, ' value=', dydt(2*i-1)
+          if (dydt(3*i-2) /= dydt(3*i-2) .or. abs(dydt(3*i-2)) > huge(dydt(3*i-2))/2) then
+             write(*,*) 'WARNING: Invalid dydt(3*i-2) at i=', i, ' value=', dydt(3*i-2)
           end if
-          if (dydt(2*i) /= dydt(2*i) .or. abs(dydt(2*i)) > huge(dydt(2*i))/2) then
-             write(*,*) 'WARNING: Invalid dydt(2*i) at i=', i, ' value=', dydt(2*i)
+          if (dydt(3*i-1) /= dydt(3*i-1) .or. abs(dydt(3*i-1)) > huge(dydt(3*i-1))/2) then
+             write(*,*) 'WARNING: Invalid dydt(3*i-1) at i=', i, ' value=', dydt(3*i-1)
+          end if
+          if (dydt(3*i) /= dydt(3*i) .or. abs(dydt(3*i)) > huge(dydt(3*i))/2) then
+             write(*,*) 'WARNING: Invalid dydt(3*i) at i=', i, ' value=', dydt(3*i)
           end if
        end do
 
@@ -1456,13 +1462,13 @@ end subroutine rkqs
 !------------------------------------------------------------------------------
 
 subroutine restart(inout,filename,Ifileout,Nt_all,t,dt,dt_try,ndt,nrec,yt,slip)
-USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
-                        tm1,tm2,tmday,tmelse,tmmidn,tmmult,xLf,Vpl
+USE phy3d_module_bp6, ONLY : jobname,foldername,restartname, &
+                        tm1,tm2,tmday,tmelse,tmmidn,tmmult,Vpl
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer :: inout,i,ndt,nrec,Ifileout,Nt,Nt_all
       real (DP) :: t,dt,dt_try
-      real (DP) ::  yt(2*Nt_all),slip(Nt_all)
+      real (DP) ::  yt(3*Nt_all),slip(Nt_all)
       character(len=40) :: filename
       
       ! Additional variables for debugging
@@ -1497,14 +1503,14 @@ USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
           write(*,*) 'Read header: t=',t,' ndt=',ndt,' nrec=',nrec
           read(Ifileout,*)dt,dt_try
           write(*,*) 'Read timesteps: dt=',dt,' dt_try=',dt_try
-          write(*,*) 'About to read 2*Nt_all=', 2*Nt_all, ' yt values...'
+          write(*,*) 'About to read 3*Nt_all=', 3*Nt_all, ' yt values...'
           
           ! Count problematic values
           zero_count = 0
           negative_count = 0 
           invalid_count = 0
           
-          do i=1,2*Nt_all
+          do i=1,3*Nt_all
              read(Ifileout,*)yt(i)
              ! Debug: Show first few values being read
              if (i <= 10) then
@@ -1550,7 +1556,7 @@ USE phy3d_module_non, ONLY : jobname,foldername,restartname, &
          open(Ifileout,file=trim(foldername)//trim(filename)//jobname,status='unknown')
          write(Ifileout,*)t,ndt,nrec
          write(Ifileout,*)dt,dt_try
-         do i=1,2*Nt_all
+         do i=1,3*Nt_all
               write(Ifileout,*)yt(i)
          end do
          do i=1,Nt_all
