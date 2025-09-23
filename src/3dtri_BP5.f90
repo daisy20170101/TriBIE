@@ -613,6 +613,7 @@ end if
   dtmin = 1.d-10
   dt_try=dtmin
   Vint = Vpl
+  dt_pf = 0.d0
 
   Ifileout = 60   !file index, after 47
   !----Initial values of velocity, state variable, shear stress and slip--
@@ -625,20 +626,20 @@ end if
      
      ! Initialize physics variables with proper values
      do j=1,Nt
-        yt(3*j-2)=vi(j)
-        if(vi(j).gt.1e-4) yt(3*j-2)=3*vi(j)
+        yt(3*j-1)=vi(j)
+        if(vi(j).gt.1e-4) yt(3*j-1)=3*vi(j)
 
         phy1(j)=1.0
         phy2(j)=0.0
 
-        help=(yt(3*j-2)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
-        tau1(j)=(seff(j)-pore_fluid(j))*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(3*j-2)
+        help=(yt(3*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
+        tau1(j)=(seff(j)-pore_fluid(j))*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(3*j-1)
         tau2(j) = 0.0
         phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
         phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
 
-        yt(3*j-1) = xLf(j)/Vint
-        yt(3*j) = 1.0d0  ! Initialize third component (state variable)
+        yt(3*j-2) = 0.0d0  ! Initialize pore fluid pressure
+        yt(3*j) = xLf(j)/Vint  ! Initialize theta (state variable)
         slip(j)=0.d0
         slipds(j)=0.d0
         yt0(3*j-2)=yt(3*j-2)
@@ -744,22 +745,22 @@ end if
 
       dvel(i) = max(1d-16,0.1*dabs(dydt(3*i-2)))
 
-         if(12.0/1d-6/dvel(i).lt.dt_pf) dt_pf = max(0.0010, dvel(i))
+      if(12.0/1d-6/dvel(i).lt.dt_pf) dt_pf = max(0.0010, dvel(i))
 
 
-        tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(3*i-2)*phy1(i)
-        help=(yt(3*i-2)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
+        tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(3*i-1)*phy1(i)
+        help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         tau1(i) = (seff(i)-pore_fluid(i))*cca(i)*dlog(help+dsqrt(1+help**2))
         tau2(i) = tau1(i)/phy1(i)*phy2(i)
 
-        slipinc(i) = 0.5*(yt0(3*i-2)+yt(3*i-2))*dt
-        slipdsinc(i)=0.5*(yt0(3*i-2)+yt(3*i-2))*dt*phy2(i)/phy1(i)
+        slipinc(i) = 0.5*(yt0(3*i-1)+yt(3*i-1))*dt
+        slipdsinc(i)=0.5*(yt0(3*i-1)+yt(3*i-1))*dt*phy2(i)/phy1(i)
         slip(i) = slip(i) + slipinc(i)
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
 
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
-      call MPI_Gather(dt_pf,1,MPI_Real8,dt_pf_all,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   call MPI_Gather(dt_pf(1),1,MPI_Real8,dt_pf_all,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      
      if(myid.eq.master) then 
          dt_pf1 = minval(dt_pf_all)
@@ -807,24 +808,24 @@ end if
         
         ! Find max velocity and calculate moment
         do i=1,Nt_all
-           if(yt_all(3*i-2).ge.maxv(imv))then
-              maxv(imv)=yt_all(3*i-2)
+           if(yt_all(3*i-1).ge.maxv(imv))then
+              maxv(imv)=yt_all(3*i-1)
               maxnum(imv)=i
            end if
    
-          if(.not.rup(i).and.yt_all(3*i-2)/yrs.ge.vcos)then
+          if(.not.rup(i).and.yt_all(3*i-1)/yrs.ge.vcos)then
              Trup(i)=t*yrs
              rup(i)=.true.
           end if
-           moment(imv) = moment(imv)+0.5*(yt0_all(3*i-2)+yt_all(3*i-2))/yrs*1d-3*area(i)*xmu*1d6*1d5
+           moment(imv) = moment(imv)+0.5*(yt0_all(3*i-1)+yt_all(3*i-1))/yrs*1d-3*area(i)*xmu*1d6*1d5
         end do
 
         ! SEAS output variables
         do i = 1,10
          outs1(imv,1,i) = slip_all(s1(i))*1.d-3 ! meter
          outs1(imv,2,i) = slipds_all(s1(i))*1.d-3
-         outs1(imv,3,i) =  dlog10(yt_all(3*s1(i)-2)*1.d-3/yrs) ! log10(V) m/s
-         outs1(imv,4,i) =  dlog10(max(yt_all(3*s1(i)-2)*1.d-3/yrs*phy2_all(s1(i))/phy1_all(s1(i)),1d-20))
+         outs1(imv,3,i) =  dlog10(yt_all(3*s1(i)-1)*1.d-3/yrs) ! log10(V) m/s
+         outs1(imv,4,i) =  dlog10(max(yt_all(3*s1(i)-1)*1.d-3/yrs*phy2_all(s1(i))/phy1_all(s1(i)),1d-20))
          outs1(imv,5,i) = tau1_all(s1(i))/10 ! MPa
          outs1(imv,6,i) = tau2_all(s1(i))/10
          outs1(imv,7,i) = dlog10(yt_all(3*s1(i))*yrs) ! log10(theta)
@@ -848,9 +849,9 @@ end if
            disp2=0d0
            disp3=0d0
           do j=1,Nt_all
-             vel1 = vel1 + surf1(i,j)*(yt0_all(3*j-2)+yt_all(3*j-2))*0.5
-             vel2 = vel2 + surf2(i,j)*(yt0_all(3*j-2)+yt_all(3*j-2))*0.5
-             vel3 = vel3 + surf3(i,j)*(yt0_all(3*j-2)+yt_all(3*j-2))*0.5
+             vel1 = vel1 + surf1(i,j)*(yt0_all(3*j-1)+yt_all(3*j-1))*0.5
+             vel2 = vel2 + surf2(i,j)*(yt0_all(3*j-1)+yt_all(3*j-1))*0.5
+             vel3 = vel3 + surf3(i,j)*(yt0_all(3*j-1)+yt_all(3*j-1))*0.5
           
            disp1=disp1+surf1(i,j)*slip_all(j)
            disp2=disp2+surf2(i,j)*slip_all(j)
@@ -1240,7 +1241,7 @@ end subroutine rkqs
         
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
-          zz(i)=yt(3*i-2)-Vpl
+          zz(i)=yt(3*i-1)-Vpl
        end do
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
@@ -1324,8 +1325,8 @@ end subroutine rkqs
           
 
 !aging             
-          deriv3 = 1-yt(3*i-2)*yt(3*i)/xLf(i)
-!slip law         deriv3 = -yt(3*i-2)*yt(3*i)/xLf(i)*dlog(yt(3*i-2)*yt(3*i)/xLf(i))
+          deriv3 = 1-yt(3*i-1)*yt(3*i)/xLf(i)
+!slip law         deriv3 = -yt(3*i-1)*yt(3*i)/xLf(i)*dlog(yt(3*i-1)*yt(3*i)/xLf(i))
           ! add dpf/dt in the  term
           dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3 + frc* dydt(3*i -2 ))/(eta+deriv2) ! total shear traction
           dydt(3*i)=deriv3     
