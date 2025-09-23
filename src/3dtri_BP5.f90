@@ -62,7 +62,6 @@ program main
        tslipsse,tslipcos,tstart1,tend1,tstart2,tend2,tstart3,tend3, &
        tssestart,tsseend, &
        xilock1,xilock2,x4,z1,z2,z3,&
-       help
 
   real (DP) ::  tmbegin,tmrun,tautmp
   
@@ -128,6 +127,7 @@ program main
   
   ! MPI scatter arrays for different data types
   integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
+  integer, dimension(:), allocatable :: sendcounts, displs
   
   ! Element mapping for visualization (MPI order -> Mesh order)
   integer, dimension(:), allocatable :: mpi_to_mesh_map
@@ -1109,7 +1109,7 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
   allocate (yerr(nmax),ytemp(nmax))
   
   ! OPTIMIZATION: Use more efficient error calculation
-1 call rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,ytemp,x,derivs,z_all,p,dt_pf1,pore_fluid)
+1 call rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,ytemp,x,derivs,z_all,p)
   
   ! OPTIMIZATION: Vectorize error calculation for better performance
   errmax=0.
@@ -1209,10 +1209,10 @@ end subroutine rkqs
      end subroutine rkck
 !------------------------------------------------------------------------------
 !------------------------------------------------------------------------------
-     subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
+     subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,z)
        USE mpi
        USE phy3d_module_bp6, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
-            tm1,tm2,tmday,tmelse,tmmidn,tmmult,pore_fluid,alpha,beta,phi,q0,toff,&
+            tm1,tm2,tmday,tmelse,tmmidn,tmmult,alpha,beta,phi,q0,toff,&
             compute_G,compute_dGdt,dirac_delta,heavi,sendcounts,displs
        ! MPI variables are passed as arguments or declared locally in main program
        implicit none
@@ -1222,7 +1222,7 @@ end subroutine rkqs
        real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
        real (DP) :: psi,help1,help2,help
        real (DP) :: SECNDS
-       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
+       real (DP) :: z(Nt),sr(Nt),z_all(Nt_all),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
        real (DP) :: pore_fulid(Nt)
 
        ! Local variables for blocking optimization
@@ -1231,6 +1231,9 @@ end subroutine rkqs
        integer :: request1, request2
        intrinsic real
        
+       ! pore fulid variables
+       real (DP) :: G_val, dGdt_val, 
+
        ! Regularization parameter for rate-and-state friction
        real(DP), parameter :: theta_min = 1.0d-12  ! Minimum state variable (seconds) - increased for stability
 
@@ -1302,20 +1305,27 @@ end subroutine rkqs
        ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
        !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
        do i=1,Nt
+
+         z(i) = dsign(max(0.000000010,dabs(z(i))),z(i))
+         dGdt_val = compute_dGdt(z(i),t,alpha)
+         G_val = compute_G(z(i), t, alpha)
+         G_val_off = compute_G(z(i),t-toff,alpha)
+         dydt(3*i -2) =  q0 / (beta * phi * sqrt(alpha)) * &
+           (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val * heavi(t-toff) &
+           - G_val_off*dirac_delta(t-toff) )
+
+         pressure = q0 / (beta * phi * sqrt(alpha)) * (G_val*heavi(t) + G_val_off * heavi(t-toff))
+
           psi = dlog(V0*yt(3*i)/xLf(i))
           help1 = yt(3*i-1)/(2*V0)
           help2 = (f0+ccb(i)*psi)/cca(i)
           help = dsqrt(1+(help1*dexp(help2))**2)
           frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
 
-          deriv1 = ((seff(i)-pore_fluid(i))*ccb(i)/yt(3*i))*help1*dexp(help2)/help
-          deriv2 = ((seff(i)-pore_fluid(i))*cca(i)/(2*V0))*dexp(help2)/help
+          deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
+          deriv2 = ((seff(i)-pressure)*cca(i)/(2*V0))*dexp(help2)/help
           
-          z(i) = dsign(max(0.000000010,dabs(z(i))),z(i))
-          dGdt_val = compute_dGdt(z(i),t,alpha)
-          G_val = compute_G(z(i), t, alpha)
-          dydt(3*i -2) =  q0 / (beta * phi * sqrt(alpha)) * &
-           (dGdt_val * heavi(t) + G_val * dirac_delta(t))
+          
 
 !aging             
           deriv3 = 1-yt(3*i-2)*yt(3*i)/xLf(i)
