@@ -68,13 +68,13 @@ program main
 
 
   real (DP), DIMENSION(:), ALLOCATABLE :: x,z,xi,yt,yt0,dydt,yt_scale, &
-       slip,slipinc,slipds,slipdsinc,sr,vi
+       slip,slipinc,slipds,slipdsinc,sr,vi,pore_fluid
 
   !Arrays only defined at master cpu
   real (DP), DIMENSION(:), ALLOCATABLE :: x_all,xi_all,z_all,&
        yt_all,yt0_all,dydt_all,yt_scale_all,tau1_all,tau2_all, &
        slip_all,slipinc_all,slipds_all,slipdsinc_all,cca_all,ccb_all,xLf_all,seff_all,&
-       vi_all,phy1_all,phy2_all
+       vi_all,phy1_all,phy2_all,pore_fluid_all
   !output related parameters
   integer :: imv,ias,icos,isse,Ioutput,inul,i_nul,n_nul_int
   real (DP) :: vcos,vsse1,vsse2
@@ -272,7 +272,7 @@ program main
      ALLOCATE(x_all(Nt_all),xi_all(Nt_all),&
           cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),vi_all(Nt_all),&
           tau1_all(Nt_all),tau2_all(Nt_all),slip_all(Nt_all),slipinc_all(Nt_all),slipds_all(Nt_all),slipdsinc_all(Nt_all),&
-         yt0_all(2*Nt_all),yt_all(2*Nt_all),dydt_all(2*Nt_all),yt_scale_all(2*Nt_all))
+         yt0_all(2*Nt_all),yt_all(2*Nt_all),dydt_all(2*Nt_all),yt_scale_all(2*Nt_all),pore_fluid_all(Nt_all))
 
      allocate(phy1_all(Nt_all),phy2_all(Nt_all))
   else
@@ -281,7 +281,7 @@ program main
      ALLOCATE(x_all(1),xi_all(1),&
           cca_all(1),ccb_all(1),seff_all(1),xLf_all(1),vi_all(1),&
           tau1_all(1),tau2_all(1),slip_all(1),slipinc_all(1),slipds_all(1),slipdsinc_all(1),&
-         yt0_all(1),yt_all(1),dydt_all(1),yt_scale_all(1))
+         yt0_all(1),yt_all(1),dydt_all(1),yt_scale_all(1),pore_fluid_all(1))
 
      allocate(phy1_all(1),phy2_all(1))
   end if
@@ -336,7 +336,7 @@ program main
        xLf(local_cells),tau1(local_cells),tau2(local_cells),tau0(local_cells),slipds(local_cells),&
        slipdsinc(local_cells),slip(local_cells),slipinc(local_cells), &
        yt(2*local_cells),dydt(2*local_cells),yt_scale(2*local_cells),&
-       yt0(2*local_cells),sr(local_cells),vi(local_cells))
+       yt0(2*local_cells),sr(local_cells),vi(local_cells),pore_fluid(local_cells))
 
   ALLOCATE (stiff(local_cells,Nt_all))   !!! stiffness of Stuart green calculation
 
@@ -521,6 +521,12 @@ end if
       stop
    end if
    
+   call MPI_Scatterv(pore_fluid_all,sendcounts,displs,MPI_Real8,pore_fluid,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for pore_fluid, ierr =', ierr, 'on process', myid
+      stop
+   end if
+   
    call MPI_Scatterv(vi_all,sendcounts,displs,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
    if (ierr /= 0) then
       write(*,*) 'ERROR: MPI_Scatterv failed for vi, ierr =', ierr, 'on process', myid
@@ -616,7 +622,7 @@ end if
         phy2(j)=0.0
 
         help=(yt(2*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
-        tau1(j)=seff(j)*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(2*j-1)
+        tau1(j)=(seff(j)-pore_fluid(j))*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(2*j-1)
         tau2(j) = 0.0
         phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
         phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
@@ -720,7 +726,7 @@ end if
      do i=1,local_cells
         tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(2*i-1)*phy1(i)
         help=(yt(2*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(2*i)/xLf(i)))/cca(i))
-        tau1(i) = seff(i)*cca(i)*dlog(help+dsqrt(1+help**2))
+        tau1(i) = (seff(i)-pore_fluid(i))*cca(i)*dlog(help+dsqrt(1+help**2))
         tau2(i) = tau1(i)/phy1(i)*phy2(i)
 
         slipinc(i) = 0.5*(yt0(2*i-1)+yt(2*i-1))*dt
@@ -746,6 +752,7 @@ end if
         call MPI_Gatherv(tau2,local_cells,MPI_Real8,tau2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy1,local_cells,MPI_Real8,phy1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy2,local_cells,MPI_Real8,phy2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(pore_fluid,local_cells,MPI_Real8,pore_fluid_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      else
         ! Non-master processes send their data
         call MPI_Gatherv(yt,2*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -758,6 +765,7 @@ end if
         call MPI_Gatherv(tau2,local_cells,MPI_Real8,tau2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy1,local_cells,MPI_Real8,phy1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy2,local_cells,MPI_Real8,phy2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(pore_fluid,local_cells,MPI_Real8,pore_fluid_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      end if
 
      ! Output calculations (only master process)
@@ -991,7 +999,7 @@ end if
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
                 phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
           slip_all,slipinc_all,slipds_all,slipdsinc_all,&
-           cca_all,ccb_all,xLf_all,seff_all)
+           cca_all,ccb_all,xLf_all,seff_all,pore_fluid_all)
      
      ! Deallocate master-only output arrays (only allocated on master)
      if (allocated(maxnum)) DEALLOCATE(maxnum,maxv,moment,outs1)
@@ -1016,14 +1024,14 @@ end if
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
                 phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
           slip_all,slipinc_all,slipds_all,slipdsinc_all,&
-           cca_all,ccb_all,xLf_all,seff_all)
+           cca_all,ccb_all,xLf_all,seff_all,pore_fluid_all)
   end if
 
 
   DEALLOCATE (stiff,vi,sr)
   DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
-  DEALLOCATE (cca,ccb,xLf,seff)
+  DEALLOCATE (cca,ccb,xLf,seff,pore_fluid)
   
   ! Clean up MPI_Scatterv arrays
   if (use_trigreen_format .and. allocated(sendcounts)) then
@@ -1169,7 +1177,7 @@ end subroutine rkqs
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
        USE mpi
        USE phy3d_module_non, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
-            tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs
+            tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs,pore_fluid
        implicit none
        integer, parameter :: DP = kind(1.0d0)
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
@@ -1261,8 +1269,8 @@ end subroutine rkqs
           help2 = (f0+ccb(i)*psi)/cca(i)
           help = dsqrt(1+(help1*dexp(help2))**2)
 
-          deriv1 = (seff(i)*ccb(i)/yt(2*i))*help1*dexp(help2)/help
-          deriv2 = (seff(i)*cca(i)/(2*V0))*dexp(help2)/help
+          deriv1 = ((seff(i)-pore_fluid(i))*ccb(i)/yt(2*i))*help1*dexp(help2)/help
+          deriv2 = ((seff(i)-pore_fluid(i))*cca(i)/(2*V0))*dexp(help2)/help
 !aging             
 	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
 !slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
@@ -1381,7 +1389,7 @@ end subroutine rkqs
 
       open(444,file='var'//jobname,status='old')
        do i=1,Nt_all
-        read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
+        read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i),pore_fluid_all(i)
         ccab_all(i) = cca_all(i) - ccb_all(i)
         vi_all(i) = vi_all(i)*yrs*1d3
        end do
@@ -2100,6 +2108,11 @@ end if
          call h5dclose_f(dset_id, hdferr)
          call h5sclose_f(dspace_id, hdferr)
          
+         call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
+         call h5dcreate_f(group_id, 'pore_fluid', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
+         call h5dclose_f(dset_id, hdferr)
+         call h5sclose_f(dspace_id, hdferr)
+         
          call h5pclose_f(dcpl_id, hdferr)
          
          dims_1d = (/INT(nsse, HSIZE_T)/)
@@ -2170,6 +2183,17 @@ end if
       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
       
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau, dims_2d, hdferr, memspace_id, filespace_id)
+      call h5sclose_f(memspace_id, hdferr)
+      call h5sclose_f(filespace_id, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      
+      ! Write pore fluid pressure data
+      call h5dopen_f(group_id, 'pore_fluid', dset_id, hdferr)
+      call h5dget_space_f(dset_id, filespace_id, hdferr)
+      call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
+      call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+      
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, pore_fluid_all, dims_2d, hdferr, memspace_id, filespace_id)
       call h5sclose_f(memspace_id, hdferr)
       call h5sclose_f(filespace_id, hdferr)
       call h5dclose_f(dset_id, hdferr)
@@ -2338,6 +2362,12 @@ end if
          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
          write(99,'(A)') '     </DataItem>'
          write(99,'(A)') '    </Attribute>'
+         write(99,'(A)') '    <Attribute Name="pore_fluid_pressure" Center="Cell">'
+         write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
+         write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/pore_fluid</DataItem>'
+         write(99,'(A)') '     </DataItem>'
+         write(99,'(A)') '    </Attribute>'
          write(99,'(A)') '   </Grid>'
       end do
       
@@ -2481,6 +2511,13 @@ else
       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
       call h5dcreate_f(group_id, 'slipz1_tau_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau(:,1:isse), dims_2d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      
+      ! Write partial pore fluid pressure data
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'pore_fluid_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, pore_fluid_all, dims_2d, hdferr)
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
