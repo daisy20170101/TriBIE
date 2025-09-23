@@ -43,7 +43,7 @@
 
 program main
   USE mpi
-  USE phy3d_module_non
+  USE phy3d_module_bp6
   use hdf5  ! Add HDF5 support
   implicit none
   integer, parameter :: DP=kind(1.d0)
@@ -65,16 +65,31 @@ program main
        help
 
   real (DP) ::  tmbegin,tmrun,tautmp
+  
+  ! Pore fluid pressure variables
+  real (DP) :: hz,gfun,gfun2,gfunb,gfun2b,dt_pf1
+  real (DP) :: alpha,beta,phi,q0,toff,pi
+  real (DP), external :: heavi
+  real (DP), DIMENSION(:), ALLOCATABLE :: dt_pf
+  
+  ! Initialize physical parameters for pore fluid pressure
+  pi = 4.0d0 * datan(1.0d0)  ! Pi constant
+  alpha = 1.0d-6  ! Thermal diffusivity (m^2/s)
+  beta = 1.0d-9   ! Compressibility (Pa^-1)
+  phi = 0.1d0     ! Porosity
+  q0 = 1.0d-6     ! Injection rate (m^3/s)
+  toff = 10.0d0   ! Injection duration (days)
+  
 
 
   real (DP), DIMENSION(:), ALLOCATABLE :: x,z,xi,yt,yt0,dydt,yt_scale, &
-       slip,slipinc,slipds,slipdsinc,sr,vi,pore_fluid
+       slip,slipinc,slipds,slipdsinc,sr,vi,pore_fluid,dvel
 
   !Arrays only defined at master cpu
   real (DP), DIMENSION(:), ALLOCATABLE :: x_all,xi_all,z_all,&
        yt_all,yt0_all,dydt_all,yt_scale_all,tau1_all,tau2_all, &
        slip_all,slipinc_all,slipds_all,slipdsinc_all,cca_all,ccb_all,xLf_all,seff_all,&
-       vi_all,phy1_all,phy2_all,pore_fluid_all
+       vi_all,phy1_all,phy2_all,pore_fluid_all,dt_pf_all
   !output related parameters
   integer :: imv,ias,icos,isse,Ioutput,inul,i_nul,n_nul_int
   real (DP) :: vcos,vsse1,vsse2
@@ -272,7 +287,7 @@ program main
      ALLOCATE(x_all(Nt_all),xi_all(Nt_all),&
           cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),vi_all(Nt_all),&
           tau1_all(Nt_all),tau2_all(Nt_all),slip_all(Nt_all),slipinc_all(Nt_all),slipds_all(Nt_all),slipdsinc_all(Nt_all),&
-         yt0_all(2*Nt_all),yt_all(2*Nt_all),dydt_all(2*Nt_all),yt_scale_all(2*Nt_all),pore_fluid_all(Nt_all))
+         yt0_all(2*Nt_all),yt_all(2*Nt_all),dydt_all(2*Nt_all),yt_scale_all(2*Nt_all),pore_fluid_all(Nt_all),dt_pf_all(Nt_all))
 
      allocate(phy1_all(Nt_all),phy2_all(Nt_all))
   else
@@ -281,7 +296,7 @@ program main
      ALLOCATE(x_all(1),xi_all(1),&
           cca_all(1),ccb_all(1),seff_all(1),xLf_all(1),vi_all(1),&
           tau1_all(1),tau2_all(1),slip_all(1),slipinc_all(1),slipds_all(1),slipdsinc_all(1),&
-         yt0_all(1),yt_all(1),dydt_all(1),yt_scale_all(1),pore_fluid_all(1))
+         yt0_all(1),yt_all(1),dydt_all(1),yt_scale_all(1),pore_fluid_all(1),dt_pf_all(1))
 
      allocate(phy1_all(1),phy2_all(1))
   end if
@@ -336,9 +351,12 @@ program main
        xLf(local_cells),tau1(local_cells),tau2(local_cells),tau0(local_cells),slipds(local_cells),&
        slipdsinc(local_cells),slip(local_cells),slipinc(local_cells), &
        yt(2*local_cells),dydt(2*local_cells),yt_scale(2*local_cells),&
-       yt0(2*local_cells),sr(local_cells),vi(local_cells),pore_fluid(local_cells))
+       yt0(2*local_cells),sr(local_cells),vi(local_cells),pore_fluid(local_cells),dvel(local_cells),dt_pf(local_cells))
 
   ALLOCATE (stiff(local_cells,Nt_all))   !!! stiffness of Stuart green calculation
+
+  ! Initialize dt_pf array
+  dt_pf = 1.0d0   ! Initial pore fluid time step
 
   !Read in stiffness matrix, in nprocs segments
 
@@ -724,6 +742,25 @@ end if
 
      ! Physics calculations for each cell
      do i=1,local_cells
+
+      hz =  max(0.0000010,dabs(z(i)))
+
+      gfun = dsqrt(t)*(dexp(-hz**2/4/alpha/t)/dsqrt(pi) - &
+    dabs(hz)/dsqrt(4*alpha*t)*erfc(dabs(hz)/dsqrt(4*alpha*t)))
+      gfun2 = dsqrt(dabs(t-toff))*(dexp(-hz**2/4/alpha/(t-toff))/dsqrt(pi) - &
+            dabs(hz)/dsqrt(4*alpha*dabs(t-toff))*erfc(dabs(hz)/dsqrt(4*alpha*dabs(t-toff))))
+  
+      pore_fluid(i) = max(1d-16,q0/beta/phi/dsqrt(alpha)*(gfun*heavi(t) - gfun2*heavi(t-toff)))
+
+      gfunb = dsqrt(t)*(dexp(-(hz-1.0)**2/4/alpha/t)/dsqrt(pi) - &
+    dabs(hz-1.0)/dsqrt(4*alpha*t)*erfc(dabs(hz-1.0)/dsqrt(4*alpha*t)))
+      gfun2b = dsqrt(dabs(t-toff))*(dexp(-(hz-1.0)**2/4/alpha/(t-toff))/dsqrt(pi) - &
+            dabs(hz-1.0)/dsqrt(4*alpha*dabs(t-toff))*erfc(dabs(hz-1.0)/dsqrt(4*alpha*dabs(t-toff))))
+     
+      dvel(i) = max(1d-16,dabs(pore_fluid(i) -  q0/beta/phi/dsqrt(alpha)*(gfunb*heavi(t) - gfun2b*heavi(t-toff))))
+      if(12.0/1d-6/dvel(i).lt.dt_pf) dt_pf=max(0.0010, 12.0/1d-6/dvel(i))
+
+
         tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(2*i-1)*phy1(i)
         help=(yt(2*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(2*i)/xLf(i)))/cca(i))
         tau1(i) = (seff(i)-pore_fluid(i))*cca(i)*dlog(help+dsqrt(1+help**2))
@@ -735,6 +772,13 @@ end if
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
 
+     call MPI_Barrier(MPI_COMM_WORLD,ierr)
+     call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+
+     if(myid.eq.master) then 
+         dt_pf1 = minval(dt_pf_all)
+         write(*,*) 'step:',t,dt_try,dt_pf1! at z=0.0 km 
+     end if
      ndt = ndt + 1
 
      ! Gather data from all MPI processes
@@ -999,7 +1043,7 @@ end if
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
                 phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
           slip_all,slipinc_all,slipds_all,slipdsinc_all,&
-           cca_all,ccb_all,xLf_all,seff_all,pore_fluid_all)
+           cca_all,ccb_all,xLf_all,seff_all,pore_fluid_all,dt_pf_all)
      
      ! Deallocate master-only output arrays (only allocated on master)
      if (allocated(maxnum)) DEALLOCATE(maxnum,maxv,moment,outs1)
@@ -1024,14 +1068,14 @@ end if
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
                 phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
           slip_all,slipinc_all,slipds_all,slipdsinc_all,&
-           cca_all,ccb_all,xLf_all,seff_all,pore_fluid_all)
+           cca_all,ccb_all,xLf_all,seff_all,pore_fluid_all,dt_pf_all)
   end if
 
 
   DEALLOCATE (stiff,vi,sr)
   DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
-  DEALLOCATE (cca,ccb,xLf,seff,pore_fluid)
+  DEALLOCATE (cca,ccb,xLf,seff,pore_fluid,dvel,dt_pf)
   
   ! Clean up MPI_Scatterv arrays
   if (use_trigreen_format .and. allocated(sendcounts)) then
@@ -1054,7 +1098,7 @@ END program main
 !------------------------------------------------------------------------------
 subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
   Use mpi
-  USE phy3d_module_non, only : nprocs
+  USE phy3d_module_bp6, only : nprocs
   implicit none
   integer, parameter :: DP = kind(1.0d0)   
   integer :: n,i,j,k,NMAX,Nt,Nt_all
@@ -1114,7 +1158,7 @@ end subroutine rkqs
 !-----------------------------------------------------------------------------
 !-----------------------------------------------------------------------------
      subroutine rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,yout,x,derivs,z_all,p)
-       USE phy3d_module_non, only :nprocs
+       USE phy3d_module_bp6, only :nprocs
        implicit none
        integer, parameter :: DP = kind(1.0d0)   
        integer :: n,i,NMAX,myid,Nt_all,Nt
@@ -1176,7 +1220,7 @@ end subroutine rkqs
 !------------------------------------------------------------------------------
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
        USE mpi
-       USE phy3d_module_non, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
+       USE phy3d_module_bp6, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
             tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs,pore_fluid
        implicit none
        integer, parameter :: DP = kind(1.0d0)
@@ -1300,7 +1344,7 @@ end subroutine rkqs
          xilock1,xilock2,cca_all,ccb_all,xLf_all, &
          seff_all,x_all,z_all,vi_all)
       USE mpi
-      USE phy3d_module_non, only: yrs,p18,Nl,Nd,Nab,xmu,xnu,gamma, &
+      USE phy3d_module_bp6, only: yrs,p18,Nl,Nd,Nab,xmu,xnu,gamma, &
            Iprofile,foldername,jobname,profile
       implicit none
       integer, parameter :: DP = kind(1.0d0)
@@ -1531,7 +1575,7 @@ subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
 
 
 USE mpi
-USE phy3d_module_non, only: xmu,nmv,nas,ncos,nnul,nsse,yrs,Vpl,Nl, &
+USE phy3d_module_bp6, only: xmu,nmv,nas,ncos,nnul,nsse,yrs,Vpl,Nl, &
 		foldername,jobname
 use hdf5  ! Add HDF5 support
 implicit none
@@ -2661,3 +2705,16 @@ subroutine reorder_data_for_hdf5(data_array, n_elements, n_timesteps, mpi_to_mes
   deallocate(temp_array)
   
 end subroutine reorder_data_for_hdf5
+
+! Heaviside function for pore fluid pressure calculation
+function heavi(x)
+  implicit none
+  real(8), intent(in) :: x
+  real(8) :: heavi
+  
+  if (x >= 0.0d0) then
+    heavi = 1.0d0
+  else
+    heavi = 0.0d0
+  end if
+end function heavi
