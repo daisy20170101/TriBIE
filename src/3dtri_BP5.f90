@@ -765,6 +765,10 @@ end if
          dt_pf1 = minval(dt_pf_all)
          write(*,*) 'step:',t,dt_try,dt_pf1! at z=0.0 km 
      end if
+
+     CALL MPI_BCAST(dt_pf1,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
+     dt_try = dt_pf1
+
      ndt = ndt + 1
 
      ! Gather data from all MPI processes
