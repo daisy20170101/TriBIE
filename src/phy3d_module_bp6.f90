@@ -20,7 +20,6 @@ real (DP0) ::tsec, tm1,tm2,tmday,tmelse,tmmidn,tmmult,Vpl
 real (DP0) ::dipangle
 
 real (DP0), DIMENSION(:), ALLOCATABLE :: dvel,pp1,tau1,tau2,tau0,cca,ccb,seff,xLf,phy1,phy2
-integer, DIMENSION(:), ALLOCATABLE :: sendcounts, displs
 !real (DP0), DIMENSION(:,:,:), ALLOCATABLE :: fr
 real (DP0), DIMENSION(:,:), ALLOCATABLE :: stiff,stiff2
 character(len=80) :: jobname,foldername,restartname,stiffname,profile

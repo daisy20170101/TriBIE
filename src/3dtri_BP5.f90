@@ -536,11 +536,7 @@ end if
       stop
    end if
    
-   call MPI_Scatterv(pore_fluid_all,sendcounts,displs,MPI_Real8,pore_fluid,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-   if (ierr /= 0) then
-      write(*,*) 'ERROR: MPI_Scatterv failed for pore_fluid, ierr =', ierr, 'on process', myid
-      stop
-   end if
+
    
    call MPI_Scatterv(vi_all,sendcounts,displs,MPI_Real8,vi,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
    if (ierr /= 0) then
@@ -2115,10 +2111,7 @@ end if
          call h5dclose_f(dset_id, hdferr)
          call h5sclose_f(dspace_id, hdferr)
          
-         call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
-         call h5dcreate_f(group_id, 'pore_fluid', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
-         call h5dclose_f(dset_id, hdferr)
-         call h5sclose_f(dspace_id, hdferr)
+         ! pore_fluid output removed
          
          call h5pclose_f(dcpl_id, hdferr)
          
@@ -2194,16 +2187,7 @@ end if
       call h5sclose_f(filespace_id, hdferr)
       call h5dclose_f(dset_id, hdferr)
       
-      ! Write pore fluid pressure data
-      call h5dopen_f(group_id, 'pore_fluid', dset_id, hdferr)
-      call h5dget_space_f(dset_id, filespace_id, hdferr)
-      call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
-      call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
-      
-      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, pore_fluid_all, dims_2d, hdferr, memspace_id, filespace_id)
-      call h5sclose_f(memspace_id, hdferr)
-      call h5sclose_f(filespace_id, hdferr)
-      call h5dclose_f(dset_id, hdferr)
+      ! pore_fluid output removed
       
       ! Write time array
       call h5dopen_f(group_id, 'tsse', dset_id, hdferr)
@@ -2369,12 +2353,7 @@ end if
          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/slipz1_tau</DataItem>'
          write(99,'(A)') '     </DataItem>'
          write(99,'(A)') '    </Attribute>'
-         write(99,'(A)') '    <Attribute Name="pore_fluid_pressure" Center="Cell">'
-         write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
-         write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
-         write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">sse_timeseries_data_', trim(jobname), '.h5:/sse_time_series/pore_fluid</DataItem>'
-         write(99,'(A)') '     </DataItem>'
-         write(99,'(A)') '    </Attribute>'
+         ! pore_fluid XDMF output removed
          write(99,'(A)') '   </Grid>'
       end do
       
@@ -2521,12 +2500,7 @@ else
       call h5dclose_f(dset_id, hdferr)
       call h5sclose_f(dspace_id, hdferr)
       
-      ! Write partial pore fluid pressure data
-      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
-      call h5dcreate_f(group_id, 'pore_fluid_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
-      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, pore_fluid_all, dims_2d, hdferr)
-      call h5dclose_f(dset_id, hdferr)
-      call h5sclose_f(dspace_id, hdferr)
+      ! pore_fluid partial output removed
       
       ! Write partial time array
       dims_1d = (/isse/)
