@@ -68,7 +68,7 @@ program main
   
   ! Pore fluid pressure variables
   real (DP) :: hz,gfun,gfun2,gfunb,gfun2b,dt_pf1
-  real (DP) :: beta,phi,q0,toff,pi
+  real (DP) :: G_val,G_val_off,dGdt_val,frc,help,help1,help2
   ! heavi is now imported from module
   real (DP), DIMENSION(:), ALLOCATABLE :: dt_pf
   
@@ -128,7 +128,6 @@ program main
   
   ! MPI scatter arrays for different data types
   integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
-  integer, dimension(:), allocatable :: sendcounts, displs
   
   ! Element mapping for visualization (MPI order -> Mesh order)
   integer, dimension(:), allocatable :: mpi_to_mesh_map
@@ -353,7 +352,7 @@ program main
 
   ! Initialize dt_pf array
   dt_pf = 1.0d0   ! Initial pore fluid time step
-  pore_fuild = 0.d0
+  pore_fluid = 0.d0
   dvel = 0.d0
 
   !Read in stiffness matrix, in nprocs segments
@@ -1213,7 +1212,9 @@ end subroutine rkqs
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
        USE mpi
        USE phy3d_module_bp6, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
-            tm1,tm2,tmday,tmelse,tmmidn,tmmult,pore_fluid
+            tm1,tm2,tmday,tmelse,tmmidn,tmmult,pore_fluid,alpha,beta,phi,q0,toff,&
+            compute_G,compute_dGdt,dirac_delta,heavi,sendcounts,displs
+       ! MPI variables are passed as arguments or declared locally in main program
        implicit none
        integer, parameter :: DP = kind(1.0d0)
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
@@ -1375,60 +1376,6 @@ end subroutine rkqs
       !     4:     other profiles to be defined (?)
       !-----------------------------------------------------------------------------
 
-      !     PIVITOL TEMPERATURE POINTS AT WHICH A-B VALUES CHANGE
-      if(Iprofile.eq.1)then   !web granite  used in Liu&Rice(2009)
-         tpr(1)=0
-         tpr(2)=100
-         tpr(3)=350
-         tpr(4)=450
-         tpr(5)=500
-         a(1) = 0.015
-         a(2) = 0.015
-         a(3) = 0.015
-         a(4) = 0.015
-         a(5) = 0.025
-         ab(1)=0.004
-         ab(2)=-0.004
-         ab(3)=-0.004
-         ab(4)=0.004
-         ab(5)=0.005
-      end if
-
-      if(Iprofile.eq.2)then   !LSB dry granite 
-         tpr(1) = 0.0
-         tpr(2) = 100.0
-         tpr(3) = 200.0
-         tpr(4) = 270.0
-         tpr(5) = 565.0
-         a(1) = 0.0101
-         a(2) = 0.0138
-         a(3) = 0.0175
-         a(4) = 0.0201
-         a(5) = 0.0310
-         ab(1) = 0.0025
-         ab(2) = 0.0
-         ab(3) = -0.0025
-         ab(4) = -0.0025
-         ab(5) = 0.004
-      end if
-
-      if(Iprofile.eq.3)then      !Modified gabbro, a increases with temp.
-         tpr(1) = 0.0
-         tpr(2) = 100.0
-         tpr(3) = 300.0
-         tpr(4) = 416.0
-         tpr(5) = 520.0
-         a(1) = 0.01
-         a(2) = 0.01
-         a(3) = 0.01
-         a(4) = 0.01    
-         a(5) = 0.01
-         ab(1) = 0.0035
-         ab(2) = -0.0035
-         ab(3) = -0.0035
-         ab(4) = -0.0035
-         ab(5) = 0.001
-      end if
 
 !!! check for minimum Dc
 !!! set SSE depth effective normal stress and Dc
@@ -1438,7 +1385,7 @@ end subroutine rkqs
 
       open(444,file='var'//jobname,status='old')
        do i=1,Nt_all
-        read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i),pore_fluid_all(i)
+        read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
         ccab_all(i) = cca_all(i) - ccb_all(i)
         vi_all(i) = vi_all(i)*yrs*1d3
        end do
