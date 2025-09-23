@@ -1232,7 +1232,7 @@ end subroutine rkqs
        intrinsic real
        
        ! pore fulid variables
-       real (DP) :: G_val, dGdt_val, 
+       real(DP) :: G_val, dGdt_val, frc,G_val_off,pressure
 
        ! Regularization parameter for rate-and-state friction
        real(DP), parameter :: theta_min = 1.0d-12  ! Minimum state variable (seconds) - increased for stability
@@ -1310,6 +1310,7 @@ end subroutine rkqs
          dGdt_val = compute_dGdt(z(i),t,alpha)
          G_val = compute_G(z(i), t, alpha)
          G_val_off = compute_G(z(i),t-toff,alpha)
+
          dydt(3*i -2) =  q0 / (beta * phi * sqrt(alpha)) * &
            (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val * heavi(t-toff) &
            - G_val_off*dirac_delta(t-toff) )
