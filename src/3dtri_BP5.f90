@@ -72,14 +72,7 @@ program main
   real (DP), external :: heavi
   real (DP), DIMENSION(:), ALLOCATABLE :: dt_pf
   
-  ! Initialize physical parameters for pore fluid pressure
-  pi = 4.0d0 * datan(1.0d0)  ! Pi constant
-  alpha = 1.0d-6  ! Thermal diffusivity (m^2/s)
-  beta = 1.0d-9   ! Compressibility (Pa^-1)
-  phi = 0.1d0     ! Porosity
-  q0 = 1.0d-6     ! Injection rate (m^3/s)
-  toff = 10.0d0   ! Injection duration (days)
-  
+
 
 
   real (DP), DIMENSION(:), ALLOCATABLE :: x,z,xi,yt,yt0,dydt,yt_scale, &
@@ -244,7 +237,7 @@ program main
      
      ! Initialize yt scatter arrays (will be set properly during restart)
      do i = 0, size-1
-        sendcounts_yt(i) = 2 * sendcounts(i)  ! yt has 2 components per cell
+        sendcounts_yt(i) = 3 * sendcounts(i)  ! yt has 3 components per cell
      end do
      displs_yt(0) = 0
      do i = 1, size-1
@@ -287,7 +280,7 @@ program main
      ALLOCATE(x_all(Nt_all),xi_all(Nt_all),&
           cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),vi_all(Nt_all),&
           tau1_all(Nt_all),tau2_all(Nt_all),slip_all(Nt_all),slipinc_all(Nt_all),slipds_all(Nt_all),slipdsinc_all(Nt_all),&
-         yt0_all(2*Nt_all),yt_all(2*Nt_all),dydt_all(2*Nt_all),yt_scale_all(2*Nt_all),pore_fluid_all(Nt_all),dt_pf_all(Nt_all))
+         yt0_all(3*Nt_all),yt_all(3*Nt_all),dydt_all(3*Nt_all),yt_scale_all(3*Nt_all),pore_fluid_all(Nt_all),dt_pf_all(Nt_all))
 
      allocate(phy1_all(Nt_all),phy2_all(Nt_all))
   else
@@ -320,6 +313,8 @@ program main
      tcos = 0.d0
      tnul = 0.d0
      tsse = 0.d0
+     pore_fluid_all = 0.d0
+     dt_pf_all = 0.d0
 
 !!! modify output number
      ALLOCATE (slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos), &
@@ -350,13 +345,15 @@ program main
        seff(local_cells),&
        xLf(local_cells),tau1(local_cells),tau2(local_cells),tau0(local_cells),slipds(local_cells),&
        slipdsinc(local_cells),slip(local_cells),slipinc(local_cells), &
-       yt(2*local_cells),dydt(2*local_cells),yt_scale(2*local_cells),&
-       yt0(2*local_cells),sr(local_cells),vi(local_cells),pore_fluid(local_cells),dvel(local_cells),dt_pf(local_cells))
+       yt(3*local_cells),dydt(3*local_cells),yt_scale(3*local_cells),&
+       yt0(3*local_cells),sr(local_cells),vi(local_cells),pore_fluid(local_cells),dvel(local_cells),dt_pf(local_cells))
 
   ALLOCATE (stiff(local_cells,Nt_all))   !!! stiffness of Stuart green calculation
 
   ! Initialize dt_pf array
   dt_pf = 1.0d0   ! Initial pore fluid time step
+  pore_fuild = 0.d0
+  dvel = 0.d0
 
   !Read in stiffness matrix, in nprocs segments
 
@@ -676,7 +673,7 @@ end if
         end do
      end if
      
-     call MPI_Scatterv(yt_all,sendcounts_yt,displs_yt,MPI_Real8,yt,2*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     call MPI_Scatterv(yt_all,sendcounts_yt,displs_yt,MPI_Real8,yt,3*local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Scatterv(slip_all,sendcounts,displs,MPI_Real8,slip,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      call MPI_Scatterv(slipds_all,sendcounts,displs,MPI_Real8,slipds,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      
@@ -743,22 +740,14 @@ end if
      ! Physics calculations for each cell
      do i=1,local_cells
 
-      hz =  max(0.0000010,dabs(z(i)))
+      G_val = compute_G(z(i),t,apha)
+      G_vall_off = compute_G(z(i),t-toff,apha)
+      pore_fuild(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
+      write(*,,*) 'pf:',pore_fuild(i),yt(3*i-2)
 
-      gfun = dsqrt(t)*(dexp(-hz**2/4/alpha/t)/dsqrt(pi) - &
-    dabs(hz)/dsqrt(4*alpha*t)*erfc(dabs(hz)/dsqrt(4*alpha*t)))
-      gfun2 = dsqrt(dabs(t-toff))*(dexp(-hz**2/4/alpha/(t-toff))/dsqrt(pi) - &
-            dabs(hz)/dsqrt(4*alpha*dabs(t-toff))*erfc(dabs(hz)/dsqrt(4*alpha*dabs(t-toff))))
-  
-      pore_fluid(i) = max(1d-16,q0/beta/phi/dsqrt(alpha)*(gfun*heavi(t) - gfun2*heavi(t-toff)))
+      dvel(i) = max(1d-16,0.1*dabs(dydt(3*i-2)))
 
-      gfunb = dsqrt(t)*(dexp(-(hz-1.0)**2/4/alpha/t)/dsqrt(pi) - &
-    dabs(hz-1.0)/dsqrt(4*alpha*t)*erfc(dabs(hz-1.0)/dsqrt(4*alpha*t)))
-      gfun2b = dsqrt(dabs(t-toff))*(dexp(-(hz-1.0)**2/4/alpha/(t-toff))/dsqrt(pi) - &
-            dabs(hz-1.0)/dsqrt(4*alpha*dabs(t-toff))*erfc(dabs(hz-1.0)/dsqrt(4*alpha*dabs(t-toff))))
-     
-      dvel(i) = max(1d-16,dabs(pore_fluid(i) -  q0/beta/phi/dsqrt(alpha)*(gfunb*heavi(t) - gfun2b*heavi(t-toff))))
-      if(12.0/1d-6/dvel(i).lt.dt_pf) dt_pf=max(0.0010, 12.0/1d-6/dvel(i))
+      if(12.0/1d-6/dvel(i).lt.dt_pf) dt_pf = max(0.0010, dvel(i))
 
 
         tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(2*i-1)*phy1(i)
@@ -786,8 +775,8 @@ end if
      
      if(myid == master) then
         ! Master process gathers all data
-        call MPI_Gatherv(yt,2*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gatherv(yt0,2*local_cells,MPI_Real8,yt0_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt,3*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt0,3*local_cells,MPI_Real8,yt0_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(slipinc,local_cells,MPI_Real8,slipinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(slip,local_cells,MPI_Real8,slip_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -799,8 +788,8 @@ end if
         call MPI_Gatherv(pore_fluid,local_cells,MPI_Real8,pore_fluid_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      else
         ! Non-master processes send their data
-        call MPI_Gatherv(yt,2*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gatherv(yt0,2*local_cells,MPI_Real8,yt0_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt,3*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(yt0,3*local_cells,MPI_Real8,yt0_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(slipinc,local_cells,MPI_Real8,slipinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(slip,local_cells,MPI_Real8,slip_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(slipdsinc,local_cells,MPI_Real8,slipdsinc_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -1118,7 +1107,7 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
   allocate (yerr(nmax),ytemp(nmax))
   
   ! OPTIMIZATION: Use more efficient error calculation
-1 call rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,ytemp,x,derivs,z_all,p)
+1 call rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,ytemp,x,derivs,z_all,p,dt_pf1,pore_fluid)
   
   ! OPTIMIZATION: Vectorize error calculation for better performance
   errmax=0.
@@ -1230,7 +1219,8 @@ end subroutine rkqs
        real (DP) :: psi,help1,help2,help
        real (DP) :: SECNDS
        real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
-       
+       real (DP) :: pore_fulid(Nt)
+
        ! Local variables for blocking optimization
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
        real(DP) :: temp_sum
@@ -1308,18 +1298,27 @@ end subroutine rkqs
        ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
        !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
        do i=1,Nt
-          psi = dlog(V0*yt(2*i)/xLf(i))
-          help1 = yt(2*i-1)/(2*V0)
+          psi = dlog(V0*yt(3*i)/xLf(i))
+          help1 = yt(3*i-1)/(2*V0)
           help2 = (f0+ccb(i)*psi)/cca(i)
           help = dsqrt(1+(help1*dexp(help2))**2)
+          frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
 
-          deriv1 = ((seff(i)-pore_fluid(i))*ccb(i)/yt(2*i))*help1*dexp(help2)/help
+          deriv1 = ((seff(i)-pore_fluid(i))*ccb(i)/yt(3*i))*help1*dexp(help2)/help
           deriv2 = ((seff(i)-pore_fluid(i))*cca(i)/(2*V0))*dexp(help2)/help
+          
+          z(i) = dsign(max(0.000000010,dabs(z(i))),z(i))
+          dGdt_val = compute_dGdt(z(i),t,alpha)
+          G_val = compute_G(z(i), t, alpha)
+          dydt(3*i -2) =  q0 / (beta * phi * sqrt(alpha)) * &
+           (dGdt_val * heavi(t) + G_val * dirac_delta(t))
+
 !aging             
 	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
 !slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
-          dydt(2*i-1) = -(zzfric(i)+deriv1*deriv3)/(eta+deriv2) ! total shear traction
-          dydt(2*i)=deriv3     
+          ! add dpf/dt in the  term
+          dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3 + frc* dydt(3*i -2 ))/(eta+deriv2) ! total shear traction
+          dydt(3*i)=deriv3     
        end do
        !$OMP END SIMD
        
