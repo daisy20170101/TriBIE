@@ -5,7 +5,7 @@ public :: compute_G, compute_dGdt, dirac_delta, heavi
 integer, parameter :: DP0=kind(1.d0)
 integer :: IDin, IDout,Iprofile,Nd,Nl,Nd_all,Lratio,Nab,nprocs
 integer :: nmv,nas,ncos,nnul,nsse
-real (DP0), parameter :: pi = 3.14159265358979323, amax=0.007
+real (DP0), parameter :: pi = 3.14159265358979323, sqrt_pi = 1.772453850905516, amax=0.007
 real (DP0), parameter :: xmu= 32.038d9, cs=3464, xnu = 0.25d0, &
                          V0=1d-6,f0=0.6,eta=0.5*xmu/cs,  &
                          gamma=2.0/pi, &
@@ -51,7 +51,7 @@ contains
         erfc_arg = abs_z / sqrt_4at
         
         ! First term: exp(-z²/4αt)/√π
-        exp_term = exp(-(z**2) / (4.0d0 * alpha * t)) / SQRT_PI
+        exp_term = exp(-(z**2) / (4.0d0 * alpha * t)) / sqrt_pi
         
         ! Second term: |z|/√(4αt) * erfc(|z|/√(4αt))
         erfc_term = (abs_z / sqrt_4at) * erfc_function(erfc_arg)
@@ -80,7 +80,7 @@ contains
         z_squared = z**2
         erfc_arg = abs_z / sqrt_4at
         
-        exp_term = exp(-z_squared / (4.0d0 * alpha * t)) / SQRT_PI
+        exp_term = exp(-z_squared / (4.0d0 * alpha * t)) / sqrt_pi
         erfc_term = (abs_z / sqrt_4at) * erfc_function(erfc_arg)
         
         ! ∂G/∂t = (1/2√t) * [exp_term - erfc_term] + √t * [∂exp_term/∂t - ∂erfc_term/∂t]
@@ -93,7 +93,7 @@ contains
         
         ! ∂erfc_term/∂t is more complex
         derfc_dt = -abs_z / (2.0d0 * sqrt_4at * t) * erfc_function(erfc_arg) + &
-                   abs_z * z_squared / (4.0d0 * SQRT_PI * alpha * t**2 * sqrt_4at) * &
+                   abs_z * z_squared / (4.0d0 * sqrt_pi * alpha * t**2 * sqrt_4at) * &
                    exp(-erfc_arg**2)
         
         term2 = sqrt_t * dexp_dt
@@ -118,7 +118,7 @@ contains
             eps = 1.0d-6  ! Small value for sharp approximation
         endif
         
-        dirac_delta = (1.0d0 / (eps * SQRT_PI)) * exp(-(t**2) / (eps**2))
+        dirac_delta = (1.0d0 / (eps * sqrt_pi)) * exp(-(t**2) / (eps**2))
         
     end function dirac_delta
 
