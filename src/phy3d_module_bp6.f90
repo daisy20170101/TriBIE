@@ -18,7 +18,7 @@ real (DP0), parameter :: tauini =29.20d6,tp=100.0,reb=1d-6
 
 real (DP0) ::tsec, tm1,tm2,tmday,tmelse,tmmidn,tmmult,Vpl
 real (DP0) ::dipangle
-
+integer, DIMENSION(:), ALLOCATABLE :: sendcounts, displs
 real (DP0), DIMENSION(:), ALLOCATABLE :: dvel,pp1,tau1,tau2,tau0,cca,ccb,seff,xLf,phy1,phy2
 !real (DP0), DIMENSION(:,:,:), ALLOCATABLE :: fr
 real (DP0), DIMENSION(:,:), ALLOCATABLE :: stiff,stiff2

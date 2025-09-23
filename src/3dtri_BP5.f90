@@ -127,7 +127,6 @@ program main
   
   ! MPI scatter arrays for different data types
   integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
-  integer, dimension(:), allocatable :: sendcounts, displs
   
   ! Element mapping for visualization (MPI order -> Mesh order)
   integer, dimension(:), allocatable :: mpi_to_mesh_map
@@ -280,7 +279,7 @@ program main
      ALLOCATE(x_all(Nt_all),xi_all(Nt_all),&
           cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),vi_all(Nt_all),&
           tau1_all(Nt_all),tau2_all(Nt_all),slip_all(Nt_all),slipinc_all(Nt_all),slipds_all(Nt_all),slipdsinc_all(Nt_all),&
-         yt0_all(3*Nt_all),yt_all(3*Nt_all),dydt_all(3*Nt_all),yt_scale_all(3*Nt_all),pore_fluid_all(Nt_all),dt_pf_all(Nt_all))
+         yt0_all(3*Nt_all),yt_all(3*Nt_all),dydt_all(3*Nt_all),yt_scale_all(3*Nt_all),pore_fluid_all(Nt_all),dt_pf_all(nprocs))
 
      allocate(phy1_all(Nt_all),phy2_all(Nt_all))
   else
@@ -745,7 +744,7 @@ end if
 
       dvel(i) = max(1d-16,0.1*dabs(dydt(3*i-2)))
 
-      if(12.0/1d-6/dvel(i).lt.dt_pf) dt_pf = max(0.0010, dvel(i))
+         if(12.0/1d-6/dvel(i).lt.dt_pf) dt_pf = max(0.0010, dvel(i))
 
 
         tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(3*i-2)*phy1(i)
@@ -760,8 +759,8 @@ end if
      end do
 
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
-     call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-
+      call MPI_Gather(dt_pf,1,MPI_Real8,dt_pf_all,1,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+     
      if(myid.eq.master) then 
          dt_pf1 = minval(dt_pf_all)
          write(*,*) 'step:',t,dt_try,dt_pf1! at z=0.0 km 
