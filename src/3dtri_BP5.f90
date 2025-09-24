@@ -763,7 +763,7 @@ end if
       G_val_off = compute_G(z(i),t-toff,alpha)
       pore_fluid(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
 
-      dvel(i) = max(1d-16,0.1*dabs(dydt(3*i-2)))
+      dvel(i) = max(1d-16,10.0*dabs(dydt(3*i-2)))
 
       dt_pf(i) = max(0.0010, dvel(i))
 
@@ -784,8 +784,8 @@ end if
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
      if(myid.eq.master) then 
-         dt_pf1 = minval(dt_pf_all)
-         write(*,*) 'step:',t,dt_try,dt_pf1! at z=0.0 km 
+         dt_pf1 = max(minval(dt_pf_all),dt_try)
+         write(*,*) 'step:',t,dt_try,minval(dt_pf_all)! at z=0.0 km 
      end if
 
      CALL MPI_BCAST(dt_pf1,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
