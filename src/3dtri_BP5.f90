@@ -183,7 +183,6 @@ program main
   read(12,*)nmv,nas,ncos,nnul,nsse,n_nul_int
   read(12,*)s1(1),s1(2),s1(3),s1(4),s1(5),s1(6),s1(7),s1(8),s1(9),s1(10)
 !!! modified data read in
-110 format(A)
   close(12)
 
   Nab=5 ! used in resdep if dault a-b profile is given 
