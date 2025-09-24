@@ -649,7 +649,7 @@ end if
         phy1(j)=1.0
         phy2(j)=0.0
 
-        help = dlog((2.0*V0/Vint) * dsinh(tauini/(cca(j)*seff(j))))
+        help = dlog((2.d0*V0/Vint) * dsinh(tauini/(cca(j)*seff(j))))
         
         tau1(j)= tauini
         tau2(j) = 0.0
@@ -660,7 +660,7 @@ end if
         yt(3*j) = xLf(j)/V0*dexp((cca(j)/ccb(j))*help - f0/ccb(j))  ! Initialize theta (state variable)
         slip(j)=0.d0
         slipds(j)=0.d0
-        dvel(j)=1d-12
+        dvel(j)=1.d-12
         yt0(3*j-2)=yt(3*j-2)
         yt0(3*j-1) = yt(3*j-1)
         yt0(3*j) = yt(3*j)
@@ -1332,7 +1332,7 @@ end subroutine rkqs
        !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
        do i=1,Nt
 
-         z(i) = dsign(max(0.0010,dabs(z(i))),z(i))
+         z(i) = dsign(max(1.0d-8,dabs(z(i))),z(i))
          dydt(3*i -2) = compute_dpf_dt(z(i), t, alpha, beta, phi, q0, toff)
 
          pressure = compute_pf(z(i), t, alpha, beta, phi, q0, toff)
@@ -1341,21 +1341,18 @@ end subroutine rkqs
          help1 = yt(3*i-1)/(2*V0)
          help2 = (f0+ccb(i)*psi)/cca(i)
          help = dsqrt(1+(help1*dexp(help2))**2)
-         frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
+         !frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
          
-         !help4 = help1 * dexp(help2)
-         !frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
+         help4 = help1 * dexp(help2)
+         frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
 
          deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
-         deriv2 = ((seff(i)-pressure)*cca(i)/(2*V0))*dexp(help2)/help
-          
-          
 
 !aging             
           deriv3 = 1-yt(3*i-1)*yt(3*i)/xLf(i)
 !slip law         deriv3 = -yt(3*i-1)*yt(3*i)/xLf(i)*dlog(yt(3*i-1)*yt(3*i)/xLf(i))
           ! add dpf/dt in the  term
-          dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3 + f0* dydt(3*i -2 ))/(eta+deriv2) ! total shear traction
+          dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3 + frc*dydt(3*i-2))/(eta+deriv2) ! total shear traction
           dydt(3*i)=deriv3     
        end do
        !$OMP END SIMD

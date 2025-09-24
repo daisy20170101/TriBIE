@@ -12,8 +12,8 @@ real (DP0), parameter :: xmu= 32.038d9, cs=3464, xnu = 0.25d0, &
                          p18 = 2.d0*pi/360.d0 
 real (DP0), parameter :: yrs=365.*24.*3600.d0, yrd=365.d0
 ! unit: sec, pa-1, m/s,  alpha, 0.1 m^2/s
-real (DP0), parameter :: toff =  100.0*24*3600.0, beta = 1d-8, q0 = 1.25d-6,phi = 0.1, alpha= 0.1 ! unit converse
-real (DP0), parameter :: kappa=1d-13, eta_diff= 1d-3
+real (DP0), parameter :: toff =  100.0*24*3600.0, beta = 1.d-8, q0 = 1.25d-6,phi = 0.1, alpha= 0.1 ! unit converse
+real (DP0), parameter :: kappa=1.d-13, eta_diff= 1.d-3
 real (DP0), parameter :: tauini =29.20d6,tp=100.0,reb=1d-6
 
 real (DP0) ::tsec, tm1,tm2,tmday,tmelse,tmmidn,tmmult,Vpl
