@@ -180,7 +180,7 @@ contains
         
         ! Compute time derivative of pore fluid pressure
         compute_dpf_dt = q0 / (beta * phi * sqrt(alpha)) * &
-            (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val_off * heavi(t - toff) &
+            (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val * heavi(t - toff) &
             - G_val_off * dirac_delta(t - toff))
         
     end function compute_dpf_dt

@@ -791,7 +791,7 @@ end if
      if(myid.eq.master) then 
          ! Combine Runge-Kutta suggested time step with pore fluid-based time step
          dt_pf1 = min(minval(dt_pf_all), dt_try)
-         write(*,*) 'step:',t,dt_try,minval(dt_pf_all),'RK:',dt_try,'PF:',minval(dt_pf_all)! at z=0.0 km 
+         write(*,*) 'step:',t,dt_try,minval(dt_pf_all)! at z=0.0 km 
      end if
 
      CALL MPI_BCAST(dt_pf1,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
