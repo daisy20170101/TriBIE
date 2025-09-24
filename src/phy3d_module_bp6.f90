@@ -170,13 +170,12 @@ contains
     real(8) function compute_dpf_dt(z, t, alpha, beta, phi, q0, toff)
         implicit none
         real(8), intent(in) :: z, t, alpha, beta, phi, q0, toff
-        real(8) :: G_val, G_val_off, dGdt_val, dGdt_val_off
+        real(8) :: G_val, G_val_off, dGdt_val
         
         ! Compute Green's functions and their time derivatives
         G_val = compute_G(z, t, alpha)
         G_val_off = compute_G(z, t - toff, alpha)
         dGdt_val = compute_dGdt(z, t, alpha)
-        dGdt_val_off = compute_dGdt(z, t - toff, alpha)
         
         ! Compute time derivative of pore fluid pressure
         compute_dpf_dt = q0 / (beta * phi * sqrt(alpha)) * &

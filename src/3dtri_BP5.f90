@@ -765,11 +765,7 @@ end if
 
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
-      if (abs(dvel(i)) > 1e-8) then
-         dt_pf(i) = max(10.0, 1.0d8/abs(dvel(i)))
-      else
-         dt_pf(i) = 1.0d12  ! Large time step if no significant change
-      end if
+      dt_pf(i) = max(10.0, 1.0d8/abs(dvel(i)))
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
@@ -1250,7 +1246,7 @@ end subroutine rkqs
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
        real (DP) :: t,yt(nv),dydt(nv)   
        real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
-       real (DP) :: psi,help1,help2,help
+       real (DP) :: psi,help1,help2,help,help4
        real (DP) :: SECNDS
        real (DP) :: z(Nt),sr(Nt),z_all(Nt_all),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
        real (DP) :: pore_fulid(Nt)
@@ -1346,7 +1342,9 @@ end subroutine rkqs
           help2 = (f0+ccb(i)*psi)/cca(i)
           help = dsqrt(1+(help1*dexp(help2))**2)
          ! frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
-         frc = cca(i)/dsinh(yt(3*i-1)/2/V0*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i)))
+         
+         help4 =(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
+         frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
 
           deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
           deriv2 = ((seff(i)-pressure)*cca(i)/(2*V0))*dexp(help2)/help
