@@ -770,7 +770,7 @@ end if
       pore_fluid(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
 
 
-      dt_pf(i) = max(0.0010, 12.0/1d-7/dvel(i))
+      dt_pf(i) = max(1.0, 12.0/1d-9/dvel(i))
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
@@ -784,7 +784,7 @@ end if
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
 
-      write(*,*) 'pf:',pore_fluid(1),dvel(1)
+      write(*,*) 'pf,dt_pf:',pore_fluid(1),dt_pf(1)
 
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -1351,7 +1351,8 @@ end subroutine rkqs
           help1 = yt(3*i-1)/(2*V0)
           help2 = (f0+ccb(i)*psi)/cca(i)
           help = dsqrt(1+(help1*dexp(help2))**2)
-          frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
+         ! frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
+         frc = cca(i)/dsinh(yt(3*i-1)/2/V0*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i)))
 
           deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
           deriv2 = ((seff(i)-pressure)*cca(i)/(2*V0))*dexp(help2)/help
