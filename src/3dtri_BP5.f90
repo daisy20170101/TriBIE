@@ -761,11 +761,11 @@ end if
 
       dvel(i) = compute_dpf_dt(zh, t, alpha, beta, phi, q0, toff)
            
-      pore_fluid(i) = compute_pf(zh, t, alpha, beta, phi, q0, toff)
+      pore_fluid(i) = yt(3*i-2)
 
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
-      dt_pf(i) = max(10.0, 1.0d8/abs(dvel(i)))
+      dt_pf(i) = max(1.0, 1.0d8/abs(dvel(i)))
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
@@ -853,7 +853,7 @@ end if
          outs1(imv,1,i) = slip_all(s1(i))*1.d-3 ! meter
          outs1(imv,2,i) =  dlog10(yt_all(3*s1(i)-1)) ! log10(V) m/s
          outs1(imv,3,i) = tau1_all(s1(i))/1d6 ! MPa
-         outs1(imv,4,i) = pore_fluid_all(s1(i))/1d6
+         outs1(imv,4,i) = yt_all(3*s1(i)-2)/1d6
          outs1(imv,6,i) = dlog10(yt_all(3*s1(i))*yrs) ! log10(theta)
          outs1(imv,7,i) = 0.d0
          outs1(imv,5,i) = 0.d0
@@ -1337,17 +1337,17 @@ end subroutine rkqs
 
          pressure = compute_pf(z(i), t, alpha, beta, phi, q0, toff)
 
-          psi = dlog(V0*yt(3*i)/xLf(i))
-          help1 = yt(3*i-1)/(2*V0)
-          help2 = (f0+ccb(i)*psi)/cca(i)
-          help = dsqrt(1+(help1*dexp(help2))**2)
+         psi = dlog(V0*yt(3*i)/xLf(i))
+         help1 = yt(3*i-1)/(2*V0)
+         help2 = (f0+ccb(i)*psi)/cca(i)
+         help = dsqrt(1+(help1*dexp(help2))**2)
          ! frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
          
-         help4 =(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
+         help4 = help1 * dexp(help2)
          frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
 
-          deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
-          deriv2 = ((seff(i)-pressure)*cca(i)/(2*V0))*dexp(help2)/help
+         deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
+         deriv2 = ((seff(i)-pressure)*cca(i)/(2*V0))*dexp(help2)/help
           
           
 
