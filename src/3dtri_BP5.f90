@@ -810,12 +810,13 @@ end if
         ! SEAS output variables
         do i = 1,10
          outs1(imv,1,i) = slip_all(s1(i))*1.d-3 ! meter
-         outs1(imv,2,i) = slipds_all(s1(i))*1.d-3
-         outs1(imv,3,i) =  dlog10(yt_all(3*s1(i)-1)*1.d-3/yrs) ! log10(V) m/s
-         outs1(imv,4,i) =  dlog10(max(yt_all(3*s1(i)-1)*1.d-3/yrs*phy2_all(s1(i))/phy1_all(s1(i)),1d-20))
-         outs1(imv,5,i) = tau1_all(s1(i))/10 ! MPa
-         outs1(imv,6,i) = tau2_all(s1(i))/10
-         outs1(imv,7,i) = dlog10(yt_all(3*s1(i))*yrs) ! log10(theta)
+         outs1(imv,2,i) =  dlog10(yt_all(3*s1(i)-1)*1.d-3/yrs) ! log10(V) m/s
+         outs1(imv,3,i) = tau1_all(s1(i))/1d6 ! MPa
+         outs1(imv,4,i) = pore_fluid_all(s1(i))/1d6
+         outs1(imv,6,i) = dlog10(yt_all(3*s1(i))*yrs) ! log10(theta)
+         outs1(imv,7,i) = slipds_all(s1(i))*1.d-3
+         outs1(imv,5,i) =  dlog10(max(yt_all(3*s1(i)-1)*1.d-3/yrs*phy2_all(s1(i))/phy1_all(s1(i)),1d-20))
+
         end do
 
         do i=1,np1
@@ -1289,7 +1290,7 @@ end subroutine rkqs
        !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
        do i=1,Nt
 
-         z(i) = dsign(max(0.000000010,dabs(z(i))),z(i))
+         z(i) = dsign(max(0.0010,dabs(z(i))),z(i))
          dGdt_val = compute_dGdt(z(i),t,alpha)
          G_val = compute_G(z(i), t, alpha)
          G_val_off = compute_G(z(i),t-toff,alpha)
