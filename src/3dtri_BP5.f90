@@ -631,7 +631,7 @@ end if
                 write(i,'(A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A,1x)')'t','slip','slip_rate','shear_stress','pore_pressure','Darcy_vel','state'
                 write(i,100)'# Below is the time-series data.'          
         end do
- 100    format(A)
+ 190    format(A)
 
  
   Ifileout = 60   !file index, after 47
