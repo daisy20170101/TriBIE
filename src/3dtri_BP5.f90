@@ -350,7 +350,7 @@ program main
   ALLOCATE (stiff(local_cells,Nt_all))   !!! stiffness of Stuart green calculation
 
   ! Initialize dt_pf array
-  dt_pf = 1.0d0   ! Initial pore fluid time step
+  dt_pf = 1.d12  ! Initial pore fluid time step
   pore_fluid = 0.d0
   dvel = 0.d0
 
@@ -615,16 +615,19 @@ end if
         phy1(j)=1.0
         phy2(j)=0.0
 
-        help=(yt(3*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
-        tau1(j)=(seff(j)-pore_fluid(j))*cca(j)*dlog(help+dsqrt(1+help**2))+ eta*yt(3*j-1)
+      !  help=(yt(3*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
+        help = dlog((2.0*V0/Vint) * dsinh(tauini/(cca(j)*seff(j))))
+        
+        tau1(j)= tauini
         tau2(j) = 0.0
         phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
         phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
 
         yt(3*j-2) = 0.0d0  ! Initialize pore fluid pressure
-        yt(3*j) = xLf(j)/Vint  ! Initialize theta (state variable)
+        yt(3*j) = xLf(j)/V0*dexp((cca(j)/ccb(j))*help - f0/ccb(j))  ! Initialize theta (state variable)
         slip(j)=0.d0
         slipds(j)=0.d0
+        dvel(j)=1d-12
         yt0(3*j-2)=yt(3*j-2)
         yt0(3*j-1) = yt(3*j-1)
         yt0(3*j) = yt(3*j)
