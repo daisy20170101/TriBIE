@@ -1000,7 +1000,8 @@ end if
           write(i,111) x_all(j)*1d3,z_all(j)*1d3,Trup(j)
         end do
         close(i)
-110 format(E22.14,2(1X,E22.14))
+111 format(E22.14,2(1X,E22.14))
+110 format(A)
 end if
 
 
