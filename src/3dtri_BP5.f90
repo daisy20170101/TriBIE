@@ -770,7 +770,7 @@ end if
       pore_fluid(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
 
 
-      dt_pf(i) = max(0.0010, 12.0/1d-6/dvel(i))
+      dt_pf(i) = max(0.0010, 12.0/1d-7/dvel(i))
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
