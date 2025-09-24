@@ -420,9 +420,9 @@ end if
      ! OPTIMIZATION: Vectorize position reading for better performance
      do k=1,Nt_all
         read(55) x_all(k),xi_all(k),z_all(k) !xi is along the fault-normal  while x is along the strike
-        xi_all(k)=xi_all(k)/1000
-        x_all(k)=x_all(k)/1000
-        z_all(k)=z_all(k)/1000
+        xi_all(k) = xi_all(k) ! y infinite long axis, meter
+        x_all(k) = x_all(k)
+        z_all(k) = z_all(k) -360.0d3-36.0d3
 
        Trup(k)=1d9
        rup(k)=.false. 
@@ -451,6 +451,7 @@ end if
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
         read(5, err=999) stiff(i,j)
+        stiff(i,j) = 1d5*1d3*stiff(i,j)
      end do
   end do
   
@@ -466,24 +467,7 @@ end if
   close(5)
   
   ! SECOND: Process data in parallel (OpenMP for computation only, NO file I/O)
-  !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
-  do i=1,local_cells !! observe (now using local_cells instead of Nt)
-     do j=1,Nt_all !! source
-        if(stiff(i,j).lt.-1.6d0.or.stiff(i,j).gt.1.6d0)then
-           stiff(i,j) = 0.d0
-           !$OMP CRITICAL
-           write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
-           !$OMP END CRITICAL
-        end if
-        if(stiff(i,j) /= stiff(i,j))then  ! Check for NaN using IEEE standard
-          stiff(i,j)=0.d0
-          !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': NaN detected at position (', i, ',', j, ') - set to 0'
-          !$OMP END CRITICAL
-        end if
-     end do
-  end do
-  !$OMP END PARALLEL DO
+  
   
   ! TriGreen integration summary
   if (use_trigreen_format) then
