@@ -741,6 +741,8 @@ end if
   ! Main simulation loop
   do while(cyclecont) 
 
+   if(t.gt.toff) q0 = 0.d0
+
      call derivs(myid,dydt,3*local_cells,Nt_all,local_cells,t,yt,z_all,x) 
 
      do j=1,3*local_cells
@@ -759,9 +761,10 @@ end if
 
       G_val = compute_G(z(i),t,alpha)
       G_val_off = compute_G(z(i),t-toff,alpha)
+
       pore_fluid(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
 
-      dvel(i) = max(1d-16,10.0*dabs(dydt(3*i-2)))
+      dvel(i) = max(1d-16,0.5*dabs(dydt(3*i-2)))
 
       dt_pf(i) = max(0.0010, dvel(i))
 
@@ -784,7 +787,7 @@ end if
 
      if(myid.eq.master) then 
          dt_pf1 = max(minval(dt_pf_all),dt_try)
-         write(*,*) 'step:',t,dt_try,minval(dt_pf_all)! at z=0.0 km 
+         write(*,*) 'step:',t,q0,dt_try,minval(dt_pf_all)! at z=0.0 km 
      end if
 
      CALL MPI_BCAST(dt_pf1,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
@@ -1264,7 +1267,8 @@ end subroutine rkqs
        master = 0 
 
        small=1.d-6
-        
+      if (t.gt.toff) q0 = 0.d0
+
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
           zz(i)=yt(3*i-1)-Vpl
@@ -1332,6 +1336,7 @@ end subroutine rkqs
          dGdt_val = compute_dGdt(z(i),t,alpha)
          G_val = compute_G(z(i), t, alpha)
          G_val_off = compute_G(z(i),t-toff,alpha)
+
 
          dydt(3*i -2) =  q0 / (beta * phi * sqrt(alpha)) * &
            (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val * heavi(t-toff) &
