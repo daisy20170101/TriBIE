@@ -741,8 +741,6 @@ end if
   ! Main simulation loop
   do while(cyclecont) 
 
-   if(t.gt.toff) q0 = 0.d0
-
      call derivs(myid,dydt,3*local_cells,Nt_all,local_cells,t,yt,z_all,x) 
 
      do j=1,3*local_cells
@@ -1267,7 +1265,6 @@ end subroutine rkqs
        master = 0 
 
        small=1.d-6
-      if (t.gt.toff) q0 = 0.d0
 
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
