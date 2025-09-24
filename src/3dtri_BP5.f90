@@ -854,7 +854,7 @@ end if
         ! SEAS output variables
         do i = 1,10
          outs1(imv,1,i) = slip_all(s1(i))*1.d-3 ! meter
-         outs1(imv,2,i) =  dlog10(yt_all(3*s1(i)-1)*1.d-3/yrs) ! log10(V) m/s
+         outs1(imv,2,i) =  dlog10(yt_all(3*s1(i)-1)) ! log10(V) m/s
          outs1(imv,3,i) = tau1_all(s1(i))/1d6 ! MPa
          outs1(imv,4,i) = pore_fluid_all(s1(i))/1d6
          outs1(imv,6,i) = dlog10(yt_all(3*s1(i))*yrs) ! log10(theta)
