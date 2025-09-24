@@ -593,7 +593,7 @@ end if
 
   accuracy = 1.d-4
   epsv = 1.0d-3
-  dtmin = 1.d-10
+  dtmin = 0.001 ! in sec
   dt_try=dtmin
   Vint = Vpl
 
@@ -649,7 +649,6 @@ end if
         phy1(j)=1.0
         phy2(j)=0.0
 
-      !  help=(yt(3*j-1)/(2.0*V0))*dexp((f0+ccb(j)*dlog(V0/Vint))/cca(j))
         help = dlog((2.0*V0/Vint) * dsinh(tauini/(cca(j)*seff(j))))
         
         tau1(j)= tauini
@@ -714,7 +713,7 @@ end if
 
   else
      if(myid==master)then
-        write(1,*)'Start time ',t,' yr'
+        write(1,*)'Start time ',t,' s'
      end if
   end if
   if(myid==master)then
@@ -827,7 +826,7 @@ end if
      ! Output calculations (only master process)
      if(myid==master)then
         imv=imv+1
-        tmv(imv)=t*yrs
+        tmv(imv)=t
         maxv(imv) = 0.d0
         moment(imv) =0.d0
         
