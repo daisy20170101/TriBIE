@@ -759,9 +759,9 @@ end if
 
       zh = dsign(max(0.0010,dabs(z(i))),z(i))
 
-      dvel(i) = compute_dpf_dt(zh, t, alpha, beta, phi, q0, toff)
+      dvel(i) = dydt(3*i-2)
            
-      pore_fluid(i) = yt(3*i-2)
+      pore_fluid(i) = yt_scale(3*i-2)
 
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
@@ -1355,7 +1355,7 @@ end subroutine rkqs
           deriv3 = 1-yt(3*i-1)*yt(3*i)/xLf(i)
 !slip law         deriv3 = -yt(3*i-1)*yt(3*i)/xLf(i)*dlog(yt(3*i-1)*yt(3*i)/xLf(i))
           ! add dpf/dt in the  term
-          dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3 + frc* dydt(3*i -2 ))/(eta+deriv2) ! total shear traction
+          dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3 + f0* dydt(3*i -2 ))/(eta+deriv2) ! total shear traction
           dydt(3*i)=deriv3     
        end do
        !$OMP END SIMD
