@@ -1,6 +1,6 @@
 ! Module to define global variables used in 3d_sub.f90 (or 3d_strike.f90)
 Module phy3d_module_bp6
-public :: compute_G, compute_dGdt, dirac_delta, heavi
+public :: compute_G, compute_dGdt, dirac_delta, heavi, compute_pf
 
 integer, parameter :: DP0=kind(1.d0)
 integer :: IDin, IDout,Iprofile,Nd,Nl,Nd_all,Lratio,Nab,nprocs
@@ -147,6 +147,23 @@ contains
         endif
         
     end function erfc_function
+
+    ! Compute pore fluid pressure
+    ! p_fluid = (q0/(βφ√α)) * [G(t) - G(t-toff)]
+    
+    real(8) function compute_pf(z, t, alpha, beta, phi, q0, toff)
+        implicit none
+        real(8), intent(in) :: z, t, alpha, beta, phi, q0, toff
+        real(8) :: G_val, G_val_off
+        
+        ! Compute Green's functions
+        G_val = compute_G(z, t, alpha)
+        G_val_off = compute_G(z, t - toff, alpha)
+        
+        ! Compute pore fluid pressure
+        compute_pf = q0 / (beta * phi * sqrt(alpha)) * (G_val * heavi(t) - G_val_off * heavi(t - toff))
+        
+    end function compute_pf
 
 end module phy3d_module_bp6
 

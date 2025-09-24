@@ -767,10 +767,15 @@ end if
            (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val * heavi(t-toff) &
            - G_val_off*dirac_delta(t-toff) )
            
-      pore_fluid(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
+      pore_fluid(i) = compute_pf(z(i), t, alpha, beta, phi, q0, toff)
 
-
-      dt_pf(i) = max(1.0, 12.0/1d-9/dvel(i))
+      ! Time step inversely related to velocity change rate (dvel)
+      ! This ensures smaller time steps when velocity changes rapidly
+      if (abs(dvel(i)) > 1e-8) then
+         dt_pf(i) = max(10.0, 1.0d8/abs(dvel(i)))
+      else
+         dt_pf(i) = 1.0d12  ! Large time step if no significant change
+      end if
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
@@ -790,11 +795,13 @@ end if
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
      if(myid.eq.master) then 
-         dt_pf1 = min(minval(dt_pf_all),dt_try)
-         write(*,*) 'step:',t,dt_try,minval(dt_pf_all)! at z=0.0 km 
+         ! Combine Runge-Kutta suggested time step with pore fluid-based time step
+         dt_pf1 = min(minval(dt_pf_all), dt_try)
+         write(*,*) 'step:',t,dt_try,minval(dt_pf_all),'RK:',dt_try,'PF:',minval(dt_pf_all)! at z=0.0 km 
      end if
 
      CALL MPI_BCAST(dt_pf1,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
+     ! Use the more restrictive time step (smaller of RK and pore fluid)
      dt_try = dt_pf1
 
      ndt = ndt + 1
@@ -1242,7 +1249,7 @@ end subroutine rkqs
        USE mpi
        USE phy3d_module_bp6, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
             tm1,tm2,tmday,tmelse,tmmidn,tmmult,alpha,beta,phi,q0,toff,&
-            compute_G,compute_dGdt,dirac_delta,heavi,sendcounts,displs
+            compute_pf,compute_G,compute_dGdt,dirac_delta,heavi,compute_pf,sendcounts,displs
        ! MPI variables are passed as arguments or declared locally in main program
        implicit none
        integer, parameter :: DP = kind(1.0d0)
@@ -1345,7 +1352,7 @@ end subroutine rkqs
            (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val * heavi(t-toff) &
            - G_val_off*dirac_delta(t-toff) )
 
-         pressure = q0 / (beta * phi * sqrt(alpha)) * (G_val*heavi(t) + G_val_off * heavi(t-toff))
+         pressure = compute_pf(z(i), t, alpha, beta, phi, q0, toff)
 
           psi = dlog(V0*yt(3*i)/xLf(i))
           help1 = yt(3*i-1)/(2*V0)
