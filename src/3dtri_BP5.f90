@@ -784,7 +784,7 @@ end if
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
 
-      write(*,*) 'pf:',pore_fluid(1),dvel(i)
+      write(*,*) 'pf:',pore_fluid(1),dvel(1)
 
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
