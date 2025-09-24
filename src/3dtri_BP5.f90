@@ -631,7 +631,7 @@ end if
                 write(i,100)'# Below is the time-series data.'          
         end do
  190    format(A)
-
+end if
  
   Ifileout = 60   !file index, after 47
   !----Initial values of velocity, state variable, shear stress and slip--
