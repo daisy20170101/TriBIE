@@ -67,7 +67,7 @@ program main
   
   ! Pore fluid pressure variables
   real (DP) :: hz,gfun,gfun2,gfunb,gfun2b,dt_pf1
-  real (DP) :: G_val,G_val_off,dGdt_val,frc,help,help1,help2
+  real (DP) :: G_val,G_val_off,dGdt_val,frc,help,help1,help2,zh
   ! heavi is now imported from module
   real (DP), DIMENSION(:), ALLOCATABLE :: dt_pf
   
@@ -757,14 +757,20 @@ end if
      ! Physics calculations for each cell
      do i=1,local_cells
 
-      G_val = compute_G(z(i),t,alpha)
-      G_val_off = compute_G(z(i),t-toff,alpha)
+      zh = dsign(max(0.0010,dabs(z(i))),z(i))
 
+      G_val = compute_G(zh,t,alpha)
+      G_val_off = compute_G(zh,t-toff,alpha)
+      dGdt_val = compute_dGdt(zh,t,alpha)
+
+      dvel(i) =  q0 / (beta * phi * sqrt(alpha)) * &
+           (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val * heavi(t-toff) &
+           - G_val_off*dirac_delta(t-toff) )
+           
       pore_fluid(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
 
-      dvel(i) = max(1d-16,10000.0*dabs(dydt(3*i-2)))
 
-      dt_pf(i) = max(0.0010, dvel(i))
+      dt_pf(i) = max(0.0010, 12.0/1d-6/dvel(i))
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
@@ -778,7 +784,7 @@ end if
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
 
-      write(*,*) 'pf:',pore_fluid(1),yt(3*1-2)
+      write(*,*) 'pf:',pore_fluid(1),dvel(i)
 
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
