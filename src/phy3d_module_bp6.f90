@@ -23,7 +23,7 @@ real (DP0), DIMENSION(:), ALLOCATABLE :: dvel,pp1,tau1,tau2,tau0,cca,ccb,seff,xL
 !real (DP0), DIMENSION(:,:,:), ALLOCATABLE :: fr
 real (DP0), DIMENSION(:,:), ALLOCATABLE :: stiff,stiff2
 character(len=80) :: jobname,foldername,restartname,stiffname,profile
-real(DP0),parameter :: vini = 31.5 ! initial vel
+real(DP0),parameter :: vini = 1d-12 ! initial vel
 real(DP0), parameter :: y2=-50.0,y3=-50.0, T0=1.0d0, tau_p0=17.5d0, rr_nuc=150.0d0
 
 contains
