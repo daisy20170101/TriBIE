@@ -644,8 +644,7 @@ end if
      
      ! Initialize physics variables with proper values
      do j=1,Nt
-        yt(3*j-1)=vi(j)
-        if(vi(j).gt.1e-4) yt(3*j-1)=3*vi(j)
+        yt(3*j-1)= vini
 
         phy1(j)=1.0
         phy2(j)=0.0
@@ -767,13 +766,14 @@ end if
 
       dt_pf(i) = max(0.0010, dvel(i))
 
-        tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(3*i-1)*phy1(i)
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
+        
         tau1(i) = (seff(i)-pore_fluid(i))*cca(i)*dlog(help+dsqrt(1+help**2))
         tau2(i) = tau1(i)/phy1(i)*phy2(i)
 
         slipinc(i) = 0.5*(yt0(3*i-1)+yt(3*i-1))*dt
         slipdsinc(i)=0.5*(yt0(3*i-1)+yt(3*i-1))*dt*phy2(i)/phy1(i)
+        
         slip(i) = slip(i) + slipinc(i)
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
@@ -852,8 +852,8 @@ end if
          outs1(imv,3,i) = tau1_all(s1(i))/1d6 ! MPa
          outs1(imv,4,i) = pore_fluid_all(s1(i))/1d6
          outs1(imv,6,i) = dlog10(yt_all(3*s1(i))*yrs) ! log10(theta)
-         outs1(imv,7,i) = slipds_all(s1(i))*1.d-3
-         outs1(imv,5,i) =  dlog10(max(yt_all(3*s1(i)-1)*1.d-3/yrs*phy2_all(s1(i))/phy1_all(s1(i)),1d-20))
+         outs1(imv,7,i) = 0.d0
+         outs1(imv,5,i) = 0.d0
 
         end do
 
