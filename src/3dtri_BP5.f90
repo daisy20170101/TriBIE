@@ -598,6 +598,42 @@ end if
   dt_try=dtmin
   Vint = Vpl
 
+  if(myid==master)then
+      open(311,file=trim(foldername)//'fltst_strk-15'//jobname,access='append',status='unknown')
+      open(312,file=trim(foldername)//'fltst_strk+00'//jobname,access='append',status='unknown')
+      open(313,file=trim(foldername)//'fltst_strk+05'//jobname,access='append',status='unknown')
+      open(314,file=trim(foldername)//'fltst_strk+10'//jobname,access='append',status='unknown')
+      open(315,file=trim(foldername)//'fltst_strk+15'//jobname,access='append',status='unknown')
+      open(316,file=trim(foldername)//'fltst_strk+25'//jobname,access='append',status='unknown')
+      open(317,file=trim(foldername)//'fltst_strk+35'//jobname,access='append',status='unknown')
+      open(318,file=trim(foldername)//'fltst_strk+50'//jobname,access='append',status='unknown')
+      open(319,file=trim(foldername)//'fltst_strk+75'//jobname,access='append',status='unknown')
+
+       do i=311,319
+                write(i,100)'# This is the file header'
+                write(i,100)'# problem=SEAS Benchmark No.6'
+                write(i,100)'# author=D.Li'
+        write(i,100)'# code=TriBIE'
+                write(i,100)'# date=2022/8/1'
+                write(i,100)'# element_size = 100 m'
+                write(i,100)'# minimum_time_step = 1e-3'
+                write(i,100)'# maximum_time_step = 2e+7'
+                write(i,100)'# location = on fault: file name'
+                write(i,100)'# Column #1 = Time (s)'
+                write(i,100)'# Column #2 = slip (m)'
+                write(i,100)'# Column #3 = Slip_rate (log10 m/s)'
+                write(i,100)'# Column #4 = Shear stress  (MPa)'
+                write(i,100)'# Column #5 = pore_pressure  (MPa)'
+        write(i,100)'# Column #6 = Darcy vel  (m/s)'
+                write(i,100)'# Column #7 = State (log10 s)'
+                write(i,100)'# '
+                write(i,100)'# The line below lists the names of the data fields:'
+                write(i,'(A,1x,A,1x,A,1x,A,1x,A,1x,A,1x,A,1x)')'t','slip','slip_rate','shear_stress','pore_pressure','Darcy_vel','state'
+                write(i,100)'# Below is the time-series data.'          
+        end do
+ 100    format(A)
+
+ 
   Ifileout = 60   !file index, after 47
   !----Initial values of velocity, state variable, shear stress and slip--
   !--SET INITIAL VPL FOR THE LOCKED PART TO BE 0 
@@ -1596,27 +1632,26 @@ if(Ioutput == 0)then    !output during run
 
    if(imv==nmv)then
       open(30,file=trim(foldername)//'maxvall'//jobname,position='append',status='unknown')
-      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,position='append',status='unknown')
-      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,position='append',status='unknown')
-      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,position='append',status='unknown')
-      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,position='append',status='unknown')
-      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,position='append',status='unknown')
-      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,position='append',status='unknown')
-      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,position='append',status='unknown')
-      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,position='append',status='unknown')
-      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,position='append',status='unknown')
-      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,position='append',status='unknown')
+      open(311,file=trim(foldername)//'fltst_strk-15'//jobname,access='append',status='unknown')
+      open(312,file=trim(foldername)//'fltst_strk+00'//jobname,access='append',status='unknown')
+      open(313,file=trim(foldername)//'fltst_strk+05'//jobname,access='append',status='unknown')
+      open(314,file=trim(foldername)//'fltst_strk+10'//jobname,access='append',status='unknown')
+      open(315,file=trim(foldername)//'fltst_strk+15'//jobname,access='append',status='unknown')
+      open(316,file=trim(foldername)//'fltst_strk+25'//jobname,access='append',status='unknown')
+      open(317,file=trim(foldername)//'fltst_strk+35'//jobname,access='append',status='unknown')
+      open(318,file=trim(foldername)//'fltst_strk+50'//jobname,access='append',status='unknown')
+      open(319,file=trim(foldername)//'fltst_strk+75'//jobname,access='append',status='unknown')
 
       do i=1,nmv
          write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs),moment(i)
-        do j=311,320
+        do j=311,319
          write(j,110) tmv(i),outs1(i,1,j-310),outs1(i,2,j-310),outs1(i,3,j-310),outs1(i,4,j-310), &
            outs1(i,5,j-310),outs1(i,6,j-310),outs1(i,7,j-310)
         end do
        end do
       close(30)
       
-      do j=311,320
+      do j=311,319
          close(j)
       end do 
 
@@ -2382,26 +2417,25 @@ else
 
    if((imv>0).and.(imv<nmv))then
       open(30,file=trim(foldername)//'maxvall'//jobname,position='append',status='unknown')
-      open(311,file=trim(foldername)//'fltst_strk-36dp+00'//jobname,position='append',status='unknown')
-      open(312,file=trim(foldername)//'fltst_strk-16dp+00'//jobname,position='append',status='unknown')
-      open(313,file=trim(foldername)//'fltst_strk+00dp+00'//jobname,position='append',status='unknown')
-      open(314,file=trim(foldername)//'fltst_strk+16dp+00'//jobname,position='append',status='unknown')
-      open(315,file=trim(foldername)//'fltst_strk+36dp+00'//jobname,position='append',status='unknown')
-      open(316,file=trim(foldername)//'fltst_strk-24dp+10'//jobname,position='append',status='unknown')
-      open(317,file=trim(foldername)//'fltst_strk-16dp+10'//jobname,position='append',status='unknown')
-      open(318,file=trim(foldername)//'fltst_strk+00dp+10'//jobname,position='append',status='unknown')
-      open(319,file=trim(foldername)//'fltst_strk+16dp+10'//jobname,position='append',status='unknown')
-      open(320,file=trim(foldername)//'fltst_strk+00dp+22'//jobname,position='append',status='unknown')
+      open(311,file=trim(foldername)//'fltst_strk-15'//jobname,access='append',status='unknown')
+      open(312,file=trim(foldername)//'fltst_strk+00'//jobname,access='append',status='unknown')
+      open(313,file=trim(foldername)//'fltst_strk+05'//jobname,access='append',status='unknown')
+      open(314,file=trim(foldername)//'fltst_strk+10'//jobname,access='append',status='unknown')
+      open(315,file=trim(foldername)//'fltst_strk+15'//jobname,access='append',status='unknown')
+      open(316,file=trim(foldername)//'fltst_strk+25'//jobname,access='append',status='unknown')
+      open(317,file=trim(foldername)//'fltst_strk+35'//jobname,access='append',status='unknown')
+      open(318,file=trim(foldername)//'fltst_strk+50'//jobname,access='append',status='unknown')
+      open(319,file=trim(foldername)//'fltst_strk+75'//jobname,access='append',status='unknown')
 
       do i=1,imv
          write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs),moment(i)
-        do j=311,320
+        do j=311,319
          write(j,110) tmv(i),outs1(i,1,j-310),outs1(i,2,j-310),outs1(i,3,j-310),outs1(i,4,j-310), &
            outs1(i,5,j-310),outs1(i,6,j-310),outs1(i,7,j-310)
         end do
       end do
        close(30)
-       do j=311,320
+       do j=311,319
          close(j)
        end do
  
