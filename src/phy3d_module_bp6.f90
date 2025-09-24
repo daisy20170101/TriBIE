@@ -1,6 +1,6 @@
 ! Module to define global variables used in 3d_sub.f90 (or 3d_strike.f90)
 Module phy3d_module_bp6
-public :: compute_G, compute_dGdt, dirac_delta, heavi, compute_pf
+public :: compute_G, compute_dGdt, dirac_delta, heavi, compute_pf, compute_dpf_dt
 
 integer, parameter :: DP0=kind(1.d0)
 integer :: IDin, IDout,Iprofile,Nd,Nl,Nd_all,Lratio,Nab,nprocs
@@ -164,6 +164,26 @@ contains
         compute_pf = q0 / (beta * phi * sqrt(alpha)) * (G_val * heavi(t) - G_val_off * heavi(t - toff))
         
     end function compute_pf
+
+    ! Compute time derivative of pore fluid pressure
+    ! dp_fluid/dt = (q0/(βφ√α)) * [dG/dt * H(t) + G(t) * δ(t) - dG/dt * H(t-toff) - G(t-toff) * δ(t-toff)]
+    real(8) function compute_dpf_dt(z, t, alpha, beta, phi, q0, toff)
+        implicit none
+        real(8), intent(in) :: z, t, alpha, beta, phi, q0, toff
+        real(8) :: G_val, G_val_off, dGdt_val, dGdt_val_off
+        
+        ! Compute Green's functions and their time derivatives
+        G_val = compute_G(z, t, alpha)
+        G_val_off = compute_G(z, t - toff, alpha)
+        dGdt_val = compute_dGdt(z, t, alpha)
+        dGdt_val_off = compute_dGdt(z, t - toff, alpha)
+        
+        ! Compute time derivative of pore fluid pressure
+        compute_dpf_dt = q0 / (beta * phi * sqrt(alpha)) * &
+            (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val_off * heavi(t - toff) &
+            - G_val_off * dirac_delta(t - toff))
+        
+    end function compute_dpf_dt
 
 end module phy3d_module_bp6
 

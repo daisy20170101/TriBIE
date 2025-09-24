@@ -67,7 +67,7 @@ program main
   
   ! Pore fluid pressure variables
   real (DP) :: hz,gfun,gfun2,gfunb,gfun2b,dt_pf1
-  real (DP) :: G_val,G_val_off,dGdt_val,frc,help,help1,help2,zh
+  real (DP) :: frc,help,help1,help2,zh
   ! heavi is now imported from module
   real (DP), DIMENSION(:), ALLOCATABLE :: dt_pf
   
@@ -759,15 +759,9 @@ end if
 
       zh = dsign(max(0.0010,dabs(z(i))),z(i))
 
-      G_val = compute_G(zh,t,alpha)
-      G_val_off = compute_G(zh,t-toff,alpha)
-      dGdt_val = compute_dGdt(zh,t,alpha)
-
-      dvel(i) =  q0 / (beta * phi * sqrt(alpha)) * &
-           (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val * heavi(t-toff) &
-           - G_val_off*dirac_delta(t-toff) )
+      dvel(i) = compute_dpf_dt(zh, t, alpha, beta, phi, q0, toff)
            
-      pore_fluid(i) = compute_pf(z(i), t, alpha, beta, phi, q0, toff)
+      pore_fluid(i) = compute_pf(zh, t, alpha, beta, phi, q0, toff)
 
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
@@ -1249,7 +1243,7 @@ end subroutine rkqs
        USE mpi
        USE phy3d_module_bp6, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
             tm1,tm2,tmday,tmelse,tmmidn,tmmult,alpha,beta,phi,q0,toff,&
-            compute_pf,compute_G,compute_dGdt,dirac_delta,heavi,compute_pf,sendcounts,displs
+            compute_pf,compute_dpf_dt,compute_G,compute_dGdt,dirac_delta,heavi,sendcounts,displs
        ! MPI variables are passed as arguments or declared locally in main program
        implicit none
        integer, parameter :: DP = kind(1.0d0)
@@ -1268,7 +1262,7 @@ end subroutine rkqs
        intrinsic real
        
        ! pore fulid variables
-       real(DP) :: G_val, dGdt_val, frc,G_val_off,pressure
+       real(DP) :: frc,pressure
 
        ! Regularization parameter for rate-and-state friction
        real(DP), parameter :: theta_min = 1.0d-12  ! Minimum state variable (seconds) - increased for stability
@@ -1343,14 +1337,7 @@ end subroutine rkqs
        do i=1,Nt
 
          z(i) = dsign(max(0.0010,dabs(z(i))),z(i))
-         dGdt_val = compute_dGdt(z(i),t,alpha)
-         G_val = compute_G(z(i), t, alpha)
-         G_val_off = compute_G(z(i),t-toff,alpha)
-
-
-         dydt(3*i -2) =  q0 / (beta * phi * sqrt(alpha)) * &
-           (dGdt_val * heavi(t) + G_val * dirac_delta(t) - dGdt_val * heavi(t-toff) &
-           - G_val_off*dirac_delta(t-toff) )
+         dydt(3*i -2) = compute_dpf_dt(z(i), t, alpha, beta, phi, q0, toff)
 
          pressure = compute_pf(z(i), t, alpha, beta, phi, q0, toff)
 
