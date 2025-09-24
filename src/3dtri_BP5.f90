@@ -762,12 +762,10 @@ end if
       G_val = compute_G(z(i),t,alpha)
       G_val_off = compute_G(z(i),t-toff,alpha)
       pore_fluid(i) = q0 / (beta * phi * sqrt(alpha)) * ( G_val* heavi(t)- G_val_off * heavi(t-toff))
-      write(*,*) 'pf:',pore_fluid(i),yt(3*i-2)
 
       dvel(i) = max(1d-16,0.1*dabs(dydt(3*i-2)))
 
       dt_pf(i) = max(0.0010, dvel(i))
-
 
         tau1(i) = zzfric(i)*dt+tau1(i)-eta*yt(3*i-1)*phy1(i)
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
@@ -779,6 +777,8 @@ end if
         slip(i) = slip(i) + slipinc(i)
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
+
+      write(*,*) 'pf:',pore_fluid(1),yt(3*1-2)
 
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
