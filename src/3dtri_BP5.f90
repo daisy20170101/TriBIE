@@ -1341,10 +1341,10 @@ end subroutine rkqs
          help1 = yt(3*i-1)/(2*V0)
          help2 = (f0+ccb(i)*psi)/cca(i)
          help = dsqrt(1+(help1*dexp(help2))**2)
-         frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
+         !frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
          
          help4 = help1 * dexp(help2)
-         !frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
+         frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
 
           deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
           deriv2 = ((seff(i)-pressure)*cca(i)/(2*V0))*dexp(help2)/help
