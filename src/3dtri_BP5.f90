@@ -593,7 +593,7 @@ end if
 
   accuracy = 1.d-4
   epsv = 1.0d-3
-  dtmin = 0.001 ! in sec
+  dtmin = 1.0d-3 ! in sec
   dt_try=dtmin
   Vint = Vpl
 
@@ -786,9 +786,9 @@ end if
 
      if(myid.eq.master) then 
          ! Combine Runge-Kutta suggested time step with pore fluid-based time step
-         if (dt_try/dt*maxval(dt_pf_all).gt.0.1) dt_try = 0.1*dt/maxval(dt_pf_all)
+         if (dt_try/dt*maxval(dt_pf_all).gt.0.1) dt_try = max(1.d-3,0.1*dt/maxval(dt_pf_all))
          !dt_pf1 = min(min(0.1,minval(dt_pf_all)), dt_try)
-         write(*,*) 'step:',t,dt_try,dt_try/dt*minval(dt_pf_all)! at z=0.0 km 
+         write(*,*) 'step:',t,dt_try,dt_try/dt*maxval(dt_pf_all)! at z=0.0 km 
      end if
 
      CALL MPI_BCAST(dt_try,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
