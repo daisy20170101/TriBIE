@@ -1346,7 +1346,10 @@ end subroutine rkqs
          help4 = help1 * dexp(help2)
          !frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
 
-         deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
+          deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
+          deriv2 = ((seff(i)-pressure)*cca(i)/(2*V0))*dexp(help2)/help
+          
+          
 
 !aging             
           deriv3 = 1-yt(3*i-1)*yt(3*i)/xLf(i)
