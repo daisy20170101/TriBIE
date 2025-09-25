@@ -419,8 +419,6 @@ end if
      ! OPTIMIZATION: Vectorize position reading for better performance
      do k=1,Nt_all
         read(55) x_all(k),xi_all(k),z_all(k) !xi is along the fault-normal  while x is along the strike
-        xi_all(k) = xi_all(k) ! y infinite long axis, meter
-        x_all(k) = x_all(k)
         z_all(k) = z_all(k) -204.0d3
 
        Trup(k)=1d9
@@ -526,9 +524,9 @@ end if
       stop
    end if
    
-   call MPI_Scatterv(x_all,sendcounts,displs,MPI_Real8,x,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   call MPI_Scatterv(z_all,sendcounts,displs,MPI_Real8,z,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
    if (ierr /= 0) then
-      write(*,*) 'ERROR: MPI_Scatterv failed for x, ierr =', ierr, 'on process', myid
+      write(*,*) 'ERROR: MPI_Scatterv failed for z, ierr =', ierr, 'on process', myid
       stop
    end if
 
@@ -758,16 +756,16 @@ end if
      ! Physics calculations for each cell
      do i=1,local_cells
 
-      zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
+      !zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
 
-      dvel(i) = compute_dpf_dt(zh, t, alpha, beta, phi, q0, toff)
+      dvel(i) = compute_dpf_dt(max(1.0d-8,dabs(z(i))), t, alpha, beta, phi, q0, toff)
            
-      pore_fluid(i) = compute_pf(zh, t, alpha, beta, phi, q0, toff)
-
+      pore_fluid(i) = compute_pf(max(1.0d-8,dabs(z(i))), t, alpha, beta, phi, q0, toff)
+     
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
       ! Use max to prevent division by zero and extremely large time steps
-      dt_pf(i) = max(1.0d-12,abs(dvel(i)))/1.d5
+      dt_pf(i) = max(1.0d-12,abs(dvel(i)))/1.d4
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
@@ -781,7 +779,6 @@ end if
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
 
-      write(*,*) 'pf,dpf_dt:',pore_fluid(1),dvel(1)
 
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
@@ -789,8 +786,9 @@ end if
          ! Combine Runge-Kutta suggested time step with pore fluid-based time step
          dref = 1.0d-1
          if (dt_try/dt*maxval(dt_pf_all).gt.dref) dt_try = max(1.2d0,dref*dt/maxval(dt_pf_all))
+         if (abs(t-toff).lt.8640000.0) dt_try=1.2d0
          !dt_pf1 = min(min(1.0,minval(dt_pf_all)), dt_try)
-         write(*,*) 'step:',t,dt_try,dt,dt_try/dt*maxval(dt_pf_all)! at z=0.0 km 
+         write(*,*) 'step:',t,dt_try,abs(t-toff),pore_fluid(2),dvel(2)! at z=0.0 km 
      end if
 
      CALL MPI_BCAST(dt_try,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
@@ -814,7 +812,7 @@ end if
         call MPI_Gatherv(tau2,local_cells,MPI_Real8,tau2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy1,local_cells,MPI_Real8,phy1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy2,local_cells,MPI_Real8,phy2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gatherv(pore_fluid,local_cells,MPI_Real8,pore_fluid_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(dvel,local_cells,MPI_Real8,pore_fluid_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      else
         ! Non-master processes send their data
         call MPI_Gatherv(yt,3*local_cells,MPI_Real8,yt_all,sendcounts_yt,displs_yt,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -827,7 +825,7 @@ end if
         call MPI_Gatherv(tau2,local_cells,MPI_Real8,tau2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy1,local_cells,MPI_Real8,phy1_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
         call MPI_Gatherv(phy2,local_cells,MPI_Real8,phy2_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
-        call MPI_Gatherv(pore_fluid,local_cells,MPI_Real8,pore_fluid_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+        call MPI_Gatherv(dvel,local_cells,MPI_Real8,pore_fluid_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
      end if
 
      ! Output calculations (only master process)
@@ -853,12 +851,11 @@ end if
 
         ! SEAS output variables
         do i = 1,10
-         outs1(imv,1,i) = slip_all(s1(i))*1.d-3 ! meter
+         outs1(imv,1,i) = slip_all(s1(i)) ! meter
          outs1(imv,2,i) =  dlog10(yt_all(3*s1(i)-1)) ! log10(V) m/s
          outs1(imv,3,i) = tau1_all(s1(i))/1d6 ! MPa
          outs1(imv,4,i) = yt_all(3*s1(i)-2)/1d6
          outs1(imv,6,i) = dlog10(yt_all(3*s1(i))) ! log10(theta)
-         outs1(imv,7,i) = 0.d0
          outs1(imv,5,i) = pore_fluid_all(s1(i))/1d6 ! darcy vel
 
         end do
@@ -1335,10 +1332,10 @@ end subroutine rkqs
        !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
        do i=1,Nt
 
-         zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
-         dydt(3*i -2) = compute_dpf_dt(zh, t, alpha, beta, phi, q0, toff)
+         !zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
+         dydt(3*i -2) = compute_dpf_dt(max(1.0d-8,dabs(z(i))), t, alpha, beta, phi, q0, toff)
 
-         pressure = compute_pf(zh, t, alpha, beta, phi, q0, toff)
+         pressure = compute_pf(max(1.0d-8,dabs(z(i))), t, alpha, beta, phi, q0, toff)
 
          psi = dlog(V0*yt(3*i)/xLf(i))
          help1 = yt(3*i-1)/(2*V0)
@@ -1362,6 +1359,7 @@ end subroutine rkqs
           dydt(3*i)=deriv3     
        end do
        !$OMP END SIMD
+       write(*,*) 'fric:',dydt(3*127-2),max(1.0d-8,dabs(z(127)))
        ! Post-validate results (outside SIMD for debugging)
        do i=1,Nt
           if (dydt(3*i-2) /= dydt(3*i-2) .or. abs(dydt(3*i-2)) > huge(dydt(3*i-2))/2) then
@@ -1645,10 +1643,10 @@ if(Ioutput == 0)then    !output during run
       open(319,file=trim(foldername)//'fltst_strk+75'//jobname,access='append',status='unknown')
 
       do i=1,nmv
-         write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs),moment(i)
+         write(30,130)tmv(i),dlog10(maxv(i)),moment(i)
         do j=311,319
          write(j,110) tmv(i),outs1(i,1,j-310),outs1(i,2,j-310),outs1(i,3,j-310),outs1(i,4,j-310), &
-           outs1(i,5,j-310),outs1(i,6,j-310),outs1(i,7,j-310)
+           outs1(i,5,j-310),outs1(i,6,j-310)
         end do
        end do
       close(30)
@@ -2433,7 +2431,7 @@ else
          write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs),moment(i)
         do j=311,319
          write(j,110) tmv(i),outs1(i,1,j-310),outs1(i,2,j-310),outs1(i,3,j-310),outs1(i,4,j-310), &
-           outs1(i,5,j-310),outs1(i,6,j-310),outs1(i,7,j-310)
+           outs1(i,5,j-310),outs1(i,6,j-310)
         end do
       end do
        close(30)
@@ -2618,7 +2616,7 @@ else
 	end if
 
 
- 110    format(E22.14,7(1X,E15.7))
+ 110    format(E22.14,7(1X,E20.13))
  120    format(E20.13,4X,E20.13,4X,I6)
  130    format(E22.14,2(1X,E15.7))
  140    format(E20.13)
