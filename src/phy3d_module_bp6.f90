@@ -62,12 +62,13 @@ contains
     end function compute_G
 
     ! Time derivative of G: ∂G/∂t
-    real(8) function compute_dGdt(z, t, alpha)
+ ! ∂G/∂t = (1/(2√t)) * [exp(-z²/4αt)/√π - |z|*erfc(|z|/√(4αt))/√(4αt)]
+    ! Note: The z² exponential terms cancel, giving a simple form
+    
+ real(8) function compute_dGdt(z, t, alpha)
         implicit none
         real(8), intent(in) :: z, t, alpha
-        real(8) :: abs_z, sqrt_4at, sqrt_t, z_squared
-        real(8) :: exp_term, erfc_term, erfc_arg
-        real(8) :: dexp_dt, derfc_dt, term1, term2, term3
+        real(8) :: abs_z, sqrt_4at, exp_term, erfc_term, erfc_arg
         
         if (t <= 0.0d0) then
             compute_dGdt = 0.0d0
@@ -75,31 +76,17 @@ contains
         endif
         
         abs_z = abs(z)
-        sqrt_t = sqrt(t)
         sqrt_4at = sqrt(4.0d0 * alpha * t)
-        z_squared = z**2
         erfc_arg = abs_z / sqrt_4at
         
-        exp_term = exp(-z_squared / (4.0d0 * alpha * t)) / sqrt_pi
-        erfc_term = (abs_z / sqrt_4at) * erfc_function(erfc_arg)
+        ! exp(-z²/4αt)/√π
+        exp_term = exp(-(z**2) / (4.0d0 * alpha * t)) / SQRT_PI
         
-        ! ∂G/∂t = (1/2√t) * [exp_term - erfc_term] + √t * [∂exp_term/∂t - ∂erfc_term/∂t]
+        ! |z|*erfc(|z|/√(4αt))/√(4αt)
+        erfc_term = abs_z * erfc_function(erfc_arg) / sqrt_4at
         
-        ! First part: (1/2√t) * [exp_term - erfc_term]
-        term1 = 0.5d0 / sqrt_t * (exp_term - erfc_term)
-        
-        ! ∂exp_term/∂t = exp_term * z²/(4αt²)
-        dexp_dt = exp_term * z_squared / (4.0d0 * alpha * t**2)
-        
-        ! ∂erfc_term/∂t is more complex
-        derfc_dt = -abs_z / (2.0d0 * sqrt_4at * t) * erfc_function(erfc_arg) + &
-                   abs_z * z_squared / (4.0d0 * sqrt_pi * alpha * t**2 * sqrt_4at) * &
-                   exp(-erfc_arg**2)
-        
-        term2 = sqrt_t * dexp_dt
-        term3 = -sqrt_t * derfc_dt
-        
-        compute_dGdt = term1 + term2 + term3
+        ! ∂G/∂t = (1/(2√t)) * [exp_term - erfc_term]
+        compute_dGdt = (1.0d0 / (2.0d0 * sqrt(t))) * (exp_term - erfc_term)
         
     end function compute_dGdt
 

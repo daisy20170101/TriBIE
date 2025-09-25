@@ -54,7 +54,7 @@ program main
        Iperb,record,Isnapshot,iz1,iz2,iz3,&
        record_cor
   integer,dimension(:) :: s1(10)
-  real (DP) :: Vint,tmp,accuracy,areatot, epsv,dt_try, dt,dtmin,dt_did,dt_next, &
+  real (DP) :: Vint,tmp,accuracy,areatot, epsv,dt_try, dt,dref,dtmin,dt_did,dt_next, &
        hnucl,&
        t,tprint_inter, tint_out,tout,&
        tmin_out,tint_cos,tint_sse,&   
@@ -421,7 +421,7 @@ end if
         read(55) x_all(k),xi_all(k),z_all(k) !xi is along the fault-normal  while x is along the strike
         xi_all(k) = xi_all(k) ! y infinite long axis, meter
         x_all(k) = x_all(k)
-        z_all(k) = z_all(k) -360.0d3-36.0d3
+        z_all(k) = z_all(k) -204.0d3
 
        Trup(k)=1d9
        rup(k)=.false. 
@@ -595,6 +595,7 @@ end if
   epsv = 1.0d-3
   dtmin = 1.0d-3 ! in sec
   dt_try=dtmin
+  dref = 1.d5
   Vint = Vpl
 
   if(myid==master)then
@@ -741,7 +742,7 @@ end if
   ! Main simulation loop
   do while(cyclecont) 
 
-     call derivs(myid,dydt,3*local_cells,Nt_all,local_cells,t,yt,z_all,x) 
+     call derivs(myid,dydt,3*local_cells,Nt_all,local_cells,t,yt,z_all,z) 
 
      do j=1,3*local_cells
         yt_scale(j)=dabs(yt(j))+dabs(dt_try*dydt(j))
@@ -749,7 +750,7 @@ end if
      end do
      
      CALL rkqs(myid,yt,dydt,3*local_cells,Nt_all,local_cells,t,dt_try,accuracy,yt_scale, &
-          dt_did,dt_next,z_all,x)
+          dt_did,dt_next,z_all,z)
 
      dt = dt_did
      dt_try = dt_next
@@ -766,7 +767,7 @@ end if
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
       ! Use max to prevent division by zero and extremely large time steps
-      dt_pf(i) = max(1.0d-12, abs(dvel(i)))
+      dt_pf(i) = max(1.0d-12,abs(dvel(i)))/1.d5
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
@@ -786,9 +787,10 @@ end if
 
      if(myid.eq.master) then 
          ! Combine Runge-Kutta suggested time step with pore fluid-based time step
-         if (dt_try/dt*maxval(dt_pf_all).gt.0.1) dt_try = max(1.d-3,0.1*dt/maxval(dt_pf_all))
-         !dt_pf1 = min(min(0.1,minval(dt_pf_all)), dt_try)
-         write(*,*) 'step:',t,dt_try,dt_try/dt*maxval(dt_pf_all)! at z=0.0 km 
+         dref = 1.0d-1
+         if (dt_try/dt*maxval(dt_pf_all).gt.dref) dt_try = max(1.2d0,dref*dt/maxval(dt_pf_all))
+         !dt_pf1 = min(min(1.0,minval(dt_pf_all)), dt_try)
+         write(*,*) 'step:',t,dt_try,dt,dt_try/dt*maxval(dt_pf_all)! at z=0.0 km 
      end if
 
      CALL MPI_BCAST(dt_try,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
@@ -1247,7 +1249,7 @@ end subroutine rkqs
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
        real (DP) :: t,yt(nv),dydt(nv)   
        real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
-       real (DP) :: psi,help1,help2,help,help4
+       real (DP) :: psi,help1,help2,help,help4,zh
        real (DP) :: SECNDS
        real (DP) :: z(Nt),sr(Nt),z_all(Nt_all),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
        real (DP) :: pore_fluid(Nt)
@@ -1318,7 +1320,7 @@ end subroutine rkqs
           if (yt(3*i) < theta_min) then
              ! Apply regularization: don't change original values, just prevent ln(0)
              ! This preserves the physical state while making calculations numerically stable
-             if (yt(3*i) <= 0.0d0) then
+             if (yt(3*i) <= small ) then
                 write(*,*) 'INFO: Regularizing zero state variable at i=', i, ' from', yt(3*i), ' to', theta_min
              end if
              yt(3*i) = max(yt(3*i), theta_min)
@@ -1333,10 +1335,10 @@ end subroutine rkqs
        !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
        do i=1,Nt
 
-         z(i) = dsign(max(1.0d-8,dabs(z(i))),z(i))
-         dydt(3*i -2) = compute_dpf_dt(z(i), t, alpha, beta, phi, q0, toff)
+         zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
+         dydt(3*i -2) = compute_dpf_dt(zh, t, alpha, beta, phi, q0, toff)
 
-         pressure = compute_pf(z(i), t, alpha, beta, phi, q0, toff)
+         pressure = compute_pf(zh, t, alpha, beta, phi, q0, toff)
 
          psi = dlog(V0*yt(3*i)/xLf(i))
          help1 = yt(3*i-1)/(2*V0)
@@ -1360,7 +1362,6 @@ end subroutine rkqs
           dydt(3*i)=deriv3     
        end do
        !$OMP END SIMD
-       
        ! Post-validate results (outside SIMD for debugging)
        do i=1,Nt
           if (dydt(3*i-2) /= dydt(3*i-2) .or. abs(dydt(3*i-2)) > huge(dydt(3*i-2))/2) then
