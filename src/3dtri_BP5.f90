@@ -757,15 +757,15 @@ end if
      ! Physics calculations for each cell
      do i=1,local_cells
 
-      zh = dsign(max(0.0010,dabs(z(i))),z(i))
+      zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
 
       dvel(i) = compute_dpf_dt(zh, t, alpha, beta, phi, q0, toff)
            
-      pore_fluid(i) = dvel(i)
+      pore_fluid(i) = compute_pf(zh, t, alpha, beta, phi, q0, toff)
 
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
-      dt_pf(i) = max(1.0, 1.0d8/abs(dvel(i)))
+      dt_pf(i) = max(1.0, 1.0d3/abs(dvel(i)))
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
@@ -779,7 +779,7 @@ end if
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
 
-      write(*,*) 'pf,dt_pf:',pore_fluid(1),dt_pf(1)
+      write(*,*) 'pf,dpf_dt:',pore_fluid(1),dvel(1)
 
      call MPI_Barrier(MPI_COMM_WORLD,ierr)
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
@@ -854,7 +854,7 @@ end if
          outs1(imv,2,i) =  dlog10(yt_all(3*s1(i)-1)) ! log10(V) m/s
          outs1(imv,3,i) = tau1_all(s1(i))/1d6 ! MPa
          outs1(imv,4,i) = yt_all(3*s1(i)-2)/1d6
-         outs1(imv,6,i) = dlog10(yt_all(3*s1(i))*yrs) ! log10(theta)
+         outs1(imv,6,i) = dlog10(yt_all(3*s1(i))) ! log10(theta)
          outs1(imv,7,i) = 0.d0
          outs1(imv,5,i) = pore_fluid_all(s1(i))/1d6 ! darcy vel
 
@@ -1249,7 +1249,7 @@ end subroutine rkqs
        real (DP) :: psi,help1,help2,help,help4
        real (DP) :: SECNDS
        real (DP) :: z(Nt),sr(Nt),z_all(Nt_all),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
-       real (DP) :: pore_fulid(Nt)
+       real (DP) :: pore_fluid(Nt)
 
        ! Local variables for blocking optimization
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
@@ -1341,10 +1341,10 @@ end subroutine rkqs
          help1 = yt(3*i-1)/(2*V0)
          help2 = (f0+ccb(i)*psi)/cca(i)
          help = dsqrt(1+(help1*dexp(help2))**2)
-         !frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
+         frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
          
          help4 = help1 * dexp(help2)
-         frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
+         !frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
 
          deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
 
