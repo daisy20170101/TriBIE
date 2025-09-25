@@ -765,7 +765,8 @@ end if
 
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
-      dt_pf(i) = max(1.0, 1.0d3/abs(dvel(i)))
+      ! Use max to prevent division by zero and extremely large time steps
+      dt_pf(i) = 1.0d3/max(1.0d-12, abs(dvel(i)))
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
@@ -781,12 +782,11 @@ end if
 
       write(*,*) 'pf,dpf_dt:',pore_fluid(1),dvel(1)
 
-     call MPI_Barrier(MPI_COMM_WORLD,ierr)
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
      if(myid.eq.master) then 
          ! Combine Runge-Kutta suggested time step with pore fluid-based time step
-         dt_pf1 = min(minval(dt_pf_all), dt_try)
+         dt_pf1 = min(min(0.1,minval(dt_pf_all)), dt_try)
          write(*,*) 'step:',t,dt_try,minval(dt_pf_all)! at z=0.0 km 
      end if
 
