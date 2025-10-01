@@ -98,7 +98,7 @@ mpirun -np <n_processes> ../src/3dtri_BP5
 <foldername>                 ! Output directory path
 <stiffname>                  ! Stiffness matrix file prefix
 <restartname>                ! Restart file name (if applicable)
-<Nab> <Nt_all> <nprocs> <n_obv> <num_of_receivers_along_strike> <num_of_receivers_along_downdip>  ! Array dimensions
+<Nt_all> <nprocs> <n_obv> <num_of_receivers_along_strike> <num_of_receivers_along_downdip>  ! Array dimensions
 <Idin> <Idout> <Iprofile> <Iperb> <Isnapshot>               ! Control flags
 <Vpl>                        ! Plate velocity (m/s)
 <tmax>                       ! Maximum simulation time (years)
