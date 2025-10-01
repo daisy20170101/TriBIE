@@ -45,7 +45,7 @@ real(DP0)  function heavi(x) !Heaviside function, useful in DSP
             return
         endif
         
-        abs_z = abs(z)
+        abs_z = dabs(z)
         sqrt_4at = dsqrt(4.0d0 * alpha * t)
         erfc_arg = abs_z / sqrt_4at
         
@@ -74,7 +74,7 @@ real(DP0)  function heavi(x) !Heaviside function, useful in DSP
             return
         endif
         
-        abs_z = abs(z)
+        abs_z = dabs(z)
         sqrt_4at = dsqrt(4.0d0 * alpha * t)
         erfc_arg = abs_z / sqrt_4at
         
@@ -195,32 +195,35 @@ end function erfc_function
     real(DP0) function compute_dpf_dt(z, t, alpha, beta, phi, q0, toff)
         implicit none
         real(DP0), intent(in) :: z, t, alpha, beta, phi, q0, toff
-        real(DP0) :: dGdt_val_off,G_val, G_val_off, dGdt_val,term1, term2,term3,term4
+        real(DP0) :: delta_t,dGdt_val_off,G_val, G_val_off, dGdt_val,term1, term2,term3,term4
 
         
         ! Compute Green's functions and their time derivatives
-        if(t>0.d0)then
-        
-          G_val = compute_G(z, t, alpha)
-          dGdt_val = compute_dGdt(z, t, alpha)
-          term1 = dGdt_val * heavi(t)
-          term2 = G_val * dirac_delta(t)
-        else
-          term1 = 0.d0
-          term2 = 0.d0
-        end if
+        !if(t>0.d0)then
+        !
+        !  G_val = compute_G(z, t, alpha)
+        !  dGdt_val = compute_dGdt(z, t, alpha)
+        !  term1 = dGdt_val * heavi(t)
+        !  term2 = G_val * dirac_delta(t)
+        !else
+        !  term1 = 0.d0
+        !  term2 = 0.d0
+        !end if
   
-        if(t.gt.toff)then
-           dGdt_val_off = compute_dGdt(z,t-toff,alpha)
-           G_val_off = compute_G(z,t-toff,alpha)
-           term3 = dGdt_val_off * heavi(t-toff)
-           term4 = G_val_off *dirac_delta(t-toff)
-        else
-           term3=0.d0
-           term4=0.d0
-        end if
+        !if(t.gt.toff)then
+        !   dGdt_val_off = compute_dGdt(z,t-toff,alpha)
+        !   G_val_off = compute_G(z,t-toff,alpha)
+        !   term3 = dGdt_val_off * heavi(t-toff)
+        !   term4 = G_val_off *dirac_delta(t-toff)
+        !else
+        !   term3=0.d0
+        !   term4=0.d0
+        !end if
         ! Compute time derivative of pore fluid pressure
-        compute_dpf_dt = q0 / (beta * phi * dsqrt(alpha)) * (term1 + term2 - term3 - term4) 
+        !compute_dpf_dt = q0 / (beta * phi * dsqrt(alpha)) * (term1 + term2 - term3 - term4) 
+
+        delta_t = 0.01d0
+        compute_dpf_dt = 1/delta_t *(compute_pf(z,t+delta_t,alpha,beta,phi,q0,toff) - compute_pf(z,t,alpha,beta,phi,q0,toff))
     end function compute_dpf_dt
 
 end module phy3d_module_bp6
