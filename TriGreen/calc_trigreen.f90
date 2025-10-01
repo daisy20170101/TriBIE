@@ -872,8 +872,8 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
    ! Initialize variables
    vpl(1:3) = 1.d0
    l_miu = parm_l/parm_miu
-   ss = 0.d0
-   ds = -1.d0
+   ss = -1.d0
+   ds = 0.d0
    op = 0.d0
    
    ! Allocate arrays only for local cells (memory efficient)

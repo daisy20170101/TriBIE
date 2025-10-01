@@ -448,7 +448,7 @@ end if
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
         read(5, err=999) stiff(i,j)
-        stiff(i,j) = 1d5*1d3*stiff(i,j)
+        stiff(i,j) = 1.0d5*1.0d3*stiff(i,j)
      end do
   end do
   
@@ -487,7 +487,7 @@ end if
 
   if(myid==master)then
      CALL resdep(Nt_all,hnucl, &
-          xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,x_all,z_all,vi_all)
+          xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,vi_all)
   end if
 
 
@@ -591,7 +591,7 @@ end if
 
   accuracy = 1.d-4
   epsv = 1.0d-3
-  dtmin = 1.0d-3 ! in sec
+  dtmin = 0.01d0 ! in sec
   dt_try=dtmin
   dref = 1.d5
   Vint = Vpl
@@ -758,9 +758,9 @@ end if
 
       !zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
 
-      dvel(i) = compute_dpf_dt(max(1.0d-8,dabs(z(i))), t, alpha, beta, phi, q0, toff)
+      dvel(i) = compute_dpf_dt(max(1.0d-12,dabs(z(i))), t, alpha, beta, phi, q0, toff)
            
-      pore_fluid(i) = compute_pf(max(1.0d-8,dabs(z(i))), t, alpha, beta, phi, q0, toff)
+      pore_fluid(i) = compute_pf(max(1.0d-12,dabs(z(i))), t, alpha, beta, phi, q0, toff)
      
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
@@ -779,16 +779,15 @@ end if
         slipds(i)=slipds(i)+slipdsinc(i)
      end do
 
-
      call MPI_Gatherv(dt_pf,local_cells,MPI_Real8,dt_pf_all,sendcounts,displs,MPI_Real8,master,MPI_COMM_WORLD,ierr)
 
      if(myid.eq.master) then 
          ! Combine Runge-Kutta suggested time step with pore fluid-based time step
          dref = 1.0d-1
-         if (dt_try/dt*maxval(dt_pf_all).gt.dref) dt_try = max(1.2d0,dref*dt/maxval(dt_pf_all))
-         if (abs(t-toff).lt.8640000.0) dt_try=1.2d0
+         dt_try = min(1000.2d0, dt_try)
+                
          !dt_pf1 = min(min(1.0,minval(dt_pf_all)), dt_try)
-         write(*,*) 'step:',t,dt_try,abs(t-toff),pore_fluid(2),dvel(2)! at z=0.0 km 
+         write(*,*) 'step:',t,dt_try! at z=0.0 km 
      end if
 
      CALL MPI_BCAST(dt_try,1,MPI_REAL8,master,MPI_COMM_WORLD, ierr)
@@ -1333,9 +1332,9 @@ end subroutine rkqs
        do i=1,Nt
 
          !zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
-         dydt(3*i -2) = compute_dpf_dt(max(1.0d-8,dabs(z(i))), t, alpha, beta, phi, q0, toff)
+         dydt(3*i-2) = compute_dpf_dt(max(1.0d-12,dabs(z(i))), t, alpha, beta, phi, q0, toff)
 
-         pressure = compute_pf(max(1.0d-8,dabs(z(i))), t, alpha, beta, phi, q0, toff)
+         pressure = compute_pf(max(1.0d-12,dabs(z(i))), t, alpha, beta, phi, q0, toff)
 
          psi = dlog(V0*yt(3*i)/xLf(i))
          help1 = yt(3*i-1)/(2*V0)
@@ -1359,7 +1358,6 @@ end subroutine rkqs
           dydt(3*i)=deriv3     
        end do
        !$OMP END SIMD
-       write(*,*) 'fric:',dydt(3*127-2),max(1.0d-8,dabs(z(127)))
        ! Post-validate results (outside SIMD for debugging)
        do i=1,Nt
           if (dydt(3*i-2) /= dydt(3*i-2) .or. abs(dydt(3*i-2)) > huge(dydt(3*i-2))/2) then
@@ -1382,7 +1380,7 @@ end subroutine rkqs
 
     subroutine resdep(Nt_all,hnucl, &
          xilock1,xilock2,cca_all,ccb_all,xLf_all, &
-         seff_all,x_all,z_all,vi_all)
+         seff_all,vi_all)
       USE mpi
       USE phy3d_module_bp6, only: yrs,p18,Nl,Nd,Nab,xmu,xnu,gamma, &
            Iprofile,foldername,jobname,profile
@@ -1395,7 +1393,7 @@ end subroutine rkqs
            ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, & 
            hnucl
       real (DP) :: cca_all(Nt_all),ccb_all(Nt_all),ccab_all(Nt_all), &
-           xLf_all(Nt_all),seff_all(Nt_all),x_all(Nt_all),z_all(Nt_all),vi_all(Nt_all)
+           xLf_all(Nt_all),seff_all(Nt_all),vi_all(Nt_all)
 
       real (DP) ::a(Nab),tpr(Nab),zp(Nab),b(nab),ab(nab)
 
@@ -1421,7 +1419,6 @@ end subroutine rkqs
        do i=1,Nt_all
         read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
         ccab_all(i) = cca_all(i) - ccb_all(i)
-        vi_all(i) = vi_all(i)*yrs*1d3
        end do
       close(444)
 
@@ -1430,7 +1427,7 @@ end subroutine rkqs
       open(2,file=trim(foldername)//'vardep'//jobname,status='unknown')
       !	write(2,300)'z','seff','Lf','ccab','cca'
       do i=1,Nt_all
-         write(2,'(6(1x,e20.13))')z_all(i),seff_all(i),xLf_all(i), &
+         write(2,'(5(1x,e20.13))')seff_all(i),xLf_all(i), &
               ccab_all(i),cca_all(i),vi_all(i)
       end do
       close(2)
@@ -1674,8 +1671,8 @@ if(Ioutput == 0)then    !output during run
         do j=401,409
          write(j,110) tmv(i),obvs(i,1,j-400),obvs(i,2,j-400),obvs(i,3,j-400),obvs(i,4,j-400),obvs(i,5,j-400),obvs(i,6,j-400)
         end do
-        write(501,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvdp(i,1,:)
-        write(503,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvdp(i,2,:)
+        write(501,144) tmv(i),dlog10(maxv(i)),obvdp(i,1,:)
+        write(503,144) tmv(i),dlog10(maxv(i)),obvdp(i,2,:)
         write(502,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvstrk(i,1,:)
         write(504,144) tmv(i),dlog10(maxv(i)*1d-3/yrs),obvstrk(i,2,:)
      end do
@@ -2428,7 +2425,7 @@ else
       open(319,file=trim(foldername)//'fltst_strk+75'//jobname,access='append',status='unknown')
 
       do i=1,imv
-         write(30,130)tmv(i),dlog10(maxv(i)*1d-3/yrs),moment(i)
+         write(30,130)tmv(i),dlog10(maxv(i)),moment(i)
         do j=311,319
          write(j,110) tmv(i),outs1(i,1,j-310),outs1(i,2,j-310),outs1(i,3,j-310),outs1(i,4,j-310), &
            outs1(i,5,j-310),outs1(i,6,j-310)
