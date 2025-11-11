@@ -769,7 +769,7 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   ! Regularization variables
   real(DP), parameter :: SING_EPS = 1.0e-10_DP  ! Singularity detection threshold
   real(DP), parameter :: REG_EPS = 1.0e-3_DP    ! Regularization epsilon (must be larger for stability)
-  real(DP) :: W_reg, rz_reg, r_z_reg
+  real(DP) :: W_reg, rz_reg, r_z_reg, r_zeta_reg
   logical :: has_W_singularity, has_rz_singularity
   
   ! Trigonometric functions
@@ -822,15 +822,22 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   ! Single singularity - use regularization
   if (has_W_singularity .or. has_rz_singularity) then
     print *, '[DEBUG angdis_strain] Single singularity regularization applied'
-    print *, '[DEBUG angdis_strain] W=', W, ' r-z=', r-z
+    print *, '[DEBUG angdis_strain] W=', W, ' r-z=', r-z, ' r-zeta=', r-zeta
 
     ! Regularize W if needed (only W is singular, r-z is OK)
+    ! IMPORTANT: When W≈0, then zeta≈r, so r-zeta≈0 as well!
+    ! Must regularize BOTH W and (r-zeta) together.
     if (has_W_singularity) then
       W_reg = sign(REG_EPS, W)
       if (W == 0.0_DP) W_reg = REG_EPS  ! Handle exact zero
+
+      ! Since W = zeta - r, when W≈0 then r-zeta ≈ -W ≈ 0
+      r_zeta_reg = -W_reg  ! Use negative of regularized W
       print *, '[DEBUG angdis_strain] W regularized:', W, '->', W_reg
+      print *, '[DEBUG angdis_strain] r-zeta regularized:', r-zeta, '->', r_zeta_reg
     else
       W_reg = W
+      r_zeta_reg = r - zeta
     end if
 
     ! Regularize r-z if needed (only r-z is singular, W is OK)
@@ -845,6 +852,7 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
     ! No singularities - use original values
     W_reg = W
     r_z_reg = r - z
+    r_zeta_reg = r - zeta
   end if
 
   ! Use regularized values in calculations
@@ -862,11 +870,11 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   ! C and S using regularized W
   C = (r * cosA - z) / Wr
   S = (r * sinA - y) / Wr
-  
-  ! Partial derivatives of Burgers' function (using regularized r-z)
-  rFi_rx = (eta / r / (r - zeta) - y / r / r_z_reg) / (4.0_DP * PI)
-  rFi_ry = (x / r / r_z_reg - cosA * x / r / (r - zeta)) / (4.0_DP * PI)
-  rFi_rz = (sinA * x / r / (r - zeta)) / (4.0_DP * PI)
+
+  ! Partial derivatives of Burgers' function (using regularized r-z and r-zeta)
+  rFi_rx = (eta / r / r_zeta_reg - y / r / r_z_reg) / (4.0_DP * PI)
+  rFi_ry = (x / r / r_z_reg - cosA * x / r / r_zeta_reg) / (4.0_DP * PI)
+  rFi_rz = (sinA * x / r / r_zeta_reg) / (4.0_DP * PI)
   
   ! Strain components (following MATLAB implementation)
   exx = bx * rFi_rx + &
