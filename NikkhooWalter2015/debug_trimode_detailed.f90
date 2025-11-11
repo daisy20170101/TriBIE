@@ -18,7 +18,7 @@ program debug_trimode_detailed
 
   ! For coordinate transformation
   real(DP), dimension(3) :: p1, p2, p3, vnorm, vstrike, vdip
-  real(DP), dimension(3,3) :: A
+  real(DP), dimension(3,3) :: T_matrix
   real(DP) :: x_td, y_td, z_td
   real(DP) :: bx, by, bz, nu
 
@@ -42,14 +42,14 @@ program debug_trimode_detailed
   vdip = cross_product(vnorm, vstrike)
 
   ! Build transformation matrix
-  A(1,:) = vnorm
-  A(2,:) = vstrike
-  A(3,:) = vdip
+  T_matrix(1,:) = vnorm
+  T_matrix(2,:) = vstrike
+  T_matrix(3,:) = vdip
 
   ! Transform vertices to TDCS
-  p1_td = matmul(A, p1)
-  p2_td = matmul(A, p2)
-  p3_td = matmul(A, p3)
+  p1_td = matmul(T_matrix, p1)
+  p2_td = matmul(T_matrix, p2)
+  p3_td = matmul(T_matrix, p3)
 
   print *, 'Triangle in TDCS:'
   print *, '  p1_td = ', p1_td
@@ -65,9 +65,9 @@ program debug_trimode_detailed
   print *, 'Original coords: x=', x8, ', y=', y8, ', z=', z8
 
   ! Transform to TDCS
-  x_td = A(1,1)*x8 + A(1,2)*y8 + A(1,3)*z8
-  y_td = A(2,1)*x8 + A(2,2)*y8 + A(2,3)*z8
-  z_td = A(3,1)*x8 + A(3,2)*y8 + A(3,3)*z8
+  x_td = T_matrix(1,1)*x8 + T_matrix(1,2)*y8 + T_matrix(1,3)*z8
+  y_td = T_matrix(2,1)*x8 + T_matrix(2,2)*y8 + T_matrix(2,3)*z8
+  z_td = T_matrix(3,1)*x8 + T_matrix(3,2)*y8 + T_matrix(3,3)*z8
 
   print *, 'TDCS coords: x_td=', x_td, ', y_td=', y_td, ', z_td=', z_td
 
@@ -100,9 +100,9 @@ program debug_trimode_detailed
   print *, 'Original coords: x=', x9, ', y=', y9, ', z=', z9
 
   ! Transform to TDCS
-  x_td = A(1,1)*x9 + A(1,2)*y9 + A(1,3)*z9
-  y_td = A(2,1)*x9 + A(2,2)*y9 + A(2,3)*z9
-  z_td = A(3,1)*x9 + A(3,2)*y9 + A(3,3)*z9
+  x_td = T_matrix(1,1)*x9 + T_matrix(1,2)*y9 + T_matrix(1,3)*z9
+  y_td = T_matrix(2,1)*x9 + T_matrix(2,2)*y9 + T_matrix(2,3)*z9
+  z_td = T_matrix(3,1)*x9 + T_matrix(3,2)*y9 + T_matrix(3,3)*z9
 
   print *, 'TDCS coords: x_td=', x_td, ', y_td=', y_td, ', z_td=', z_td
 
