@@ -670,27 +670,26 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   else if (c <= 0.0_DP .and. a > b .and. b > c) then
     trimode = -1
   end if
-  
+
   ! Check for points on triangle sides (0)
-  ! Use tolerance-based comparison to avoid floating-point precision issues
-  ! IMPORTANT: Also check that point is within triangle bounds [0,1]
-  print *, '[DEBUG trimode_finder] Checking bounds with BARY_TOL=', BARY_TOL
-  if (abs(a) < BARY_TOL .and. b >= -BARY_TOL .and. b <= 1.0_DP + BARY_TOL .and. &
-      c >= -BARY_TOL .and. c <= 1.0_DP + BARY_TOL) then
-    print *, '[DEBUG trimode_finder] Edge case A: abs(a)<TOL but b,c in bounds -> trimode=0'
+  ! Match MATLAB's logic more closely: exact equality with small tolerance
+  ! MATLAB: trimode(a==0 & b>=0 & c>=0) = 0
+  !         trimode(a>=0 & b==0 & c>=0) = 0
+  !         trimode(a>=0 & b>=0 & c==0) = 0
+  print *, '[DEBUG trimode_finder] Checking edge cases with BARY_TOL=', BARY_TOL
+  if (abs(a) < BARY_TOL .and. b >= 0.0_DP .and. c >= 0.0_DP) then
+    print *, '[DEBUG trimode_finder] Edge case A: a≈0, b>=0, c>=0 -> trimode=0'
     trimode = 0
-  else if (abs(b) < BARY_TOL .and. a >= -BARY_TOL .and. a <= 1.0_DP + BARY_TOL .and. &
-           c >= -BARY_TOL .and. c <= 1.0_DP + BARY_TOL) then
-    print *, '[DEBUG trimode_finder] Edge case B: abs(b)<TOL but a,c in bounds -> trimode=0'
+  else if (a >= 0.0_DP .and. abs(b) < BARY_TOL .and. c >= 0.0_DP) then
+    print *, '[DEBUG trimode_finder] Edge case B: a>=0, b≈0, c>=0 -> trimode=0'
     trimode = 0
-  else if (abs(c) < BARY_TOL .and. a >= -BARY_TOL .and. a <= 1.0_DP + BARY_TOL .and. &
-           b >= -BARY_TOL .and. b <= 1.0_DP + BARY_TOL) then
-    print *, '[DEBUG trimode_finder] Edge case C: abs(c)<TOL but a,b in bounds -> trimode=0'
+  else if (a >= 0.0_DP .and. b >= 0.0_DP .and. abs(c) < BARY_TOL) then
+    print *, '[DEBUG trimode_finder] Edge case C: a>=0, b>=0, c≈0 -> trimode=0'
     trimode = 0
   end if
 
   ! Special case: if on triangle edge but z != 0, use first configuration
-  ! This handles points on the extended edge line but not on the actual triangle
+  ! MATLAB: trimode(trimode==0 & z~=0) = 1
   if (trimode == 0 .and. abs(z) > Z_TOL) then
     print *, '[DEBUG trimode_finder] z!=0 override: trimode 0->1'
     trimode = 1
