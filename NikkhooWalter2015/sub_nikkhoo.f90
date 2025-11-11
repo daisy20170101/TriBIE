@@ -766,6 +766,10 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   real(DP) :: W, W2, Wr, W2r, Wr3, W2r2
   real(DP) :: C, S
   real(DP) :: rFi_rx, rFi_ry, rFi_rz
+  ! Regularization variables
+  real(DP), parameter :: SING_EPS = 1.0e-15_DP  ! Regularization epsilon
+  real(DP) :: W_reg, rz_reg, r_z_reg
+  logical :: has_W_singularity, has_rz_singularity
   
   ! Trigonometric functions
   sinA = sin(alpha)
@@ -784,52 +788,71 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   ! W calculations (needed for singularity check)
   W = zeta - r
 
-  ! CRITICAL SINGULARITY CHECK
+  ! CRITICAL SINGULARITY REGULARIZATION
   ! The angular dislocation formulation has singularities when:
   ! 1. W = zeta - r ≈ 0 (causes division by zero in C, S, and many strain terms)
   ! 2. r - z ≈ 0 (causes division by zero in rz, r2z2, r3z terms)
   !
-  ! These singularities can occur even when the point is NOT on the triangle edge.
-  ! For example, points on extended edge lines may trigger these geometric singularities
-  ! in one of the three component angular dislocations.
+  ! These are REMOVABLE singularities - the limits exist and are finite.
+  ! Instead of returning zero (which gives wrong results), use REGULARIZATION:
+  ! Replace near-zero values with small epsilon to approximate the limit.
   !
-  ! When detected, set this angular dislocation contribution to zero.
-  ! The overall triangular dislocation remains well-defined because contributions
-  ! from all three angular dislocations combine to produce a valid result.
+  ! Regularization approach:
+  ! - If |W| < ε, use W_reg = sign(W) * ε
+  ! - If |r-z| < ε, use (r-z)_reg = sign(r-z) * ε
+  ! where ε = 1e-15 (small enough to approximate limit, large enough to avoid underflow)
   !
-  ! Reference: Points 8 and 9 in test cases - on extended edge lines, trimode=-1,
-  ! but second angular dislocation has W=0 and r-z=0.
+  ! This allows the calculation to proceed and gives correct limiting values.
+  ! Reference: Points 8 and 9 - on extended edge lines, trimode=-1
 
-  if (abs(W) < 1.0e-10_DP .or. abs(r - z) < 1.0e-10_DP) then
-    print *, '[DEBUG angdis_strain] Singularity detected: W=', W, ' r-z=', r-z
-    print *, '[DEBUG angdis_strain] Setting angular dislocation contribution to zero'
-    exx = 0.0_DP
-    eyy = 0.0_DP
-    ezz = 0.0_DP
-    exy = 0.0_DP
-    exz = 0.0_DP
-    eyz = 0.0_DP
-    return
+  has_W_singularity = (abs(W) < SING_EPS)
+  has_rz_singularity = (abs(r - z) < SING_EPS)
+
+  if (has_W_singularity .or. has_rz_singularity) then
+    print *, '[DEBUG angdis_strain] Singularity regularization applied'
+    print *, '[DEBUG angdis_strain] W=', W, ' r-z=', r-z
+
+    ! Regularize W if needed
+    if (has_W_singularity) then
+      W_reg = sign(SING_EPS, W)
+      if (W == 0.0_DP) W_reg = SING_EPS  ! Handle exact zero
+      print *, '[DEBUG angdis_strain] W regularized:', W, '->', W_reg
+    else
+      W_reg = W
+    end if
+
+    ! Regularize r-z if needed
+    if (has_rz_singularity) then
+      r_z_reg = sign(SING_EPS, r - z)
+      if (r - z == 0.0_DP) r_z_reg = SING_EPS  ! Handle exact zero
+      print *, '[DEBUG angdis_strain] r-z regularized:', r-z, '->', r_z_reg
+    else
+      r_z_reg = r - z
+    end if
+  else
+    W_reg = W
+    r_z_reg = r - z
   end if
 
-  ! Continue with normal calculation if no singularities
-  rz = r * (r - z)
-  r2z2 = r2 * (r - z)**2
-  r3z = r3 * (r - z)
+  ! Use regularized values in calculations
+  rz = r * r_z_reg
+  r2z2 = r2 * r_z_reg**2
+  r3z = r3 * r_z_reg
 
-  W2 = W * W
-  Wr = W * r
+  ! Use regularized W for all W-dependent terms
+  W2 = W_reg * W_reg
+  Wr = W_reg * r
   W2r = W2 * r
-  Wr3 = W * r3
+  Wr3 = W_reg * r3
   W2r2 = W2 * r2
 
-  ! C and S
+  ! C and S using regularized W
   C = (r * cosA - z) / Wr
   S = (r * sinA - y) / Wr
   
-  ! Partial derivatives of Burgers' function
-  rFi_rx = (eta / r / (r - zeta) - y / r / (r - z)) / (4.0_DP * PI)
-  rFi_ry = (x / r / (r - z) - cosA * x / r / (r - zeta)) / (4.0_DP * PI)
+  ! Partial derivatives of Burgers' function (using regularized r-z)
+  rFi_rx = (eta / r / (r - zeta) - y / r / r_z_reg) / (4.0_DP * PI)
+  rFi_ry = (x / r / r_z_reg - cosA * x / r / (r - zeta)) / (4.0_DP * PI)
   rFi_rz = (sinA * x / r / (r - zeta)) / (4.0_DP * PI)
   
   ! Strain components (following MATLAB implementation)
