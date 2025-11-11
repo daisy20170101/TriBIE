@@ -2,7 +2,6 @@ program test_casez
   use nikkhoo_walter
   use, intrinsic :: ieee_arithmetic
   implicit none
-  integer, parameter :: DP = selected_real_kind(15, 307)
 
   ! Triangle vertices
   real(DP), dimension(3) :: p1, p2, p3
