@@ -175,10 +175,13 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Dip vector
   call cross_product(vnorm, vstrike, vdip)
   
-  ! Transformation matrix (columns are unit vectors for coordinate transformations)
-  A(:, 1) = vnorm
-  A(:, 2) = vstrike
-  A(:, 3) = vdip
+  ! Transformation matrix
+  ! MATLAB: A = [Vnorm Vstrike Vdip]'
+  ! This creates rows: A(1,:) = [Vnorm(1), Vstrike(1), Vdip(1)]
+  ! Fortran equivalent: rows not columns
+  A(1, :) = vnorm
+  A(2, :) = vstrike
+  A(3, :) = vdip
   
   ! Transform coordinates to TDCS
   p1_td = 0.0_DP
@@ -273,9 +276,9 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   print *, '[DEBUG tdstress_fs] Before transformation: exx=', exx, ' (is_nan=', ieee_is_nan(exx), ')'
 
   ! Transform strain tensor to EFCS
-
-
-  call tens_trans(exx, eyy, ezz, exy, exz, eyz, A, &
+  ! MATLAB: TensTrans(exx,eyy,ezz,exy,exz,eyz,[Vnorm,Vstrike,Vdip])
+  ! TensTrans expects columns, but our A has rows, so pass transpose(A)
+  call tens_trans(exx, eyy, ezz, exy, exz, eyz, transpose(A), &
                   exx_out, eyy_out, ezz_out, exy_out, exz_out, eyz_out)
   
   ! Copy output back to input variables
@@ -430,14 +433,17 @@ end subroutine tens_trans
 !==============================================================================
 subroutine coord_trans(x1_in, x2_in, x3_in, A, X1_out, X2_out, X3_out)
   implicit none
-  
+
   real(DP), intent(in) :: x1_in, x2_in, x3_in
   real(DP), dimension(3, 3), intent(in) :: A
   real(DP), intent(out) :: X1_out, X2_out, X3_out
-  
+
   real(DP), dimension(3) :: r
-  
-  r = matmul(transpose(A), [x1_in, x2_in, x3_in])
+
+  ! MATLAB: r = A*[x1';x2';x3'];
+  ! Transform from EFCS to TDCS using A (NOT transpose(A))
+  ! A's columns are unit vectors [vnorm, vstrike, vdip]
+  r = matmul(A, [x1_in, x2_in, x3_in])
   X1_out = r(1)
   X2_out = r(2)
   X3_out = r(3)
@@ -495,9 +501,10 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   ey1 = ey1 / norm2(ey1)
   ey3 = [0.0_DP, 0.0_DP, -1.0_DP]
   call cross_product(ey3, ey1, ey2)
-  A(:, 1) = ey1
-  A(:, 2) = ey2
-  A(:, 3) = ey3
+  ! Transformation matrix: rows like in tdstress_fs
+  A(1, :) = ey1
+  A(2, :) = ey2
+  A(3, :) = ey3
   
   ! Transform coordinates from EFCS to the first ADCS
   call coord_trans(x - PA(1), y - PA(2), z - PA(3), A, y1A, y2A, y3A)
