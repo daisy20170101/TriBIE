@@ -162,18 +162,28 @@ Point 1 (center): (-0.333, -0.333, -4.667)
 
 ## Known Limitations
 
-1. **Harmonic Function**: The half-space solution (`tdstress_hs`) currently has a simplified implementation of the harmonic function contribution. It returns zeros instead of the full free-surface correction. This means results will match `TDstressFS` + image dislocation but not the complete `TDstressHS` solution.
+1. **Testing Required**: The complete harmonic function implementation has been added but requires thorough testing and validation against MATLAB reference values.
 
 2. **Singular Points**: Points on triangle edges in the triangle plane return NaN (mathematically correct but may need regularization for applications).
 
 3. **Performance**: No special optimizations for large arrays yet (straightforward NumPy translation).
 
+4. **Numerical Stability**: Some numerical instabilities may occur near singular points or with certain geometric configurations.
+
+## Recent Updates (v2.0.0)
+
+- ✅ Complete implementation of harmonic function contribution
+  - `ang_dis_strain_fsc`: Free surface correction strains for angular dislocation
+  - `ang_setup_fsc_s`: Setup and calculation for angular dislocation pairs
+  - `tdstress_harfunc`: Complete harmonic function for half-space correction
+- ✅ Full `tdstress_hs` implementation with main + image + harmonic contributions
+
 ## Future Improvements
 
-- [ ] Complete implementation of harmonic function contribution (`AngSetupFSC_S`)
+- [ ] Comprehensive validation tests against MATLAB/Fortran reference values
 - [ ] Vectorized operations for better performance
 - [ ] Optional regularization for near-singular points
-- [ ] Additional validation tests against MATLAB/Fortran
+- [ ] Numerical stability improvements for edge cases
 - [ ] Proper Python package setup with `setup.py`
 
 ## File Structure
@@ -182,10 +192,13 @@ Point 1 (center): (-0.333, -0.333, -4.667)
 python_tdstress/
 ├── __init__.py              # Package initialization
 ├── td_utils.py              # Coordinate/tensor transformations, trimode
-├── ang_dislocation.py       # Angular dislocation calculations
+├── ang_dislocation.py       # Angular dislocation calculations (full-space)
+├── ang_dislocation_fsc.py   # Angular dislocation free surface correction
+├── ang_setup_fsc.py         # Angular dislocation pair setup for FSC
 ├── tdstress_fs.py          # Full-space solution
-├── tdstress_hs.py          # Half-space solution
+├── tdstress_hs.py          # Half-space solution (complete with harmonic)
 ├── test_tdstress.py        # Test script
+├── requirements.txt        # Python dependencies
 └── README.md               # This file
 ```
 

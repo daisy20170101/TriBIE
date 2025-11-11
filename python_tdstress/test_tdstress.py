@@ -9,11 +9,12 @@ import numpy as np
 import sys
 import os
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path so we can import the package
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
 
-from tdstress_fs import tdstress_fs
-from tdstress_hs import tdstress_hs
+from python_tdstress.tdstress_fs import tdstress_fs
+from python_tdstress.tdstress_hs import tdstress_hs
 
 
 def test_triangle_setup():

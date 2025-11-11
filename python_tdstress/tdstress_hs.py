@@ -10,6 +10,8 @@ artefact-free solution. Geophysical Journal International.
 
 import numpy as np
 from .tdstress_fs import tdstress_fs
+from .td_utils import coord_trans
+from .ang_setup_fsc import ang_setup_fsc_s
 
 
 def tdstress_hs(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, mu, lam):
@@ -90,7 +92,9 @@ def tdstress_harfunc(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, mu, lam):
     Calculate harmonic function contribution to correct for free surface.
 
     This function calculates the harmonic function contribution to the
-    strains and stresses associated with the main and image dislocations.
+    strains and stresses associated with a triangular dislocation in a
+    half-space. The function cancels the surface normal tractions induced
+    by the main and image dislocations.
 
     Parameters
     ----------
@@ -99,7 +103,7 @@ def tdstress_harfunc(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, mu, lam):
     P1, P2, P3 : array_like, shape (3,)
         Triangle vertices
     Ss, Ds, Ts : float
-        Slip components
+        Slip components (Strike-slip, Dip-slip, Tensile-slip)
     mu, lam : float
         Lame constants
 
@@ -110,21 +114,66 @@ def tdstress_harfunc(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, mu, lam):
     Strain : ndarray, shape (n, 6)
         Harmonic function strain contribution
     """
-    # For now, this is a simplified implementation
-    # The full implementation requires AngSetupFSC_S which is complex
-    # This would need the angular dislocation pair calculations
+    # Map slip components from TDCS to local variables
+    bx = Ts  # Tensile-slip
+    by = Ss  # Strike-slip
+    bz = Ds  # Dip-slip
 
-    # Placeholder - returns zeros for now
-    # Full implementation would calculate free surface corrections
-    n_points = len(np.atleast_1d(X).flatten())
+    # Calculate unit strike, dip, and normal vectors for the TD
+    # For a horizontal TD as an exception, if the normal vector points upward,
+    # the strike and dip vectors point Northward and Westward, whereas if the
+    # normal vector points downward, the strike and dip vectors point Southward
+    # and Westward, respectively.
 
-    Stress = np.zeros((n_points, 6))
-    Strain = np.zeros((n_points, 6))
+    # Calculate normal vector
+    Vnorm = np.cross(P2 - P1, P3 - P1)
+    norm_Vnorm = np.linalg.norm(Vnorm)
+    if norm_Vnorm < 1e-12:
+        # Degenerate triangle
+        n_points = len(np.atleast_1d(X).flatten())
+        Stress = np.zeros((n_points, 6))
+        Strain = np.zeros((n_points, 6))
+        return Stress, Strain
+    Vnorm = Vnorm / norm_Vnorm
 
-    # TODO: Implement full AngSetupFSC_S functionality
-    # This requires:
-    # 1. Angular dislocation pairs on each TD side
-    # 2. Free surface correction calculations
-    # 3. Transformation and summation of contributions
+    # Calculate strike vector
+    eY = np.array([0.0, 1.0, 0.0])
+    eZ = np.array([0.0, 0.0, 1.0])
+    Vstrike = np.cross(eZ, Vnorm)
+
+    # Special case for horizontal triangles
+    norm_Vstrike = np.linalg.norm(Vstrike)
+    if norm_Vstrike < 1e-12:
+        # Horizontal triangle: strike points North or South depending on normal direction
+        Vstrike = eY * Vnorm[2]
+        norm_Vstrike = np.linalg.norm(Vstrike)
+
+    if norm_Vstrike > 1e-12:
+        Vstrike = Vstrike / norm_Vstrike
+    else:
+        # Extremely degenerate case
+        Vstrike = eY
+
+    # Calculate dip vector
+    Vdip = np.cross(Vnorm, Vstrike)
+
+    # Transform slip vector components from TDCS into EFCS
+    # A matrix has Vnorm, Vstrike, Vdip as columns
+    A = np.column_stack([Vnorm, Vstrike, Vdip])
+    bX, bY, bZ = coord_trans(bx, by, bz, A.T)
+
+    # Calculate contribution of angular dislocation pair on each TD side
+    # Side 1: P1-P2
+    Stress1, Strain1 = ang_setup_fsc_s(X, Y, Z, bX, bY, bZ, P1, P2, mu, lam)
+
+    # Side 2: P2-P3
+    Stress2, Strain2 = ang_setup_fsc_s(X, Y, Z, bX, bY, bZ, P2, P3, mu, lam)
+
+    # Side 3: P3-P1
+    Stress3, Strain3 = ang_setup_fsc_s(X, Y, Z, bX, bY, bZ, P3, P1, mu, lam)
+
+    # Calculate total harmonic function contribution to strains and stresses
+    Stress = Stress1 + Stress2 + Stress3
+    Strain = Strain1 + Strain2 + Strain3
 
     return Stress, Strain
