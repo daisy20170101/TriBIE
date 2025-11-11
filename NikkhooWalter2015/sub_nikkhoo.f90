@@ -767,7 +767,8 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   real(DP) :: C, S
   real(DP) :: rFi_rx, rFi_ry, rFi_rz
   ! Regularization variables
-  real(DP), parameter :: SING_EPS = 1.0e-15_DP  ! Regularization epsilon
+  real(DP), parameter :: SING_EPS = 1.0e-10_DP  ! Singularity detection threshold
+  real(DP), parameter :: REG_EPS = 1.0e-3_DP    ! Regularization epsilon (must be larger for stability)
   real(DP) :: W_reg, rz_reg, r_z_reg
   logical :: has_W_singularity, has_rz_singularity
   
@@ -788,48 +789,60 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   ! W calculations (needed for singularity check)
   W = zeta - r
 
-  ! CRITICAL SINGULARITY REGULARIZATION
+  ! CRITICAL SINGULARITY HANDLING
   ! The angular dislocation formulation has singularities when:
   ! 1. W = zeta - r ≈ 0 (causes division by zero in C, S, and many strain terms)
   ! 2. r - z ≈ 0 (causes division by zero in rz, r2z2, r3z terms)
   !
-  ! These are REMOVABLE singularities - the limits exist and are finite.
-  ! Instead of returning zero (which gives wrong results), use REGULARIZATION:
-  ! Replace near-zero values with small epsilon to approximate the limit.
+  ! Strategy:
+  ! - If BOTH W≈0 AND r-z≈0: This is a DOUBLE SINGULARITY - too severe for regularization.
+  !   Return zero contribution for this angular dislocation.
+  ! - If only ONE singularity: Use regularization with REG_EPS to approximate the limit.
   !
-  ! Regularization approach:
-  ! - If |W| < ε, use W_reg = sign(W) * ε
-  ! - If |r-z| < ε, use (r-z)_reg = sign(r-z) * ε
-  ! where ε = 1e-15 (small enough to approximate limit, large enough to avoid underflow)
-  !
-  ! This allows the calculation to proceed and gives correct limiting values.
-  ! Reference: Points 8 and 9 - on extended edge lines, trimode=-1
+  ! Reference: Points 8 and 9 - on extended edge lines, one angular dislocation
+  ! has both W=0 and r-z=0 simultaneously.
 
   has_W_singularity = (abs(W) < SING_EPS)
   has_rz_singularity = (abs(r - z) < SING_EPS)
 
+  ! Check for DOUBLE singularity (both W≈0 and r-z≈0)
+  if (has_W_singularity .and. has_rz_singularity) then
+    print *, '[DEBUG angdis_strain] DOUBLE SINGULARITY detected: W≈0 AND r-z≈0'
+    print *, '[DEBUG angdis_strain] W=', W, ' r-z=', r-z
+    print *, '[DEBUG angdis_strain] Returning zero contribution (too singular for regularization)'
+    exx = 0.0_DP
+    eyy = 0.0_DP
+    ezz = 0.0_DP
+    exy = 0.0_DP
+    exz = 0.0_DP
+    eyz = 0.0_DP
+    return
+  end if
+
+  ! Single singularity - use regularization
   if (has_W_singularity .or. has_rz_singularity) then
-    print *, '[DEBUG angdis_strain] Singularity regularization applied'
+    print *, '[DEBUG angdis_strain] Single singularity regularization applied'
     print *, '[DEBUG angdis_strain] W=', W, ' r-z=', r-z
 
-    ! Regularize W if needed
+    ! Regularize W if needed (only W is singular, r-z is OK)
     if (has_W_singularity) then
-      W_reg = sign(SING_EPS, W)
-      if (W == 0.0_DP) W_reg = SING_EPS  ! Handle exact zero
+      W_reg = sign(REG_EPS, W)
+      if (W == 0.0_DP) W_reg = REG_EPS  ! Handle exact zero
       print *, '[DEBUG angdis_strain] W regularized:', W, '->', W_reg
     else
       W_reg = W
     end if
 
-    ! Regularize r-z if needed
+    ! Regularize r-z if needed (only r-z is singular, W is OK)
     if (has_rz_singularity) then
-      r_z_reg = sign(SING_EPS, r - z)
-      if (r - z == 0.0_DP) r_z_reg = SING_EPS  ! Handle exact zero
+      r_z_reg = sign(REG_EPS, r - z)
+      if (r - z == 0.0_DP) r_z_reg = REG_EPS  ! Handle exact zero
       print *, '[DEBUG angdis_strain] r-z regularized:', r-z, '->', r_z_reg
     else
       r_z_reg = r - z
     end if
   else
+    ! No singularities - use original values
     W_reg = W
     r_z_reg = r - z
   end if
