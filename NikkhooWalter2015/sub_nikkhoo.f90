@@ -639,18 +639,20 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   ! Calculate barycentric coordinates (following MATLAB implementation)
   ! Note: MATLAB uses 2D coordinates (y, z) in TDCS
   ! The function is called with (y_td, z_td, x_td), so x=y_td, y=z_td, z=x_td
-  ! p1, p2, p3 are 3D coordinates but MATLAB uses p1(2:3), p2(2:3), p3(2:3)
-  ! So p1(2)=y, p1(3)=z, etc.
-  denominator = (p2(2) - p3(2)) * (p1(2) - p3(2)) + (p3(2) - p2(2)) * (p1(3) - p3(3))
-  
+  ! p1, p2, p3 are 3D coordinates: p(1)=x, p(2)=y, p(3)=z
+  ! MATLAB's p(1) corresponds to Fortran's p(2) (y-coordinate)
+  ! MATLAB's p(2) corresponds to Fortran's p(3) (z-coordinate)
+
+  denominator = (p2(3) - p3(3)) * (p1(2) - p3(2)) + (p3(2) - p2(2)) * (p1(3) - p3(3))
+
   if (abs(denominator) < 1.0e-15_DP) then
     ! Degenerate triangle case
     trimode = 1
     return
-    end if
-  
-  a = ((p2(2) - p3(2)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
-  b = ((p3(2) - p1(2)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
+  end if
+
+  a = ((p2(3) - p3(3)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
+  b = ((p3(3) - p1(3)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
   c = 1.0_DP - a - b
 
   ! DEBUG: Print barycentric coordinates
