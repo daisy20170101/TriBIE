@@ -204,12 +204,15 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! Determine configuration
   call trimode_finder(y_td, z_td, x_td, p1_td, p2_td, p3_td, trimode)
-  
+
   casep_log = (trimode == 1)
   casen_log = (trimode == -1)
   casez_log = (trimode == 0)
-  
-  
+
+  ! DEBUG: Show which case will be executed
+  print *, '[DEBUG tdstress_fs] After trimode_finder: trimode=', trimode
+  print *, '[DEBUG tdstress_fs] casep_log=', casep_log, ' casen_log=', casen_log, ' casez_log=', casez_log
+
   ! Initialize results
   exx = 0.0_DP; eyy = 0.0_DP; ezz = 0.0_DP
   exy = 0.0_DP; exz = 0.0_DP; eyz = 0.0_DP
@@ -235,10 +238,12 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     
   else if (casen_log) then
     ! Configuration II - Calculate three angular dislocation contributions
+    print *, '[DEBUG tdstress_fs] Entering casen_log (Config II) path'
     ! First angular dislocation: A angle, p1, e13
     call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, e13, &
                    exx, eyy, ezz, exy, exz, eyz)
-    
+    print *, '[DEBUG tdstress_fs] After 1st tdsetup_s: exx=', exx, ' (is_nan=', ieee_is_nan(exx), ')'
+
     ! Second angular dislocation: B angle, p2, -e12
     call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, -e12, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
@@ -255,6 +260,7 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     ! Points on triangle edge are singular - set to NaN
     ! Matches MATLAB implementation (TDstressHS.m:312-318)
     ! Reference: Nikkhoo & Walter (2015) - solution undefined at edge singularities
+    print *, '[DEBUG tdstress_fs] casez_log=TRUE, setting all values to NaN'
     exx = ieee_value(0.0_DP, ieee_quiet_nan)
     eyy = ieee_value(0.0_DP, ieee_quiet_nan)
     ezz = ieee_value(0.0_DP, ieee_quiet_nan)
@@ -262,9 +268,12 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     exz = ieee_value(0.0_DP, ieee_quiet_nan)
     eyz = ieee_value(0.0_DP, ieee_quiet_nan)
   end if
-  
+
+  ! DEBUG: Show strain values before transformation
+  print *, '[DEBUG tdstress_fs] Before transformation: exx=', exx, ' (is_nan=', ieee_is_nan(exx), ')'
+
   ! Transform strain tensor to EFCS
-  
+
 
   call tens_trans(exx, eyy, ezz, exy, exz, eyz, A, &
                   exx_out, eyy_out, ezz_out, exy_out, exz_out, eyz_out)
@@ -774,6 +783,13 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   rz = r * (r - z)
   r2z2 = r2 * (r - z)**2
   r3z = r3 * (r - z)
+
+  ! DEBUG: Check for r-z near zero
+  if (abs(r - z) < 1.0e-10_DP) then
+    print *, '[DEBUG angdis_strain] WARNING: r-z near zero!'
+    print *, '[DEBUG angdis_strain] r=', r, ' z=', z, ' r-z=', r-z
+    print *, '[DEBUG angdis_strain] This will cause division by zero in rz, r2z2, r3z'
+  end if
   
   ! W calculations
   W = zeta - r
@@ -782,7 +798,15 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   W2r = W2 * r
   Wr3 = W * r3
   W2r2 = W2 * r2
-  
+
+  ! DEBUG: Check for potential division by zero
+  if (abs(W) < 1.0e-10_DP .or. abs(Wr) < 1.0e-10_DP) then
+    print *, '[DEBUG angdis_strain] WARNING: W or Wr near zero!'
+    print *, '[DEBUG angdis_strain] W=', W, ' Wr=', Wr
+    print *, '[DEBUG angdis_strain] Input: x=', x, ' y=', y, ' z=', z
+    print *, '[DEBUG angdis_strain] alpha=', alpha, ' zeta=', zeta, ' r=', r
+  end if
+
   ! C and S
   C = (r * cosA - z) / Wr
   S = (r * sinA - y) / Wr

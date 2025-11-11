@@ -68,9 +68,9 @@ fi
 
 # Step 5: Compile test program
 echo ""
-echo "Step 5: Compiling test_trimode_module.f90..."
-echo "Command: gfortran -o test_trimode_module test_trimode_module.f90 sub_nikkhoo.o"
-gfortran -o test_trimode_module test_trimode_module.f90 sub_nikkhoo.o
+echo "Step 5: Compiling test_point8_only.f90..."
+echo "Command: gfortran -o test_point8_only test_point8_only.f90 sub_nikkhoo.o"
+gfortran -o test_point8_only test_point8_only.f90 sub_nikkhoo.o
 COMPILE_STATUS=$?
 
 if [ $COMPILE_STATUS -ne 0 ]; then
@@ -78,29 +78,28 @@ if [ $COMPILE_STATUS -ne 0 ]; then
     exit 1
 fi
 
-if [ -f "test_trimode_module" ]; then
-    echo "  ✓ test_trimode_module created ($(stat -c%s test_trimode_module) bytes, $(date -r test_trimode_module '+%Y-%m-%d %H:%M:%S'))"
+if [ -f "test_point8_only" ]; then
+    echo "  ✓ test_point8_only created ($(stat -c%s test_point8_only) bytes, $(date -r test_point8_only '+%Y-%m-%d %H:%M:%S'))"
 else
-    echo "  ✗ ERROR: test_trimode_module NOT created!"
+    echo "  ✗ ERROR: test_point8_only NOT created!"
     exit 1
 fi
 
 # Step 6: Run test and capture output
 echo ""
 echo "========================================================"
-echo "Step 6: Running test_trimode_module with DEBUG output"
+echo "Step 6: Running test_point8_only with FULL DEBUG output"
 echo "========================================================"
 echo ""
-echo "If the debug output shows bounds checking (BARY_TOL), then"
-echo "the NEW code is being used. If not, old code is cached."
+echo "This will show exactly where the NaN is coming from."
 echo ""
-echo "Looking for these key indicators:"
-echo "  - '[DEBUG trimode_finder]' messages"
-echo "  - 'BARY_TOL=' showing tolerance value"
-echo "  - Barycentric coordinates for points 8 and 9"
+echo "Looking for:"
+echo "  - [DEBUG trimode_finder] - barycentric coords & trimode"
+echo "  - [DEBUG tdstress_fs] - which config path (casep/casen/casez)"
+echo "  - [DEBUG angdis_strain] - potential division by zero warnings"
 echo ""
 echo "-------- OUTPUT BEGINS --------"
-./test_trimode_module
+./test_point8_only 2>&1 | head -200
 echo "-------- OUTPUT ENDS --------"
 echo ""
 
