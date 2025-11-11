@@ -2,7 +2,6 @@ program test_multiple_points
   use nikkhoo_walter
   implicit none
 
-  integer, parameter :: DP = selected_real_kind(15, 307)
   integer :: i, n_pass, n_fail
 
   ! Triangle vertices

@@ -2,8 +2,6 @@ program test_center
   use nikkhoo_walter
   implicit none
 
-  integer, parameter :: DP = selected_real_kind(15, 307)
-
   ! Triangle vertices
   real(DP) :: p1(3), p2(3), p3(3)
 
