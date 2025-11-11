@@ -624,6 +624,8 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   ! Local variables for barycentric coordinates
   real(DP) :: a, b, c
   real(DP) :: denominator
+  real(DP), parameter :: BARY_TOL = 1.0e-12_DP  ! Tolerance for barycentric coordinate checks
+  real(DP), parameter :: Z_TOL = 1.0e-10_DP      ! Tolerance for z-coordinate check
   
   ! Calculate barycentric coordinates (following MATLAB implementation)
   ! Note: MATLAB uses 2D coordinates (y, z) in TDCS
@@ -655,16 +657,18 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   end if
   
   ! Check for points on triangle sides (0)
-  if (a == 0.0_DP .and. b >= 0.0_DP .and. c >= 0.0_DP) then
+  ! Use tolerance-based comparison to avoid floating-point precision issues
+  if (abs(a) < BARY_TOL .and. b >= -BARY_TOL .and. c >= -BARY_TOL) then
     trimode = 0
-  else if (a >= 0.0_DP .and. b == 0.0_DP .and. c >= 0.0_DP) then
+  else if (a >= -BARY_TOL .and. abs(b) < BARY_TOL .and. c >= -BARY_TOL) then
     trimode = 0
-  else if (a >= 0.0_DP .and. b >= 0.0_DP .and. c == 0.0_DP) then
+  else if (a >= -BARY_TOL .and. b >= -BARY_TOL .and. abs(c) < BARY_TOL) then
     trimode = 0
   end if
-  
-  ! Special case: if on triangle and z != 0, use first configuration
-  if (trimode == 0 .and. abs(z) > 1.0e-15_DP) then
+
+  ! Special case: if on triangle edge but z != 0, use first configuration
+  ! This handles points on the extended edge line but not on the actual triangle
+  if (trimode == 0 .and. abs(z) > Z_TOL) then
     trimode = 1
   end if
 
