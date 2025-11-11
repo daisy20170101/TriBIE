@@ -643,7 +643,11 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   a = ((p2(2) - p3(2)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
   b = ((p3(2) - p1(2)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
   c = 1.0_DP - a - b
-  
+
+  ! DEBUG: Print barycentric coordinates
+  print *, '[DEBUG trimode_finder] Input: x=', x, ' y=', y, ' z=', z
+  print *, '[DEBUG trimode_finder] Barycentric: a=', a, ' b=', b, ' c=', c
+
   ! Initialize to first configuration
   trimode = 1
   
@@ -659,22 +663,30 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   ! Check for points on triangle sides (0)
   ! Use tolerance-based comparison to avoid floating-point precision issues
   ! IMPORTANT: Also check that point is within triangle bounds [0,1]
+  print *, '[DEBUG trimode_finder] Checking bounds with BARY_TOL=', BARY_TOL
   if (abs(a) < BARY_TOL .and. b >= -BARY_TOL .and. b <= 1.0_DP + BARY_TOL .and. &
       c >= -BARY_TOL .and. c <= 1.0_DP + BARY_TOL) then
+    print *, '[DEBUG trimode_finder] Edge case A: abs(a)<TOL but b,c in bounds -> trimode=0'
     trimode = 0
   else if (abs(b) < BARY_TOL .and. a >= -BARY_TOL .and. a <= 1.0_DP + BARY_TOL .and. &
            c >= -BARY_TOL .and. c <= 1.0_DP + BARY_TOL) then
+    print *, '[DEBUG trimode_finder] Edge case B: abs(b)<TOL but a,c in bounds -> trimode=0'
     trimode = 0
   else if (abs(c) < BARY_TOL .and. a >= -BARY_TOL .and. a <= 1.0_DP + BARY_TOL .and. &
            b >= -BARY_TOL .and. b <= 1.0_DP + BARY_TOL) then
+    print *, '[DEBUG trimode_finder] Edge case C: abs(c)<TOL but a,b in bounds -> trimode=0'
     trimode = 0
   end if
 
   ! Special case: if on triangle edge but z != 0, use first configuration
   ! This handles points on the extended edge line but not on the actual triangle
   if (trimode == 0 .and. abs(z) > Z_TOL) then
+    print *, '[DEBUG trimode_finder] z!=0 override: trimode 0->1'
     trimode = 1
   end if
+
+  print *, '[DEBUG trimode_finder] FINAL trimode=', trimode
+  print *, ''
 
 end subroutine trimode_finder
 
