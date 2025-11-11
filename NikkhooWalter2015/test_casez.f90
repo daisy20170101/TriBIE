@@ -51,7 +51,7 @@ program test_casez
   print *, 'Elastic params: mu=', mu, ' lambda=', lambda
   print *, ''
   print *, '=============================================='
-  print *, 'Point#      x          y          z         e_xx'
+  print *, ' Point #           Exx (strain)'
   print *, '=============================================='
 
   ! Calculate strain for each test point
@@ -59,11 +59,11 @@ program test_casez
     call tdstress_hs(x(i), y(i), z(i), p1, p2, p3, ss, ds, ts, mu, lambda, stress, strain)
     exx_results(i) = strain(1)
 
-    ! Print results
+    ! Print results in two-column format
     if (ieee_is_nan(strain(1))) then
-      write(*, '(I4, 3F11.4, A15)') i, x(i), y(i), z(i), '        NaN'
+      write(*, '(I6, A20)') i, 'NaN'
     else
-      write(*, '(I4, 3F11.4, ES15.6)') i, x(i), y(i), z(i), strain(1)
+      write(*, '(I6, ES24.15)') i, strain(1)
     end if
   end do
 
