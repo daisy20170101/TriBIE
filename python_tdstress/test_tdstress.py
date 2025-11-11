@@ -51,7 +51,140 @@ def test_reference_points():
     print(f"Elastic parameters: mu={mu:.2e}, lambda={lam:.2e}")
     print()
 
-    # Test points with known reference values
+    # Test points with known reference values (all 15 points from Fortran test)
+    test_cases = [
+        {
+            'name': 'Point 1 (center)',
+            'coords': (-1.0/3.0, -1.0/3.0, -14.0/3.0),
+            'expected_exx': 0.0481047005255181
+        },
+        {
+            'name': 'Point 2',
+            'coords': (0.0, 0.0, 0.0),
+            'expected_exx': None  # Surface point - may be singular
+        },
+        {
+            'name': 'Point 3',
+            'coords': (0.0, 3.0, 0.0),
+            'expected_exx': None  # Reference value not provided
+        },
+        {
+            'name': 'Point 4',
+            'coords': (7.0, -1.0, -5.0),
+            'expected_exx': 0.000829157341339727
+        },
+        {
+            'name': 'Point 5',
+            'coords': (-7.0, -1.0, -5.0),
+            'expected_exx': 0.00114439668841158
+        },
+        {
+            'name': 'Point 6',
+            'coords': (-1.0, 7.0, -5.0),
+            'expected_exx': None
+        },
+        {
+            'name': 'Point 7',
+            'coords': (-1.0, -7.0, -5.0),
+            'expected_exx': None
+        },
+        {
+            'name': 'Point 8',
+            'coords': (-1.0, -1.0, 7.0),
+            'expected_exx': None
+        },
+        {
+            'name': 'Point 9',
+            'coords': (-1.0, -1.0, -12.0),
+            'expected_exx': None
+        },
+        {
+            'name': 'Point 10',
+            'coords': (0.0, 0.0, -5.0),
+            'expected_exx': None
+        },
+        {
+            'name': 'Point 11',
+            'coords': (0.0, -1.0, -5.0),
+            'expected_exx': None
+        },
+        {
+            'name': 'Point 12',
+            'coords': (1.0, -1.0, -1.0),
+            'expected_exx': 0.00441202690885827
+        },
+        {
+            'name': 'Point 13',
+            'coords': (-1.0, 1.0, -1.0),
+            'expected_exx': None
+        },
+        {
+            'name': 'Point 14',
+            'coords': (-1.0, -1.0, -1.0),
+            'expected_exx': None
+        },
+        {
+            'name': 'Point 15',
+            'coords': (1.0, -1.0, -8.0),
+            'expected_exx': -0.000914111766849476
+        },
+    ]
+
+    print("-" * 70)
+    print("Testing TDstressFS (Full-Space)")
+    print("-" * 70)
+
+    for test_case in test_cases:
+        X, Y, Z = test_case['coords']
+        expected = test_case['expected_exx']
+
+        try:
+            stress, strain = tdstress_fs(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, mu, lam)
+            exx = strain[0, 0]
+
+            print(f"\n{test_case['name']}: ({X:.3f}, {Y:.3f}, {Z:.3f})")
+            print(f"  Got Exx:      {exx:.15e}")
+
+            if expected is not None:
+                error = abs(exx - expected)
+                rel_error = abs(error / expected) * 100 if expected != 0 else np.nan
+
+                print(f"  Expected Exx: {expected:.15e}")
+                print(f"  Error:        {error:.15e}")
+                if not np.isnan(rel_error):
+                    print(f"  Rel. Error:   {rel_error:.6f}%")
+
+                if np.isnan(exx):
+                    print(f"  *** WARNING: Got NaN ***")
+                elif rel_error < 0.1:
+                    print(f"  *** PASS ***")
+                elif rel_error < 1.0:
+                    print(f"  *** CLOSE ***")
+                else:
+                    print(f"  *** FAIL ***")
+            else:
+                if np.isnan(exx):
+                    print(f"  *** NaN (may be expected for singular points) ***")
+                else:
+                    print(f"  *** OK (no reference value) ***")
+
+        except Exception as e:
+            print(f"\n{test_case['name']}: ({X:.3f}, {Y:.3f}, {Z:.3f})")
+            print(f"  *** ERROR: {str(e)} ***")
+
+    print("\n" + "=" * 70)
+
+
+def test_half_space():
+    """Test half-space calculation with complete harmonic function."""
+    P1, P2, P3, Ss, Ds, Ts, mu, lam = test_triangle_setup()
+
+    print("\nTesting TDstressHS (Half-Space)")
+    print("-" * 70)
+    print("NOTE: Complete implementation with harmonic function")
+    print()
+
+    # Test with the same 5 points that have reference values
     test_cases = [
         {
             'name': 'Point 1 (center)',
@@ -80,16 +213,12 @@ def test_reference_points():
         },
     ]
 
-    print("-" * 70)
-    print("Testing TDstressFS (Full-Space)")
-    print("-" * 70)
-
     for test_case in test_cases:
         X, Y, Z = test_case['coords']
         expected = test_case['expected_exx']
 
         try:
-            stress, strain = tdstress_fs(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, mu, lam)
+            stress, strain = tdstress_hs(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, mu, lam)
             exx = strain[0, 0]
 
             error = abs(exx - expected)
@@ -114,32 +243,6 @@ def test_reference_points():
         except Exception as e:
             print(f"\n{test_case['name']}: ({X:.3f}, {Y:.3f}, {Z:.3f})")
             print(f"  *** ERROR: {str(e)} ***")
-
-    print("\n" + "=" * 70)
-
-
-def test_half_space():
-    """Test half-space calculation (note: harmonic function not yet implemented)."""
-    P1, P2, P3, Ss, Ds, Ts, mu, lam = test_triangle_setup()
-
-    print("\nTesting TDstressHS (Half-Space)")
-    print("-" * 70)
-    print("NOTE: Harmonic function contribution not yet fully implemented")
-    print("      Results will only include main + image dislocation")
-    print()
-
-    X, Y, Z = -1.0/3.0, -1.0/3.0, -14.0/3.0
-
-    try:
-        stress, strain = tdstress_hs(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, mu, lam)
-        exx = strain[0, 0]
-
-        print(f"Center point: ({X:.3f}, {Y:.3f}, {Z:.3f})")
-        print(f"  Exx = {exx:.15e}")
-        print(f"  (Expected with full implementation: ~0.0481047005255181)")
-
-    except Exception as e:
-        print(f"  *** ERROR: {str(e)} ***")
 
     print()
 
