@@ -658,11 +658,15 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   
   ! Check for points on triangle sides (0)
   ! Use tolerance-based comparison to avoid floating-point precision issues
-  if (abs(a) < BARY_TOL .and. b >= -BARY_TOL .and. c >= -BARY_TOL) then
+  ! IMPORTANT: Also check that point is within triangle bounds [0,1]
+  if (abs(a) < BARY_TOL .and. b >= -BARY_TOL .and. b <= 1.0_DP + BARY_TOL .and. &
+      c >= -BARY_TOL .and. c <= 1.0_DP + BARY_TOL) then
     trimode = 0
-  else if (a >= -BARY_TOL .and. abs(b) < BARY_TOL .and. c >= -BARY_TOL) then
+  else if (abs(b) < BARY_TOL .and. a >= -BARY_TOL .and. a <= 1.0_DP + BARY_TOL .and. &
+           c >= -BARY_TOL .and. c <= 1.0_DP + BARY_TOL) then
     trimode = 0
-  else if (a >= -BARY_TOL .and. b >= -BARY_TOL .and. abs(c) < BARY_TOL) then
+  else if (abs(c) < BARY_TOL .and. a >= -BARY_TOL .and. a <= 1.0_DP + BARY_TOL .and. &
+           b >= -BARY_TOL .and. b <= 1.0_DP + BARY_TOL) then
     trimode = 0
   end if
 
