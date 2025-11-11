@@ -9,6 +9,7 @@ program test_casez
   ! Test points
   real(DP), dimension(15) :: x, y, z
   real(DP), dimension(15) :: exx_results
+  real(DP) :: distance
 
   ! Slip and elastic parameters
   real(DP) :: ss, ds, ts, mu, lambda
@@ -50,23 +51,26 @@ program test_casez
   print *, 'Slip components: ss=', ss, ' ds=', ds, ' ts=', ts
   print *, 'Elastic params: mu=', mu, ' lambda=', lambda
   print *, ''
-  print *, '=============================================='
-  print *, ' Point #           Exx (strain)'
-  print *, '=============================================='
+  print *, '=================================================================='
+  print *, ' Point #     Distance (m)           Exx (strain)'
+  print *, '=================================================================='
 
   ! Calculate strain for each test point
   do i = 1, 15
+    ! Calculate distance from origin
+    distance = sqrt(x(i)**2 + y(i)**2 + z(i)**2)
+
     call tdstress_hs(x(i), y(i), z(i), p1, p2, p3, ss, ds, ts, mu, lambda, stress, strain)
     exx_results(i) = strain(1)
 
-    ! Print results in two-column format
+    ! Print results in three-column format
     if (ieee_is_nan(strain(1))) then
-      write(*, '(I6, A20)') i, 'NaN'
+      write(*, '(I6, F17.6, A24)') i, distance, 'NaN'
     else
-      write(*, '(I6, ES24.15)') i, strain(1)
+      write(*, '(I6, F17.6, ES24.15)') i, distance, strain(1)
     end if
   end do
 
-  print *, '=============================================='
+  print *, '=================================================================='
 
 end program test_casez
