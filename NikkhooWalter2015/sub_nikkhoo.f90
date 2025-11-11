@@ -14,8 +14,9 @@
 !==============================================================================
 
 module nikkhoo_walter
+  use, intrinsic :: ieee_arithmetic
   implicit none
-  
+
   ! Precision parameters
   integer, parameter :: DP = selected_real_kind(15, 307)
   real(DP), parameter :: PI = 3.141592653589793238462643383279502884197_DP
@@ -141,11 +142,9 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   real(DP) :: exx, eyy, ezz, exy, exz, eyz
   real(DP) :: exx_out, eyy_out, ezz_out, exy_out, exz_out, eyz_out
   real(DP) :: sxx, syy, szz, sxy, sxz, syz
-  ! Local variables for casez_log
+  ! Temporary variables for angular dislocation contributions
   real(DP) :: exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p
-  real(DP) :: exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n
-  
-  
+
   ! Calculate Poisson's ratio
   nu = 1.0_DP / (1.0_DP + lambda / mu) / 2.0_DP
   
@@ -205,12 +204,15 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! Determine configuration
   call trimode_finder(y_td, z_td, x_td, p1_td, p2_td, p3_td, trimode)
-  
+
   casep_log = (trimode == 1)
   casen_log = (trimode == -1)
   casez_log = (trimode == 0)
-  
-  
+
+  ! DEBUG: Show which case will be executed
+  print *, '[DEBUG tdstress_fs] After trimode_finder: trimode=', trimode
+  print *, '[DEBUG tdstress_fs] casep_log=', casep_log, ' casen_log=', casen_log, ' casez_log=', casez_log
+
   ! Initialize results
   exx = 0.0_DP; eyy = 0.0_DP; ezz = 0.0_DP
   exy = 0.0_DP; exz = 0.0_DP; eyz = 0.0_DP
@@ -236,10 +238,12 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     
   else if (casen_log) then
     ! Configuration II - Calculate three angular dislocation contributions
+    print *, '[DEBUG tdstress_fs] Entering casen_log (Config II) path'
     ! First angular dislocation: A angle, p1, e13
     call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, e13, &
                    exx, eyy, ezz, exy, exz, eyz)
-    
+    print *, '[DEBUG tdstress_fs] After 1st tdsetup_s: exx=', exx, ' (is_nan=', ieee_is_nan(exx), ')'
+
     ! Second angular dislocation: B angle, p2, -e12
     call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, -e12, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
@@ -253,42 +257,23 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
     
   else if (casez_log) then
-    ! For points on the triangle, use average of positive and negative cases
-    ! Configuration I (positive)
-    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, -e13, &
-                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, e12, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
-    exx_p = exx_p + exx_n; eyy_p = eyy_p + eyy_n; ezz_p = ezz_p + ezz_n
-    exy_p = exy_p + exy_n; exz_p = exz_p + exz_n; eyz_p = eyz_p + eyz_n
-    call tdsetup_s(x_td, y_td, z_td, C_angle, bx, by, bz, nu, p3_td, e23, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
-    exx_p = exx_p + exx_n; eyy_p = eyy_p + eyy_n; ezz_p = ezz_p + ezz_n
-    exy_p = exy_p + exy_n; exz_p = exz_p + exz_n; eyz_p = eyz_p + eyz_n
-    
-    ! Configuration II (negative)
-    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, nu, p1_td, e13, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
-    call tdsetup_s(x_td, y_td, z_td, B_angle, -bx, -by, -bz, nu, p2_td, -e12, &
-                   exx, eyy, ezz, exy, exz, eyz)
-    exx_n = exx_n + exx; eyy_n = eyy_n + eyy; ezz_n = ezz_n + ezz
-    exy_n = exy_n + exy; exz_n = exz_n + exz; eyz_n = eyz_n + eyz
-    call tdsetup_s(x_td, y_td, z_td, C_angle, -bx, -by, -bz, nu, p3_td, -e23, &
-                   exx, eyy, ezz, exy, exz, eyz)
-    exx_n = exx_n + exx; eyy_n = eyy_n + eyy; ezz_n = ezz_n + ezz
-    exy_n = exy_n + exy; exz_n = exz_n + exz; eyz_n = eyz_n + eyz
-    
-    ! Average the results
-    exx = (exx_p + exx_n) / 2.0_DP
-    eyy = (eyy_p + eyy_n) / 2.0_DP
-    ezz = (ezz_p + ezz_n) / 2.0_DP
-    exy = (exy_p + exy_n) / 2.0_DP
-    exz = (exz_p + exz_n) / 2.0_DP
-    eyz = (eyz_p + eyz_n) / 2.0_DP
-    end if
-  
+    ! Points on triangle edge are singular - set to NaN
+    ! Matches MATLAB implementation (TDstressHS.m:312-318)
+    ! Reference: Nikkhoo & Walter (2015) - solution undefined at edge singularities
+    print *, '[DEBUG tdstress_fs] casez_log=TRUE, setting all values to NaN'
+    exx = ieee_value(0.0_DP, ieee_quiet_nan)
+    eyy = ieee_value(0.0_DP, ieee_quiet_nan)
+    ezz = ieee_value(0.0_DP, ieee_quiet_nan)
+    exy = ieee_value(0.0_DP, ieee_quiet_nan)
+    exz = ieee_value(0.0_DP, ieee_quiet_nan)
+    eyz = ieee_value(0.0_DP, ieee_quiet_nan)
+  end if
+
+  ! DEBUG: Show strain values before transformation
+  print *, '[DEBUG tdstress_fs] Before transformation: exx=', exx, ' (is_nan=', ieee_is_nan(exx), ')'
+
   ! Transform strain tensor to EFCS
-  
+
 
   call tens_trans(exx, eyy, ezz, exy, exz, eyz, A, &
                   exx_out, eyy_out, ezz_out, exy_out, exz_out, eyz_out)
@@ -648,6 +633,8 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   ! Local variables for barycentric coordinates
   real(DP) :: a, b, c
   real(DP) :: denominator
+  real(DP), parameter :: BARY_TOL = 1.0e-12_DP  ! Tolerance for barycentric coordinate checks
+  real(DP), parameter :: Z_TOL = 1.0e-10_DP      ! Tolerance for z-coordinate check
   
   ! Calculate barycentric coordinates (following MATLAB implementation)
   ! Note: MATLAB uses 2D coordinates (y, z) in TDCS
@@ -665,7 +652,11 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   a = ((p2(2) - p3(2)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
   b = ((p3(2) - p1(2)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
   c = 1.0_DP - a - b
-  
+
+  ! DEBUG: Print barycentric coordinates
+  print *, '[DEBUG trimode_finder] Input: x=', x, ' y=', y, ' z=', z
+  print *, '[DEBUG trimode_finder] Barycentric: a=', a, ' b=', b, ' c=', c
+
   ! Initialize to first configuration
   trimode = 1
   
@@ -679,18 +670,32 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   end if
   
   ! Check for points on triangle sides (0)
-  if (a == 0.0_DP .and. b >= 0.0_DP .and. c >= 0.0_DP) then
+  ! Use tolerance-based comparison to avoid floating-point precision issues
+  ! IMPORTANT: Also check that point is within triangle bounds [0,1]
+  print *, '[DEBUG trimode_finder] Checking bounds with BARY_TOL=', BARY_TOL
+  if (abs(a) < BARY_TOL .and. b >= -BARY_TOL .and. b <= 1.0_DP + BARY_TOL .and. &
+      c >= -BARY_TOL .and. c <= 1.0_DP + BARY_TOL) then
+    print *, '[DEBUG trimode_finder] Edge case A: abs(a)<TOL but b,c in bounds -> trimode=0'
     trimode = 0
-  else if (a >= 0.0_DP .and. b == 0.0_DP .and. c >= 0.0_DP) then
+  else if (abs(b) < BARY_TOL .and. a >= -BARY_TOL .and. a <= 1.0_DP + BARY_TOL .and. &
+           c >= -BARY_TOL .and. c <= 1.0_DP + BARY_TOL) then
+    print *, '[DEBUG trimode_finder] Edge case B: abs(b)<TOL but a,c in bounds -> trimode=0'
     trimode = 0
-  else if (a >= 0.0_DP .and. b >= 0.0_DP .and. c == 0.0_DP) then
+  else if (abs(c) < BARY_TOL .and. a >= -BARY_TOL .and. a <= 1.0_DP + BARY_TOL .and. &
+           b >= -BARY_TOL .and. b <= 1.0_DP + BARY_TOL) then
+    print *, '[DEBUG trimode_finder] Edge case C: abs(c)<TOL but a,b in bounds -> trimode=0'
     trimode = 0
   end if
-  
-  ! Special case: if on triangle and z != 0, use first configuration
-  if (trimode == 0 .and. abs(z) > 1.0e-15_DP) then
+
+  ! Special case: if on triangle edge but z != 0, use first configuration
+  ! This handles points on the extended edge line but not on the actual triangle
+  if (trimode == 0 .and. abs(z) > Z_TOL) then
+    print *, '[DEBUG trimode_finder] z!=0 override: trimode 0->1'
     trimode = 1
   end if
+
+  print *, '[DEBUG trimode_finder] FINAL trimode=', trimode
+  print *, ''
 
 end subroutine trimode_finder
 
@@ -775,22 +780,18 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
   r2 = x2 + y2 + z2
   r = sqrt(r2)
   r3 = r * r2
-  rz = r * (r - z)
-  r2z2 = r2 * (r - z)**2
-  r3z = r3 * (r - z)
-  
+
   ! W calculations
   W = zeta - r
-  W2 = W * W
-  Wr = W * r
-  W2r = W2 * r
-  Wr3 = W * r3
-  W2r2 = W2 * r2
-  
+
+  ! NO SINGULARITY HANDLING - Match MATLAB behavior exactly
+  ! MATLAB code has no special checks and returns finite values for Points 8 & 9
+  ! Trust IEEE arithmetic and natural cancellations in the sum of 3 angular dislocations
+
   ! C and S
   C = (r * cosA - z) / Wr
   S = (r * sinA - y) / Wr
-  
+
   ! Partial derivatives of Burgers' function
   rFi_rx = (eta / r / (r - zeta) - y / r / (r - z)) / (4.0_DP * PI)
   rFi_ry = (x / r / (r - z) - cosA * x / r / (r - zeta)) / (4.0_DP * PI)
