@@ -783,6 +783,16 @@ subroutine angdis_strain(x, y, z, alpha, bx, by, bz, nu, &
 
   ! W calculations
   W = zeta - r
+  W2 = W * W
+  Wr = W * r
+  W2r = W2 * r
+  Wr3 = W * r3
+  W2r2 = W2 * r2
+
+  ! Additional calculations
+  rz = r * z
+  r2z2 = r2 * z2
+  r3z = r3 * z
 
   ! NO SINGULARITY HANDLING - Match MATLAB behavior exactly
   ! MATLAB code has no special checks and returns finite values for Points 8 & 9
