@@ -53,21 +53,22 @@ def test_reference_points():
 
     # Test points with known reference values (all 15 points from Fortran test)
     # Coordinates match exactly: x[i], y[i], z[i]
+    # Expected values from corrected Fortran implementation
     test_cases = [
         {
             'name': 'Point 1',
             'coords': (-1.0/3.0, -1.0/3.0, -3.0),
-            'expected_exx': None
+            'expected_exx': 0.0481047005255181
         },
         {
             'name': 'Point 2 (center)',
             'coords': (-1.0/3.0, -1.0/3.0, -14.0/3.0),
-            'expected_exx': 0.0481047005255181
+            'expected_exx': -0.244188978214975
         },
         {
             'name': 'Point 3',
             'coords': (-1.0/3.0, -1.0/3.0, -6.0),
-            'expected_exx': None
+            'expected_exx': 0.0546831404832553
         },
         {
             'name': 'Point 4',
@@ -82,32 +83,32 @@ def test_reference_points():
         {
             'name': 'Point 6',
             'coords': (-1.0, -3.0, -6.0),
-            'expected_exx': None
+            'expected_exx': -0.00386292388925956
         },
         {
             'name': 'Point 7',
             'coords': (-1.0, 3.0, -3.0),
-            'expected_exx': None
+            'expected_exx': -0.00243788640223540
         },
         {
             'name': 'Point 8',
             'coords': (3.0, -3.0, -6.0),
-            'expected_exx': None
+            'expected_exx': 0.000706397690338731
         },
         {
             'name': 'Point 9',
             'coords': (-3.0, 3.0, -3.0),
-            'expected_exx': None
+            'expected_exx': 0.000211254167350266
         },
         {
             'name': 'Point 10',
             'coords': (-1.0, -1.0, -1.0),
-            'expected_exx': None
+            'expected_exx': 0.00650800501584133
         },
         {
             'name': 'Point 11',
             'coords': (-1.0, 1.0, -1.0),
-            'expected_exx': None
+            'expected_exx': 0.000922452413344460
         },
         {
             'name': 'Point 12',
@@ -117,12 +118,12 @@ def test_reference_points():
         {
             'name': 'Point 13',
             'coords': (-1.0, -1.0, -8.0),
-            'expected_exx': None
+            'expected_exx': 0.00330232019558791
         },
         {
             'name': 'Point 14',
             'coords': (-1.0, 1.0, -8.0),
-            'expected_exx': None
+            'expected_exx': 0.00876398663844928
         },
         {
             'name': 'Point 15',
@@ -185,33 +186,23 @@ def test_half_space():
     print("NOTE: Complete implementation with harmonic function")
     print()
 
-    # Test with the same 5 points that have reference values
+    # Test all 15 points with expected values from corrected Fortran
     test_cases = [
-        {
-            'name': 'Point 2 (center)',
-            'coords': (-1.0/3.0, -1.0/3.0, -14.0/3.0),
-            'expected_exx': 0.0481047005255181
-        },
-        {
-            'name': 'Point 4',
-            'coords': (7.0, -1.0, -5.0),
-            'expected_exx': 0.000829157341339727
-        },
-        {
-            'name': 'Point 5',
-            'coords': (-7.0, -1.0, -5.0),
-            'expected_exx': 0.00114439668841158
-        },
-        {
-            'name': 'Point 12',
-            'coords': (1.0, -1.0, -1.0),
-            'expected_exx': 0.00441202690885827
-        },
-        {
-            'name': 'Point 15',
-            'coords': (1.0, -1.0, -8.0),
-            'expected_exx': -0.000914111766849476
-        },
+        {'name': 'Point 1', 'coords': (-1.0/3.0, -1.0/3.0, -3.0), 'expected_exx': 0.0481047005255181},
+        {'name': 'Point 2 (center)', 'coords': (-1.0/3.0, -1.0/3.0, -14.0/3.0), 'expected_exx': -0.244188978214975},
+        {'name': 'Point 3', 'coords': (-1.0/3.0, -1.0/3.0, -6.0), 'expected_exx': 0.0546831404832553},
+        {'name': 'Point 4', 'coords': (7.0, -1.0, -5.0), 'expected_exx': 0.000829157341339727},
+        {'name': 'Point 5', 'coords': (-7.0, -1.0, -5.0), 'expected_exx': 0.00114439668841158},
+        {'name': 'Point 6', 'coords': (-1.0, -3.0, -6.0), 'expected_exx': -0.00386292388925956},
+        {'name': 'Point 7', 'coords': (-1.0, 3.0, -3.0), 'expected_exx': -0.00243788640223540},
+        {'name': 'Point 8', 'coords': (3.0, -3.0, -6.0), 'expected_exx': 0.000706397690338731},
+        {'name': 'Point 9', 'coords': (-3.0, 3.0, -3.0), 'expected_exx': 0.000211254167350266},
+        {'name': 'Point 10', 'coords': (-1.0, -1.0, -1.0), 'expected_exx': 0.00650800501584133},
+        {'name': 'Point 11', 'coords': (-1.0, 1.0, -1.0), 'expected_exx': 0.000922452413344460},
+        {'name': 'Point 12', 'coords': (1.0, -1.0, -1.0), 'expected_exx': 0.00441202690885827},
+        {'name': 'Point 13', 'coords': (-1.0, -1.0, -8.0), 'expected_exx': 0.00330232019558791},
+        {'name': 'Point 14', 'coords': (-1.0, 1.0, -8.0), 'expected_exx': 0.00876398663844928},
+        {'name': 'Point 15', 'coords': (1.0, -1.0, -8.0), 'expected_exx': -0.000914111766849476},
     ]
 
     for test_case in test_cases:

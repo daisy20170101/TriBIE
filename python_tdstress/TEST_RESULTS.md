@@ -7,49 +7,56 @@
 
 ## Full-Space Results (TDstressFS)
 
-**Coordinates now match Fortran test exactly**
+All 15 test points from corrected Fortran reference:
 
-| Point | Coordinates | Expected Exx | Got Exx | Status |
-|-------|-------------|--------------|---------|--------|
-| 1 | (-0.333, -0.333, -3.0) | - | 0.06317170 | ✓ OK |
-| 2 (center) | (-0.333, -0.333, -4.667) | 0.04810470 | -0.02920989 | ❌ FAIL |
-| 3 | (-0.333, -0.333, -6.0) | - | 2.22069477 | ✓ OK |
-| 4 | (7.0, -1.0, -5.0) | 0.00082916 | NaN | ❌ NaN |
-| 5 | (-7.0, -1.0, -5.0) | 0.00114440 | NaN | ❌ NaN |
-| 6 | (-1.0, -3.0, -6.0) | - | NaN | ⚠️ NaN |
-| 7 | (-1.0, 3.0, -3.0) | - | 0.05612467 | ✓ OK |
-| 8 | (3.0, -3.0, -6.0) | - | 0.00548525 | ✓ OK |
-| 9 | (-3.0, 3.0, -3.0) | - | NaN | ⚠️ NaN |
-| 10 | (-1.0, -1.0, -1.0) | - | 0.00322825 | ✓ OK |
-| 11 | (-1.0, 1.0, -1.0) | - | -0.00419984 | ✓ OK |
-| 12 | (1.0, -1.0, -1.0) | 0.00441203 | NaN | ❌ NaN |
-| 13 | (-1.0, -1.0, -8.0) | - | 0.02069253 | ✓ OK |
-| 14 | (-1.0, 1.0, -8.0) | - | 0.16414011 | ✓ OK |
-| 15 | (1.0, -1.0, -8.0) | -0.00091411 | NaN | ❌ NaN |
+| Point | Coordinates | Expected Exx | Got Exx | Rel. Error | Status |
+|-------|-------------|--------------|---------|------------|--------|
+| 1 | (-0.333, -0.333, -3.0) | 0.04810470 | 0.06317170 | 31.3% | ❌ FAIL |
+| 2 (center) | (-0.333, -0.333, -4.667) | -0.24418898 | -0.02920989 | 88.0% | ❌ FAIL |
+| 3 | (-0.333, -0.333, -6.0) | 0.05468314 | 2.22069477 | 3961% | ❌ FAIL |
+| 4 | (7.0, -1.0, -5.0) | 0.00082916 | NaN | - | ❌ NaN |
+| 5 | (-7.0, -1.0, -5.0) | 0.00114440 | NaN | - | ❌ NaN |
+| 6 | (-1.0, -3.0, -6.0) | -0.00386292 | NaN | - | ❌ NaN |
+| 7 | (-1.0, 3.0, -3.0) | -0.00243789 | 0.05612467 | 2402% | ❌ FAIL |
+| 8 | (3.0, -3.0, -6.0) | 0.00070640 | 0.00548525 | 677% | ❌ FAIL |
+| 9 | (-3.0, 3.0, -3.0) | 0.00021125 | NaN | - | ❌ NaN |
+| 10 | (-1.0, -1.0, -1.0) | 0.00650801 | 0.00322825 | 50.4% | ❌ FAIL |
+| 11 | (-1.0, 1.0, -1.0) | 0.00092245 | -0.00419984 | 555% | ❌ FAIL |
+| 12 | (1.0, -1.0, -1.0) | 0.00441203 | NaN | - | ❌ NaN |
+| 13 | (-1.0, -1.0, -8.0) | 0.00330232 | 0.02069253 | 527% | ❌ FAIL |
+| 14 | (-1.0, 1.0, -8.0) | 0.00876399 | 0.16414011 | 1773% | ❌ FAIL |
+| 15 | (1.0, -1.0, -8.0) | -0.00091411 | NaN | - | ❌ NaN |
+
+**Summary:** 0 PASS, 9 FAIL, 6 NaN
 
 ## Half-Space Results (TDstressHS)
 
-| Point | Coordinates | Expected Exx | Got Exx | Status |
-|-------|-------------|--------------|---------|--------|
-| 2 (center) | (-0.333, -0.333, -4.667) | 0.04810470 | -0.03162771 | ❌ FAIL |
-| 4 | (7.0, -1.0, -5.0) | 0.00082916 | NaN | ❌ NaN |
-| 5 | (-7.0, -1.0, -5.0) | 0.00114440 | NaN | ❌ NaN |
-| 12 | (1.0, -1.0, -1.0) | 0.00441203 | NaN | ❌ NaN |
-| 15 | (1.0, -1.0, -8.0) | -0.00091411 | NaN | ❌ NaN |
+| Point | Coordinates | Expected Exx | Got Exx | Rel. Error | Status |
+|-------|-------------|--------------|---------|------------|--------|
+| 1 | (-0.333, -0.333, -3.0) | 0.04810470 | 0.06359737 | 32.2% | ❌ FAIL |
+| 2 (center) | (-0.333, -0.333, -4.667) | -0.24418898 | -0.03162771 | 87.0% | ❌ FAIL |
+| 3 | (-0.333, -0.333, -6.0) | 0.05468314 | 2.21736029 | 3955% | ❌ FAIL |
+| 4 | (7.0, -1.0, -5.0) | 0.00082916 | NaN | - | ❌ NaN |
+| 5 | (-7.0, -1.0, -5.0) | 0.00114440 | NaN | - | ❌ NaN |
+| 6 | (-1.0, -3.0, -6.0) | -0.00386292 | NaN | - | ❌ NaN |
+| 7 | (-1.0, 3.0, -3.0) | -0.00243789 | 0.04884027 | 2103% | ❌ FAIL |
+| 8 | (3.0, -3.0, -6.0) | 0.00070640 | -0.01092830 | 1647% | ❌ FAIL |
+| 9 | (-3.0, 3.0, -3.0) | 0.00021125 | NaN | - | ❌ NaN |
+| 10 | (-1.0, -1.0, -1.0) | 0.00650801 | -0.01161042 | 278% | ❌ FAIL |
+| 11 | (-1.0, 1.0, -1.0) | 0.00092245 | -0.01129609 | 1325% | ❌ FAIL |
+| 12 | (1.0, -1.0, -1.0) | 0.00441203 | NaN | - | ❌ NaN |
+| 13 | (-1.0, -1.0, -8.0) | 0.00330232 | 0.01341779 | 306% | ❌ FAIL |
+| 14 | (-1.0, 1.0, -8.0) | 0.00876399 | 0.15831633 | 1706% | ❌ FAIL |
+| 15 | (1.0, -1.0, -8.0) | -0.00091411 | NaN | - | ❌ NaN |
 
-## Issues Identified
+**Summary:** 0 PASS, 9 FAIL, 6 NaN
 
-### 1. Center Point Wrong Value
-**Point 1** (triangle center) returns wrong value, not NaN:
-- Full-space: -0.0292 (expected 0.0481) - 161% error
-- Half-space: -0.0316 (expected 0.0481) - 166% error
+## Critical Issues Identified
 
-This matches **Bug #2** in Fortran: incorrect barycentric coordinate formula.
-
-### 2. Spurious NaNs at Valid Points
+### 1. Spurious NaNs (6 points)
 **Points 4, 5, 6, 9, 12, 15** return NaN when they should be finite:
-- Point 4: (7, -1, -5) - Far right
-- Point 5: (-7, -1, -5) - Far left
+- Point 4: (7, -1, -5) - Far right of triangle
+- Point 5: (-7, -1, -5) - Far left of triangle
 - Point 6: (-1, -3, -6) - Below triangle
 - Point 9: (-3, 3, -3) - Outside triangle
 - Point 12: (1, -1, -1) - Above triangle
@@ -57,44 +64,107 @@ This matches **Bug #2** in Fortran: incorrect barycentric coordinate formula.
 
 All these points are well away from triangle edges/vertices and should NOT be singular.
 
-Likely causes:
-- Division by near-zero in angular dislocation calculations
+**Root causes:**
+- Division by zero in angular dislocation calculations
 - Incorrect trimode classification
-- Overflow in intermediate calculations
+- Overly strict edge detection (Bug #3 from Fortran)
 
-This matches **Bug #3** in Fortran: overly strict edge detection.
+### 2. Large Errors on All Valid Points
+**All 9 non-NaN points have significant errors:**
+- Point 3: 3961% error (worst case)
+- Points 7, 8, 11, 13, 14: 500-2400% error
+- Point 2 (center): 88% error (matches Bug #2 from Fortran)
+- Points 1, 10: 31-50% error (smallest but still significant)
+
+**Root causes:**
+- Wrong barycentric coordinate formula (Bug #2 from Fortran)
+- Incorrect matrix orientations (Bug #4 from Fortran)
+- Sign errors in coordinate transformations
+- Formula transcription errors from MATLAB
+
+### 3. Triangle Center Point Wrong
+**Point 2** (triangle center at barycentric coordinates 1/3, 1/3, 1/3):
+- Full-space: -0.0292 vs expected -0.244 (88% error)
+- Half-space: -0.0316 vs expected -0.244 (87% error)
+
+This matches **Bug #2** in Fortran: incorrect barycentric coordinate formula in `trimodefinder()`.
 
 ## Comparison to Fortran Bugs
 
 The Python implementation exhibits the **SAME BUGS** as the original unpatched Fortran code:
 
-1. ✅ **Bug #1** (uninitialized variables) - Not applicable in Python (no uninitialized variables)
-2. ❌ **Bug #2** (wrong barycentric indices) - **PRESENT** in Python (center point wrong)
-3. ❌ **Bug #3** (overly strict edge detection) - **PRESENT** in Python (spurious NaNs)
-4. ❓ **Bug #4** (matrix orientation) - May be present but hard to isolate
+1. ✅ **Bug #1** (uninitialized variables) - Not applicable in Python
+2. ❌ **Bug #2** (wrong barycentric indices) - **PRESENT** (center point wrong)
+3. ❌ **Bug #3** (overly strict edge detection) - **PRESENT** (6 spurious NaNs)
+4. ❌ **Bug #4** (matrix orientation) - **LIKELY PRESENT** (large errors everywhere)
 
-## Recommended Fixes for Python
+## Required Fixes
 
-Apply the same fixes as in Fortran:
+Apply the same fixes as in corrected Fortran code:
 
-1. **Fix barycentric coordinate formula** in `td_utils.py` `trimodefinder()`
-   - Check indices when translating from 2D MATLAB to 3D Python arrays
+### Fix #1: Barycentric Coordinate Formula
+**File:** `python_tdstress/td_utils.py` function `trimodefinder()`
 
-2. **Simplify edge detection** in `td_utils.py` `trimodefinder()`
-   - Remove overly strict bounds checking
-   - Match MATLAB logic exactly: `a < BARY_TOL and b >= 0 and c >= 0`
+The barycentric coordinate calculation likely has wrong indices when translating from MATLAB 2D arrays to Python 3D arrays. Check the formula:
+```python
+a = ((p2_2d[1] - p3_2d[1]) * (x - p3_2d[0]) +
+     (p3_2d[0] - p2_2d[0]) * (y - p3_2d[1])) / denom
+```
 
-3. **Add epsilon checks** in angular dislocation calculations
-   - Prevent division by near-zero
-   - Add range checks for distant points
+### Fix #2: Edge Detection Logic
+**File:** `python_tdstress/td_utils.py` function `trimodefinder()`
 
-4. **Verify matrix orientations** in coordinate transformations
-   - Check if vectors should be rows vs columns
-   - Ensure transpose operations match MATLAB
+Simplify edge detection to match MATLAB exactly:
+```python
+# Current (overly strict):
+if a < bary_tol and b >= 0 and c >= 0 and ...:
+
+# Should be (MATLAB-like):
+if a < bary_tol and b >= 0 and c >= 0:
+```
+
+### Fix #3: Numerical Stability
+**File:** `python_tdstress/ang_dislocation.py`
+
+Add epsilon checks before divisions to prevent spurious NaNs:
+```python
+if abs(Wr) < eps:
+    # Handle near-zero case
+```
+
+### Fix #4: Matrix Orientations
+**Files:** `ang_setup_fsc.py`, `tdstress_hs.py`, `td_utils.py`
+
+Verify all coordinate transformations:
+- Check if transformation matrices should be transposed
+- Verify vector orientations (row vs column)
+- Match MATLAB's matrix conventions exactly
+
+## Warnings During Execution
+
+Multiple runtime warnings indicate numerical instabilities:
+- `RuntimeWarning: divide by zero encountered in divide`
+- `RuntimeWarning: invalid value encountered in divide`
+- `RuntimeWarning: invalid value encountered in subtract/multiply/add`
+
+These warnings appear in:
+- `td_utils.py:152, 155` - Barycentric coordinate calculation
+- `ang_dislocation.py:58-110` - Multiple locations in strain calculations
 
 ## Next Steps
 
-1. Apply Fortran bug fixes to Python code
-2. Re-run tests to verify corrections
-3. Add unit tests for barycentric coordinates
-4. Add numerical stability checks
+1. ✅ Run comprehensive test with all 15 reference points
+2. ⏭️ Apply Bug #2 fix (barycentric coordinates) from Fortran to Python
+3. ⏭️ Apply Bug #3 fix (edge detection) from Fortran to Python
+4. ⏭️ Apply Bug #4 fix (matrix orientation) from Fortran to Python
+5. ⏭️ Add numerical stability checks (epsilon guards)
+6. ⏭️ Re-run tests to verify corrections
+7. ⏭️ Add unit tests for barycentric coordinates
+8. ⏭️ Document remaining discrepancies if any
+
+## Test Environment
+
+- Python version: (from environment)
+- NumPy version: (from environment)
+- Test date: 2025-11-12
+- Reference: Corrected Fortran implementation with all 4 bugs fixed
