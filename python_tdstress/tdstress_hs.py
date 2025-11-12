@@ -160,7 +160,7 @@ def tdstress_harfunc(X, Y, Z, P1, P2, P3, Ss, Ds, Ts, mu, lam):
     # Transform slip vector components from TDCS into EFCS
     # A matrix has Vnorm, Vstrike, Vdip as columns
     A = np.column_stack([Vnorm, Vstrike, Vdip])
-    bX, bY, bZ = coord_trans(bx, by, bz, A.T)
+    bX, bY, bZ = coord_trans(bx, by, bz, A)
 
     # Calculate contribution of angular dislocation pair on each TD side
     # Side 1: P1-P2

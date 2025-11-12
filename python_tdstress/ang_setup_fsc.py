@@ -89,10 +89,10 @@ def ang_setup_fsc_s(X, Y, Z, bX, bY, bZ, PA, PB, mu, lam):
     A = np.column_stack([ey1, ey2, ey3])
 
     # Transform coordinates from EFCS to the first ADCS (point A)
-    y1A, y2A, y3A = coord_trans(X - PA[0], Y - PA[1], Z - PA[2], A.T)
+    y1A, y2A, y3A = coord_trans(X - PA[0], Y - PA[1], Z - PA[2], A)
 
     # Transform side vector to ADCS
-    y1AB, y2AB, y3AB = coord_trans(SideVec[0], SideVec[1], SideVec[2], A.T)
+    y1AB, y2AB, y3AB = coord_trans(SideVec[0], SideVec[1], SideVec[2], A)
 
     # Coordinates in second ADCS (point B)
     y1B = y1A - y1AB
@@ -100,7 +100,7 @@ def ang_setup_fsc_s(X, Y, Z, bX, bY, bZ, PA, PB, mu, lam):
     y3B = y3A - y3AB
 
     # Transform slip vector components from EFCS to ADCS
-    b1, b2, b3 = coord_trans(bX, bY, bZ, A.T)
+    b1, b2, b3 = coord_trans(bX, bY, bZ, A)
 
     # Determine the best artifact-free configuration
     # Configuration based on (beta*y1A) >= 0
