@@ -7,29 +7,31 @@
 
 ## Full-Space Results (TDstressFS)
 
+**Coordinates now match Fortran test exactly**
+
 | Point | Coordinates | Expected Exx | Got Exx | Status |
 |-------|-------------|--------------|---------|--------|
-| 1 (center) | (-0.333, -0.333, -4.667) | 0.04810470 | -0.02920989 | ❌ FAIL |
-| 2 | (0.0, 0.0, 0.0) | - | -5.66e+29 | ⚠️ Overflow |
-| 3 | (0.0, 3.0, 0.0) | - | -0.00348636 | ✓ OK |
+| 1 | (-0.333, -0.333, -3.0) | - | 0.06317170 | ✓ OK |
+| 2 (center) | (-0.333, -0.333, -4.667) | 0.04810470 | -0.02920989 | ❌ FAIL |
+| 3 | (-0.333, -0.333, -6.0) | - | 2.22069477 | ✓ OK |
 | 4 | (7.0, -1.0, -5.0) | 0.00082916 | NaN | ❌ NaN |
 | 5 | (-7.0, -1.0, -5.0) | 0.00114440 | NaN | ❌ NaN |
-| 6 | (-1.0, 7.0, -5.0) | - | 0.00554713 | ✓ OK |
-| 7 | (-1.0, -7.0, -5.0) | - | -0.01928543 | ✓ OK |
-| 8 | (-1.0, -1.0, 7.0) | - | -0.00755206 | ✓ OK |
-| 9 | (-1.0, -1.0, -12.0) | - | 0.01045591 | ✓ OK |
-| 10 | (0.0, 0.0, -5.0) | - | 0.43120870 | ✓ OK |
-| 11 | (0.0, -1.0, -5.0) | - | NaN | ✓ Expected (on edge) |
+| 6 | (-1.0, -3.0, -6.0) | - | NaN | ⚠️ NaN |
+| 7 | (-1.0, 3.0, -3.0) | - | 0.05612467 | ✓ OK |
+| 8 | (3.0, -3.0, -6.0) | - | 0.00548525 | ✓ OK |
+| 9 | (-3.0, 3.0, -3.0) | - | NaN | ⚠️ NaN |
+| 10 | (-1.0, -1.0, -1.0) | - | 0.00322825 | ✓ OK |
+| 11 | (-1.0, 1.0, -1.0) | - | -0.00419984 | ✓ OK |
 | 12 | (1.0, -1.0, -1.0) | 0.00441203 | NaN | ❌ NaN |
-| 13 | (-1.0, 1.0, -1.0) | - | -0.00419984 | ✓ OK |
-| 14 | (-1.0, -1.0, -1.0) | - | 0.00322825 | ✓ OK |
+| 13 | (-1.0, -1.0, -8.0) | - | 0.02069253 | ✓ OK |
+| 14 | (-1.0, 1.0, -8.0) | - | 0.16414011 | ✓ OK |
 | 15 | (1.0, -1.0, -8.0) | -0.00091411 | NaN | ❌ NaN |
 
 ## Half-Space Results (TDstressHS)
 
 | Point | Coordinates | Expected Exx | Got Exx | Status |
 |-------|-------------|--------------|---------|--------|
-| 1 (center) | (-0.333, -0.333, -4.667) | 0.04810470 | -0.03162771 | ❌ FAIL |
+| 2 (center) | (-0.333, -0.333, -4.667) | 0.04810470 | -0.03162771 | ❌ FAIL |
 | 4 | (7.0, -1.0, -5.0) | 0.00082916 | NaN | ❌ NaN |
 | 5 | (-7.0, -1.0, -5.0) | 0.00114440 | NaN | ❌ NaN |
 | 12 | (1.0, -1.0, -1.0) | 0.00441203 | NaN | ❌ NaN |
@@ -45,20 +47,22 @@
 This matches **Bug #2** in Fortran: incorrect barycentric coordinate formula.
 
 ### 2. Spurious NaNs at Valid Points
-**Points 4, 5, 12, 15** return NaN when they should be finite:
-- These are far from the triangle (not on edges/vertices)
-- Should NOT be singular
-- Likely causes:
-  - Division by near-zero in angular dislocation calculations
-  - Incorrect trimode classification
-  - Overflow in intermediate calculations
+**Points 4, 5, 6, 9, 12, 15** return NaN when they should be finite:
+- Point 4: (7, -1, -5) - Far right
+- Point 5: (-7, -1, -5) - Far left
+- Point 6: (-1, -3, -6) - Below triangle
+- Point 9: (-3, 3, -3) - Outside triangle
+- Point 12: (1, -1, -1) - Above triangle
+- Point 15: (1, -1, -8) - Below triangle
+
+All these points are well away from triangle edges/vertices and should NOT be singular.
+
+Likely causes:
+- Division by near-zero in angular dislocation calculations
+- Incorrect trimode classification
+- Overflow in intermediate calculations
 
 This matches **Bug #3** in Fortran: overly strict edge detection.
-
-### 3. Numerical Overflow
-**Point 2** (0, 0, 0): Returns -5.66e+29
-- Severe numerical instability at surface origin
-- May need special handling
 
 ## Comparison to Fortran Bugs
 

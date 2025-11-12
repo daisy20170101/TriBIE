@@ -52,21 +52,22 @@ def test_reference_points():
     print()
 
     # Test points with known reference values (all 15 points from Fortran test)
+    # Coordinates match exactly: x[i], y[i], z[i]
     test_cases = [
         {
-            'name': 'Point 1 (center)',
+            'name': 'Point 1',
+            'coords': (-1.0/3.0, -1.0/3.0, -3.0),
+            'expected_exx': None
+        },
+        {
+            'name': 'Point 2 (center)',
             'coords': (-1.0/3.0, -1.0/3.0, -14.0/3.0),
             'expected_exx': 0.0481047005255181
         },
         {
-            'name': 'Point 2',
-            'coords': (0.0, 0.0, 0.0),
-            'expected_exx': None  # Surface point - may be singular
-        },
-        {
             'name': 'Point 3',
-            'coords': (0.0, 3.0, 0.0),
-            'expected_exx': None  # Reference value not provided
+            'coords': (-1.0/3.0, -1.0/3.0, -6.0),
+            'expected_exx': None
         },
         {
             'name': 'Point 4',
@@ -80,32 +81,32 @@ def test_reference_points():
         },
         {
             'name': 'Point 6',
-            'coords': (-1.0, 7.0, -5.0),
+            'coords': (-1.0, -3.0, -6.0),
             'expected_exx': None
         },
         {
             'name': 'Point 7',
-            'coords': (-1.0, -7.0, -5.0),
+            'coords': (-1.0, 3.0, -3.0),
             'expected_exx': None
         },
         {
             'name': 'Point 8',
-            'coords': (-1.0, -1.0, 7.0),
+            'coords': (3.0, -3.0, -6.0),
             'expected_exx': None
         },
         {
             'name': 'Point 9',
-            'coords': (-1.0, -1.0, -12.0),
+            'coords': (-3.0, 3.0, -3.0),
             'expected_exx': None
         },
         {
             'name': 'Point 10',
-            'coords': (0.0, 0.0, -5.0),
+            'coords': (-1.0, -1.0, -1.0),
             'expected_exx': None
         },
         {
             'name': 'Point 11',
-            'coords': (0.0, -1.0, -5.0),
+            'coords': (-1.0, 1.0, -1.0),
             'expected_exx': None
         },
         {
@@ -115,12 +116,12 @@ def test_reference_points():
         },
         {
             'name': 'Point 13',
-            'coords': (-1.0, 1.0, -1.0),
+            'coords': (-1.0, -1.0, -8.0),
             'expected_exx': None
         },
         {
             'name': 'Point 14',
-            'coords': (-1.0, -1.0, -1.0),
+            'coords': (-1.0, 1.0, -8.0),
             'expected_exx': None
         },
         {
@@ -187,7 +188,7 @@ def test_half_space():
     # Test with the same 5 points that have reference values
     test_cases = [
         {
-            'name': 'Point 1 (center)',
+            'name': 'Point 2 (center)',
             'coords': (-1.0/3.0, -1.0/3.0, -14.0/3.0),
             'expected_exx': 0.0481047005255181
         },
