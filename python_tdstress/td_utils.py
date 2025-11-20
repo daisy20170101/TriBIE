@@ -141,9 +141,10 @@ def trimodefinder(x, y, z, p1, p2, p3):
     z = np.atleast_1d(z).flatten()
 
     # Extract 2D coordinates (y and z components)
-    p1_2d = np.array(p1[:2])
-    p2_2d = np.array(p2[:2])
-    p3_2d = np.array(p3[:2])
+    # Note: p1 = [x_TDCS, y_TDCS, z_TDCS], we need [y_TDCS, z_TDCS]
+    p1_2d = np.array(p1[1:3])
+    p2_2d = np.array(p2[1:3])
+    p3_2d = np.array(p3[1:3])
 
     # Calculate barycentric coordinates
     denominator = ((p2_2d[1] - p3_2d[1]) * (p1_2d[0] - p3_2d[0]) +
