@@ -1,0 +1,19 @@
+# Makefile for debug program
+# Compile with: make -f Makefile.debug
+
+FC = gfortran
+FFLAGS = -ffree-line-length-none -g -O0 -fcheck=all -fbacktrace
+
+debug_nikkhoo: sub_nikkhoo.o debug_nikkhoo.o
+	$(FC) $(FFLAGS) -o debug_nikkhoo sub_nikkhoo.o debug_nikkhoo.o
+
+sub_nikkhoo.o: sub_nikkhoo.f90
+	$(FC) $(FFLAGS) -c sub_nikkhoo.f90
+
+debug_nikkhoo.o: debug_nikkhoo.f90 sub_nikkhoo.o
+	$(FC) $(FFLAGS) -c debug_nikkhoo.f90
+
+clean:
+	rm -f *.o debug_nikkhoo
+
+.PHONY: clean
