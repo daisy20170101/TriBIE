@@ -17,4 +17,3 @@ clean:
 	rm -f *.o debug_nikkhoo
 
 .PHONY: clean
-

@@ -29,10 +29,9 @@ program debug_nikkhoo
   logical :: casep_log, casen_log, casez_log
   
   ! Initialize test data (single point for debugging)
-
-  x = [7.0_DP]
-  y = [-1.0_DP]
-  z = [-5.0_DP]
+  x = [-1.0_DP/3.0_DP]
+  y = [-1.0_DP/3.0_DP]
+  z = [-14.0_DP/3.0_DP]
   
   p1 = [-1.0_DP, -1.0_DP, -5.0_DP]
   p2 = [1.0_DP, -1.0_DP, -5.0_DP]
@@ -144,7 +143,7 @@ program debug_nikkhoo
   write(*,*) ''
   
   ! Determine configuration
-  call trimode_finder(x_td, y_td, z_td, p1_td, p2_td, p3_td, trimode)
+  call trimode_finder(y_td, z_td, x_td, p1_td, p2_td, p3_td, trimode)
   
   casep_log = (trimode == 1)
   casen_log = (trimode == -1)

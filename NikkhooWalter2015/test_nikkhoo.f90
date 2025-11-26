@@ -9,7 +9,7 @@ program test_nikkhoo
   implicit none
   
   ! Test parameters
-  integer, parameter :: n_points = 1
+  integer, parameter :: n_points = 7
   integer :: i
   real(DP), dimension(n_points) :: x, y, z
   real(DP), dimension(3) :: p1, p2, p3
@@ -17,19 +17,10 @@ program test_nikkhoo
   real(DP), dimension(n_points, 6) :: stress, strain
   
   ! Initialize test data
-  ! Original test points
-  !x = [-1.0_DP/3.0_DP, -1.0_DP/3.0_DP, -1.0_DP/3.0_DP, 7.0_DP, -7.0_DP, -1.0_DP, -1.0_DP, &
-  !     3.0_DP, -3.0_DP, -1.0_DP, -1.0_DP, 1.0_DP, -1.0_DP, -1.0_DP, 1.0_DP]
-  !y = [-1.0_DP/3.0_DP, -1.0_DP/3.0_DP, -1.0_DP/3.0_DP, -1.0_DP, -1.0_DP, -3.0_DP, 3.0_DP, &
-  !     -3.0_DP, 3.0_DP, -1.0_DP, 1.0_DP, -1.0_DP, -1.0_DP, 1.0_DP, -1.0_DP]
-  !z = [-3.0_DP, -14.0_DP/3.0_DP, -6.0_DP, -5.0_DP, -5.0_DP, -6.0_DP, -3.0_DP, &
-  !     -6.0_DP, -3.0_DP, -1.0_DP, -1.0_DP, -1.0_DP, -8.0_DP, -8.0_DP, -8.0_DP]
+  x = [-1.0_DP/3.0_DP, -1.0_DP/3.0_DP, -1.0_DP/3.0_DP, 7.0_DP, -7.0_DP, -1.0_DP, -1.0_DP]
+  y = [-1.0_DP/3.0_DP, -1.0_DP/3.0_DP, -1.0_DP/3.0_DP, -1.0_DP, -1.0_DP, -3.0_DP, 3.0_DP]
+  z = [-3.0_DP, -14.0_DP/3.0_DP, -6.0_DP, -5.0_DP, -5.0_DP, -6.0_DP, -3.0_DP]
   
-
-  x = [-1.0_DP/3.0_DP]
-  y = [-1.0_DP/3.0_DP]
-  z = [-14.0_DP/3.0_DP]
-
   p1 = [-1.0_DP, -1.0_DP, -5.0_DP]
   p2 = [1.0_DP, -1.0_DP, -5.0_DP]
   p3 = [-1.0_DP, 1.0_DP, -4.0_DP]

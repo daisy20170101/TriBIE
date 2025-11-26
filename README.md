@@ -242,7 +242,7 @@ The `example1/` directory contains a complete working example based on the SCEC 
 **Problem**: SCEC SEAS Benchmark Problem 5 (BP5) - Long-term earthquake cycles on a vertical strike-slip fault
 - **Fault geometry**: 160 km × 60 km planar fault 
 - **Depth**: Surface to 60 km depth
-- **Elements**: 9,214 triangular elements
+- **Elements**: 9,214 triangular elements, mesh size ~ 1km
 - **Physics**: Rate-and-state friction with aging law
 - **Duration**: 500 years simulation time
 
