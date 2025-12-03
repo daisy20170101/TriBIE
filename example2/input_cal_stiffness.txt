@@ -1,0 +1,2 @@
+fault_bp3_h100_D60.gts
+4  ! num_of_cores
