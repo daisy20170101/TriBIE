@@ -102,9 +102,17 @@ P3 = P3(:);
 
 % Calculate main dislocation contribution to strains and stresses
 [StsMS,StrMS] = TDstressFS(X,Y,Z,P1,P2,P3,Ss,Ds,Ts,mu,lambda);
+fprintf('=== MATLAB Main Dislocation Contribution ===\n');
+fprintf('Strain: Exx= %.15e\n', StrMS(1));
+fprintf('        Eyy= %.15e\n', StrMS(2));
+fprintf('        Ezz= %.15e\n', StrMS(3));
 
 % Calculate harmonic function contribution to strains and stresses
 [StsFSC,StrFSC] = TDstress_HarFunc(X,Y,Z,P1,P2,P3,Ss,Ds,Ts,mu,lambda);
+fprintf('=== MATLAB Harmonic Function Contribution ===\n');
+fprintf('Strain: Exx= %.15e\n', StrFSC(1));
+fprintf('        Eyy= %.15e\n', StrFSC(2));
+fprintf('        Ezz= %.15e\n', StrFSC(3));
 
 % Calculate image dislocation contribution to strains and stresses
 P1(3) = -P1(3);
@@ -112,6 +120,10 @@ P2(3) = -P2(3);
 P3(3) = -P3(3);
 
 [StsIS,StrIS] = TDstressFS(X,Y,Z,P1,P2,P3,Ss,Ds,Ts,mu,lambda);
+fprintf('=== MATLAB Image Dislocation Contribution ===\n');
+fprintf('Strain: Exx= %.15e\n', StrIS(1));
+fprintf('        Eyy= %.15e\n', StrIS(2));
+fprintf('        Ezz= %.15e\n', StrIS(3));
 
 if P1(3)==0 && P2(3)==0 && P3(3)==0
     StsIS(:,5) = -StsIS(:,5);
@@ -123,35 +135,30 @@ end
 % Calculate the complete stress and strain tensor components in EFCS
 Stress = StsMS+StsIS+StsFSC;
 Strain = StrMS+StrIS+StrFSC;
+fprintf('=== MATLAB Total (Main + Harmonic + Image) ===\n');
+fprintf('Strain: Exx= %.15e\n', Strain(1));
+fprintf('        Eyy= %.15e\n', Strain(2));
+fprintf('        Ezz= %.15e\n', Strain(3));
+fprintf('\n');
 
 function [Stress,Strain]=TDstressFS(X,Y,Z,P1,P2,P3,Ss,Ds,Ts,mu,lambda)
-% TDstressFS 
-% Calculates stresses and strains associated with a triangular dislocation 
+% TDstressFS
+% Calculates stresses and strains associated with a triangular dislocation
 % in an elastic full-space.
 
-fprintf('=== DEBUG TDstressFS START ===\n');
-fprintf('Input: x=%.6f y=%.6f z=%.6f\n', X, Y, Z);
-fprintf('P1=(%.6f,%.6f,%.6f) P2=(%.6f,%.6f,%.6f) P3=(%.6f,%.6f,%.6f)\n', ...
-        P1(1), P1(2), P1(3), P2(1), P2(2), P2(3), P3(1), P3(2), P3(3));
-fprintf('ss=%.6f ds=%.6f ts=%.6f\n', Ss, Ds, Ts);
-fprintf('mu=%.6f lambda=%.6f\n', mu, lambda);
-
 nu = 1/(1+lambda/mu)/2; % Poisson's ratio
-fprintf('nu = %.6f\n', nu);
 
 bx = Ts; % Tensile-slip
 by = Ss; % Strike-slip
 bz = Ds; % Dip-slip
-fprintf('Slip vector: bx=%.6f by=%.6f bz=%.6f\n', bx, by, bz);
 
-% Calculate unit strike, dip and normal to TD vectors: For a horizontal TD 
-% as an exception, if the normal vector points upward, the strike and dip 
+% Calculate unit strike, dip and normal to TD vectors: For a horizontal TD
+% as an exception, if the normal vector points upward, the strike and dip
 % vectors point Northward and Westward, whereas if the normal vector points
-% downward, the strike and dip vectors point Southward and Westward, 
+% downward, the strike and dip vectors point Southward and Westward,
 % respectively.
 Vnorm = cross(P2-P1,P3-P1);
 Vnorm = Vnorm/norm(Vnorm);
-fprintf('vnorm = (%.6f, %.6f, %.6f)\n', Vnorm(1), Vnorm(2), Vnorm(3));
 
 eY = [0 1 0]';
 eZ = [0 0 1]';
@@ -167,9 +174,7 @@ if norm(Vstrike)==0
     end
 end
 Vstrike = Vstrike/norm(Vstrike);
-fprintf('vstrike = (%.6f, %.6f, %.6f)\n', Vstrike(1), Vstrike(2), Vstrike(3));
 Vdip = cross(Vnorm,Vstrike);
-fprintf('vdip = (%.6f, %.6f, %.6f)\n', Vdip(1), Vdip(2), Vdip(3));
 
 % Transform coordinates and slip vector components from EFCS into TDCS
 p1 = zeros(3,1);
@@ -189,15 +194,6 @@ e23 = (p3-p2)/norm(p3-p2);
 A = acos(e12'*e13);
 B = acos(-e12'*e23);
 C = acos(e23'*e13);
-
-fprintf('Transformation matrix A:\n');
-fprintf('A(1,:) = (%.6f, %.6f, %.6f)\n', Vnorm(1), Vnorm(2), Vnorm(3));
-fprintf('A(2,:) = (%.6f, %.6f, %.6f)\n', Vstrike(1), Vstrike(2), Vstrike(3));
-fprintf('A(3,:) = (%.6f, %.6f, %.6f)\n', Vdip(1), Vdip(2), Vdip(3));
-fprintf('TDCS coordinates:\n');
-fprintf('Calculation point: x_td=%.6f y_td=%.6f z_td=%.6f\n', x, y, z);
-fprintf('p1_td = (%.6f, %.6f, %.6f)\n', p1(1), p1(2), p1(3));
-fprintf('p2_td = (%.6f, %.6f, %.6f)\n', p2(1), p2(2), p2(3));
 fprintf('p3_td = (%.6f, %.6f, %.6f)\n', p3(1), p3(2), p3(3));
 fprintf('Unit vectors along TD sides:\n');
 fprintf('e12 = (%.6f, %.6f, %.6f)\n', e12(1), e12(2), e12(3));
