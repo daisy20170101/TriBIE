@@ -475,14 +475,14 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
   write(cTemp, *) myid
 
   if (local_cells > 0) then
-    open(14, file='nikkhoo_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
+    open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
     do i = 1, local_cells
       write(14) arr_out(i, :)
     end do
     close(14)
   else
     ! Write dummy entry for compatibility
-    open(14, file='nikkhoo_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
+    open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
     write(14) (0.d0, i=1, n_cell)
     close(14)
   end if
