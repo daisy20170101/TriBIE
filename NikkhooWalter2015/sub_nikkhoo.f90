@@ -436,10 +436,10 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   call cross_product(vnorm_temp, vstrike_temp, vdip_temp)
   
-  ! Transformation matrix
-  A_temp(1, :) = vnorm_temp
-  A_temp(2, :) = vstrike_temp
-  A_temp(3, :) = vdip_temp
+  ! Transformation matrix (columns are unit vectors, matching tdstress_fs)
+  A_temp(:, 1) = vnorm_temp
+  A_temp(:, 2) = vstrike_temp
+  A_temp(:, 3) = vdip_temp
   
   ! Transform coordinates to TDCS
   p1_td_temp = 0.0_DP
@@ -802,17 +802,19 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   ! Note: MATLAB uses 2D coordinates (y, z) in TDCS
   ! The function is called with (y_td, z_td, x_td), so x=y_td, y=z_td, z=x_td
   ! p1, p2, p3 are 3D coordinates but MATLAB uses p1(2:3), p2(2:3), p3(2:3)
-  ! So p1(2)=y, p1(3)=z, etc.
-  denominator = (p2(2) - p3(2)) * (p1(2) - p3(2)) + (p3(2) - p2(2)) * (p1(3) - p3(3))
-  
+  ! MATLAB 2-element vectors: p(1)=y, p(2)=z
+  ! Fortran 3-element vectors: p(2)=y, p(3)=z
+  ! Therefore: MATLAB p(1) -> Fortran p(2), MATLAB p(2) -> Fortran p(3)
+  denominator = (p2(3) - p3(3)) * (p1(2) - p3(2)) + (p3(2) - p2(2)) * (p1(3) - p3(3))
+
   if (abs(denominator) < 1.0e-15_DP) then
     ! Degenerate triangle case
     trimode = 1
     return
-    end if
-  
-  a = ((p2(2) - p3(2)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
-  b = ((p3(2) - p1(2)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
+  end if
+
+  a = ((p2(3) - p3(3)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
+  b = ((p3(3) - p1(3)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
   c = 1.0_DP - a - b
   
   ! Initialize to first configuration
