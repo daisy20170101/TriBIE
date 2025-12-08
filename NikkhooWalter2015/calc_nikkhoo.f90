@@ -303,6 +303,7 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
                                 error_occurred, error_message)
   use m_nikkhoo_green
   use omp_lib
+  use, intrinsic :: ieee_arithmetic
   implicit none
 
   integer, intent(in) :: myid, size, Nt, n_vertex, n_cell
@@ -435,7 +436,7 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
                                 parm_miu, parm_l, stress, strain)
 
         ! Check for NaN (singular points)
-        if (isnan_check(stress(1)) .or. isnan_check(strain(1))) then
+        if (ieee_is_nan(stress(1)) .or. ieee_is_nan(strain(1))) then
           arr_out(j, i) = 0.d0
           cycle
         end if
@@ -458,7 +459,7 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
                         dot_product(arr_cl_v(:, 3, j), matmul(sig33, arr_cl_v(:, 1, j)))
 
         ! Check for NaN in result
-        if (isnan_check(arr_out(j, i))) then
+        if (ieee_is_nan(arr_out(j, i))) then
           arr_out(j, i) = 0.d0
         end if
       end do
@@ -1154,12 +1155,3 @@ subroutine calc_coord_cos(c1, c2, v)
 end subroutine calc_coord_cos
 
 
-!===============================================================================
-! Helper: Check for NaN
-!===============================================================================
-logical function isnan_check(x)
-  use m_nikkhoo_green, only: DP
-  implicit none
-  real(DP), intent(in) :: x
-  isnan_check = (x /= x)
-end function isnan_check
