@@ -14,13 +14,14 @@
 !==============================================================================
 
 module nikkhoo_walter
+  use, intrinsic :: ieee_arithmetic
   implicit none
-  
+
   ! Precision parameters
   integer, parameter :: DP = selected_real_kind(15, 307)
   real(DP), parameter :: PI = 3.141592653589793238462643383279502884197_DP
   real(DP), parameter :: EPS = 1.0e-15_DP
-  
+
   contains
 
 !==============================================================================
@@ -315,39 +316,18 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     write(*,*) 'After third: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
   else if (casez_log) then
-    ! For points on the triangle, use average of positive and negative cases
-    ! Configuration I (positive)
-    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, -e13, &
-                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, e12, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
-    exx_p = exx_p + exx_n; eyy_p = eyy_p + eyy_n; ezz_p = ezz_p + ezz_n
-    exy_p = exy_p + exy_n; exz_p = exz_p + exz_n; eyz_p = eyz_p + eyz_n
-    call tdsetup_s(x_td, y_td, z_td, C_angle, bx, by, bz, nu, p3_td, e23, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
-    exx_p = exx_p + exx_n; eyy_p = eyy_p + eyy_n; ezz_p = ezz_p + ezz_n
-    exy_p = exy_p + exy_n; exz_p = exz_p + exz_n; eyz_p = eyz_p + eyz_n
-    
-    ! Configuration II (negative)
-    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, nu, p1_td, e13, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
-    call tdsetup_s(x_td, y_td, z_td, B_angle, -bx, -by, -bz, nu, p2_td, -e12, &
-                   exx, eyy, ezz, exy, exz, eyz)
-    exx_n = exx_n + exx; eyy_n = eyy_n + eyy; ezz_n = ezz_n + ezz
-    exy_n = exy_n + exy; exz_n = exz_n + exz; eyz_n = eyz_n + eyz
-    call tdsetup_s(x_td, y_td, z_td, C_angle, -bx, -by, -bz, nu, p3_td, -e23, &
-                   exx, eyy, ezz, exy, exz, eyz)
-    exx_n = exx_n + exx; eyy_n = eyy_n + eyy; ezz_n = ezz_n + ezz
-    exy_n = exy_n + exy; exz_n = exz_n + exz; eyz_n = eyz_n + eyz
-    
-    ! Average the results
-    exx = (exx_p + exx_n) / 2.0_DP
-    eyy = (eyy_p + eyy_n) / 2.0_DP
-    ezz = (ezz_p + ezz_n) / 2.0_DP
-    exy = (exy_p + exy_n) / 2.0_DP
-    exz = (exz_p + exz_n) / 2.0_DP
-    eyz = (eyz_p + eyz_n) / 2.0_DP
-    end if
+    ! Points on triangle edges - return NaN as per MATLAB TDstressFS.m implementation
+    ! MATLAB explicitly sets: exx(casezLog,1) = nan; etc.
+    ! These are singular points where the strain field is undefined
+    write(*,*) '=== Configuration III (casez_log) - Point on triangle edge ==='
+    write(*,*) 'Setting strain to NaN (matching MATLAB behavior)'
+    exx = ieee_value(0.0_DP, ieee_quiet_nan)
+    eyy = ieee_value(0.0_DP, ieee_quiet_nan)
+    ezz = ieee_value(0.0_DP, ieee_quiet_nan)
+    exy = ieee_value(0.0_DP, ieee_quiet_nan)
+    exz = ieee_value(0.0_DP, ieee_quiet_nan)
+    eyz = ieee_value(0.0_DP, ieee_quiet_nan)
+  end if
   
   ! Transform strain tensor to EFCS
   write(*,*) 'Before tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
