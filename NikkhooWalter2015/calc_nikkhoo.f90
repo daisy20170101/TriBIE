@@ -19,7 +19,7 @@
 !   triangular_mesh.gts - GTS format mesh file with triangular elements
 !
 ! Output:
-!   nikkhoo_<rank>.bin - Binary stiffness matrix files (one per MPI process)
+!   trigreen_<rank>.bin - Binary stiffness matrix files (one per MPI process)
 !   position.bin - Centroid positions of all elements
 !===============================================================================
 
@@ -184,7 +184,7 @@ program calc_nikkhoo
       write(*,*) "Calculation completed successfully!"
       write(*,*) "========================================================"
       write(*,*) "Total time:", end_time - start_time, "seconds"
-      write(*,*) "Output files: nikkhoo_<rank>.bin, position.bin"
+      write(*,*) "Output files: trigreen_<rank>.bin, position.bin"
     end if
   end if
 
@@ -277,6 +277,8 @@ subroutine load_gts(fname, n_vertex, n_edge, n_cell, arr_vertex, arr_edge, arr_c
       close(10)
       return
     end if
+    ! Flip z coordinate sign (mesh has positive z, half-space requires negative z)
+    arr_vertex(i, 3) = -arr_vertex(i, 3)
   end do
 
   ! Read cell definitions (vertex indices)
@@ -475,14 +477,14 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
   write(cTemp, *) myid
 
   if (local_cells > 0) then
-    open(14, file='nikkhoo_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
+    open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
     do i = 1, local_cells
       write(14) arr_out(i, :)
     end do
     close(14)
   else
     ! Write dummy entry for compatibility
-    open(14, file='nikkhoo_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
+    open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
     write(14) (0.d0, i=1, n_cell)
     close(14)
   end if
