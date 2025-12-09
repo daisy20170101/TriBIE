@@ -931,10 +931,7 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
          arr_cl_v2(:,:,1) = 0.d0
        end if
    
-   ! CRITICAL: We need triangle data for ALL cells, not just local ones
-   ! Each process must compute triangle data for all cells to perform Green's function calculations
-   ! This is a necessary overhead for the distributed computation
-   write(*,*) "Process", myid, "computing triangle data for all", n_cell, "cells"
+   ! Compute triangle data for ALL cells (needed for Green's function calculations)
    do k = 1, n_cell
      vj(1:3) = arr_cell(k,1:3)
      p1(1:3) = arr_vertex(vj(1),1:3)
@@ -945,59 +942,40 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
      arr_trid(4:6,k) = p2(1:3)
      arr_trid(7:9,k) = p3(1:3)
    end do
-   write(*,*) "Process", myid, "completed triangle data computation"
+  ! Pre-validate constant parameters ONCE before entering loop
+  if (isnan(parm_nu)) then
+    error_occurred = .true.
+    error_message = "Invalid parm_nu parameter"
+    write(*,*) 'Process', myid, ': ERROR - parm_nu is NaN'
+    return
+  end if
 
-  write(6,*) "Process", myid, "starting hybrid parallel computation"
-  
+  if (isnan(ss) .or. isnan(ds) .or. isnan(op)) then
+    error_occurred = .true.
+    error_message = "Invalid ss, ds, op parameters"
+    write(*,*) 'Process', myid, ': ERROR - ss/ds/op contains NaN'
+    return
+  end if
+
   ! Hybrid MPI+OpenMP parallel computation
   if (local_cells > 0) then
-         !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) SHARED(arr_co, arr_trid, arr_out, arr_cl_v2)
-     do j = 1, local_cells
-       ! Map local index to global cell index (1-based)
-       k = start_idx + j - 1  ! This is now correct since start_idx is 1-based
-       if (k > n_cell) cycle  ! Fix: Change >= to > for 1-based indexing
-      
+    !$OMP PARALLEL DO PRIVATE(i, j, u, t, sig33, k) &
+    !$OMP& SHARED(arr_co, arr_trid, arr_out, arr_cl_v2) &
+    !$OMP& SCHEDULE(DYNAMIC, 10)
+    do j = 1, local_cells
+      ! Map local index to global cell index (1-based)
+      k = start_idx + j - 1
+      if (k > n_cell) cycle
+
       do i = 1, n_cell
-        ! Pre-check input parameters for numerical stability
-        if (isnan(parm_nu) .or. any(isnan(arr_co(:,j))) .or. any(isnan(arr_trid(:,i))) )then
-          !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': Invalid input parameters to dstuart:'
-          write(*,*) '  parm_nu =', parm_nu
-          write(*,*) '  arr_co(:,', j, ') =', arr_co(:,j)
-          write(*,*) '  arr_trid(:,', i, ') =', arr_trid(:,i)
-          !$OMP END CRITICAL
-          cycle
-        end if
-        
-        ! Check if ss, ds, op are valid before calling dstuart
-        if (isnan(ss) .or. isnan(ds) .or. isnan(op)) then
-          !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': Invalid ss, ds, op parameters:'
-          write(*,*) '  ss =', ss, 'ds =', ds, 'op =', op
-          write(*,*) '  This may indicate a planar vertical fault issue'
-          !$OMP END CRITICAL
-          cycle
-        end if
-        
-        ! DIAGNOSTIC: Log parameters for planar vertical faults
-        if (abs(ss) .lt. 1.0d-12 .and. abs(ds) .lt. 1.0d-12) then
-          !$OMP CRITICAL
-          write(*,*) 'Process', myid, ': WARNING - Very small ss/ds values detected:'
-          write(*,*) '  ss =', ss, 'ds =', ds, 'op =', op
-          write(*,*) '  This may cause numerical issues in dstuart'
-          !$OMP END CRITICAL
-        end if
-        
         ! Calculate strain gradients using Stuart's method
         call dstuart(parm_nu, arr_co(:,j), arr_trid(:,i), ss, ds, op, u, t)
-        
+
         ! Check for invalid results from dstuart
         if (any(isnan(u)) .or. any(isnan(t))) then
-          !$OMP CRITICAL
+          !$OMP ATOMIC WRITE
           error_occurred = .true.
-          error_message = "Invalid results from dstuart calculation"
-          write(*,*) 'Process', myid, ': dstuart returned NaN values:'
-          !$OMP END CRITICAL
+          !$OMP END ATOMIC
           cycle
         end if
               
@@ -1020,47 +998,24 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
 
         ! Calculate local stress in Bar (0.1MPa)
         arr_out(j,i) = -parm_miu/100 * dot_product(arr_cl_v2(:,3,j), matmul(sig33(:,:), arr_cl_v2(:,1,j)))
-        
-        ! Check final result
+
+        ! Replace NaN with zero (no verbose output)
         if (isnan(arr_out(j,i))) then
-          !$OMP CRITICAL
-          arr_out(j,i)=0.d0
-          write(*,*) 'NaN detected'
-          !$OMP END CRITICAL
-          cycle
+          arr_out(j,i) = 0.d0
         end if
       end do
     end do
     !$OMP END PARALLEL DO
-  else
-    ! Process with no cells - no computation needed
-    write(*,*) 'Process', myid, 'skipping computation (no cells assigned)'
   end if
-  
-    ! Check for errors before proceeding
+
+  ! Check for errors before proceeding
   if (error_occurred) then
-    write(*,*) "Process", myid, "encountered an error: ", trim(error_message)
+    error_message = "NaN values detected in dstuart calculation"
+    write(*,*) "Process", myid, ": Some NaN results were encountered"
     return
   end if
   
-  ! Count processed cells after OpenMP loop
- ! cells_processed = local_cells
-   
-   write(cTemp,*) myid
-   write(*,*) "Process", myid, "completed", local_cells, "cells"
-   write(*,*) "Process", myid, "processed cells from index", start_idx, "to", start_idx + local_cells - 1
-
-   ! Performance monitoring for load balancing
-   if (myid == 0) then
-      write(*,*) "=========================================="
-      write(*,*) "Dynamic Load Balancing Summary:"
-      write(*,*) "Total cells:", n_cell
-      write(*,*) "MPI processes:", size
-      write(*,*) "Base cells per process:", base_cells
-      write(*,*) "Extra cells distributed:", extra_cells
-      write(*,*) "Load imbalance:", extra_cells, "cells (max difference between processes)"
-      write(*,*) "=========================================="
-   end if
+  write(cTemp,*) myid
 
   ! Write results to file - OUTSIDE OpenMP region to avoid conflicts
   ! Only the main thread should write to files when using OpenMP
@@ -1073,12 +1028,10 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
     end do
     close(14)
   else
-    ! Write a dummy entry to ensure file is not empty
-    ! This ensures compatibility with 3dtri_BP5.f90 which expects all processes to have files
+    ! Write dummy entry for processes with no cells (compatibility with 3dtri_BP5.f90)
     open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
     write(14) 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0
     close(14)
-    write(*,*) 'Process', myid, 'wrote dummy entry (no cells assigned)'
   end if
 
   ! Only master process writes position data - OUTSIDE OpenMP region
