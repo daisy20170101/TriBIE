@@ -31,6 +31,11 @@ if [ ! -f "m_nikkhoo_green.f90" ]; then
     exit 1
 fi
 
+if [ ! -f "sub_nikkhoo.f90" ]; then
+    echo "ERROR: sub_nikkhoo.f90 not found!"
+    exit 1
+fi
+
 if [ ! -f "calc_nikkhoo.f90" ]; then
     echo "ERROR: calc_nikkhoo.f90 not found!"
     exit 1
@@ -57,8 +62,17 @@ if [ $? -ne 0 ]; then
 fi
 echo "  m_nikkhoo_green.f90 compiled successfully"
 
-# Step 2: Compile calc_nikkhoo.f90 (main program)
-echo "Step 2: Compiling calc_nikkhoo.f90..."
+# Step 2: Compile sub_nikkhoo.f90 (nikkhoo_walter module)
+echo "Step 2: Compiling sub_nikkhoo.f90..."
+$COMPILER $ALL_FLAGS -c sub_nikkhoo.f90 -o sub_nikkhoo.o
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to compile sub_nikkhoo.f90"
+    exit 1
+fi
+echo "  sub_nikkhoo.f90 compiled successfully"
+
+# Step 3: Compile calc_nikkhoo.f90 (main program)
+echo "Step 3: Compiling calc_nikkhoo.f90..."
 $COMPILER $ALL_FLAGS -c calc_nikkhoo.f90 -o calc_nikkhoo.o
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to compile calc_nikkhoo.f90"
@@ -66,9 +80,9 @@ if [ $? -ne 0 ]; then
 fi
 echo "  calc_nikkhoo.f90 compiled successfully"
 
-# Step 3: Link all object files
-echo "Step 3: Linking object files..."
-$COMPILER $ALL_FLAGS -o calc_nikkhoo calc_nikkhoo.o m_nikkhoo_green.o
+# Step 4: Link all object files
+echo "Step 4: Linking object files..."
+$COMPILER $ALL_FLAGS -o calc_nikkhoo calc_nikkhoo.o sub_nikkhoo.o m_nikkhoo_green.o
 
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to link object files"
@@ -96,7 +110,7 @@ if [ -f "calc_nikkhoo" ]; then
     echo "  Hybrid MPI+OMP:  OMP_NUM_THREADS=<threads> mpirun -np <nprocs> ./calc_nikkhoo"
     echo ""
     echo "Input:  triangular_mesh.gts (GTS format mesh file)"
-    echo "Output: nikkhoo_<rank>.bin, position.bin"
+    echo "Output: trigreen_<rank>.bin, position.bin"
     echo ""
 else
     echo ""

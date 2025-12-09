@@ -14,12 +14,12 @@ FFLAGS += -g -fbacktrace
 # FFLAGS = -O0 -g -fcheck=all -fbacktrace -Wall -Wextra -ffree-line-length-none -ffree-form -fopenmp
 
 # Source files (in dependency order)
-SOURCES = m_nikkhoo_green.f90 calc_nikkhoo.f90
+SOURCES = m_nikkhoo_green.f90 sub_nikkhoo.f90 calc_nikkhoo.f90
 OBJECTS = $(SOURCES:.f90=.o)
 TARGET = calc_nikkhoo
 
 # Module dependencies
-calc_nikkhoo.o: m_nikkhoo_green.o
+calc_nikkhoo.o: m_nikkhoo_green.o sub_nikkhoo.o
 
 #===============================================================================
 # Targets
@@ -42,7 +42,7 @@ clean:
 
 # Clean all (including output files)
 cleanall: clean
-	rm -f nikkhoo_*.bin position.bin
+	rm -f trigreen_*.bin position.bin
 
 # Run single process
 run: $(TARGET)
@@ -79,6 +79,6 @@ help:
 	@echo "  OMP_NUM_THREADS=4 make run-mpi-8  # 8 MPI x 4 OpenMP threads"
 	@echo ""
 	@echo "Input:  triangular_mesh.gts (GTS format mesh file)"
-	@echo "Output: nikkhoo_<rank>.bin, position.bin"
+	@echo "Output: trigreen_<rank>.bin, position.bin"
 
 .PHONY: all clean cleanall run run-mpi help
