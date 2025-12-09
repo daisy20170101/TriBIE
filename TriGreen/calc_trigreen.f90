@@ -819,12 +819,11 @@ end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, & 
+subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
                 n_vertex,n_cell,cells_processed,base_cells,extra_cells, error_occurred, error_message)
-  use m_calc_green,only: DP,parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO 
+  use m_calc_green,only: DP,parm_nu,parm_l,parm_miu,vpl1,vpl2,PI,ZERO
   use mod_dtrigreen
   implicit none
-  real(DP) :: dealloc_start_time, dealloc_end_time
     integer, intent(in) :: cells_processed,base_cells,extra_cells
    integer, intent(in) :: myid, size, Nt, n_cell, n_vertex
    real(DP), intent(in) :: arr_vertex(n_vertex,3)
@@ -1097,39 +1096,11 @@ subroutine calc_green_allcell_improved(myid,size,Nt,arr_vertex,arr_cell, &
     close(22)
   endif
 
-   ! OPTIMIZED: Deallocate arrays with performance monitoring and timing
-   
-   call CPU_TIME(dealloc_start_time)
-   
-   write(*,*) 'Process', myid, ': Starting array deallocation...'
-   
-   ! Strategy: Deallocate smaller arrays first to reduce memory pressure
-   ! This allows the OS to consolidate memory before handling large arrays
-   
-   ! Step 1: Deallocate smallest arrays (arr_co: 3 × local_cells × 8 bytes)
-   deallocate (arr_co)
-   write(*,*) 'Process', myid, ': Deallocated arr_co (smallest array)'
-   
-   ! Step 2: Deallocate medium arrays (arr_cl_v2: 9 × local_cells × 8 bytes)
-   deallocate (arr_cl_v2)
-   write(*,*) 'Process', myid, ': Deallocated arr_cl_v2 (medium array)'
-   
-   ! Step 3: Deallocate large arrays (arr_trid: 9 × n_cell × 8 bytes)
-   deallocate (arr_trid)
-   write(*,*) 'Process', myid, ': Deallocated arr_trid (large array)'
-   
-   ! Step 4: Deallocate largest array last (arr_out: local_cells × n_cell × 8 bytes)
-   ! This is usually the bottleneck - deallocate it last
-   deallocate (arr_out)
-   
-   call CPU_TIME(dealloc_end_time)
-   write(*,*) 'Process', myid, ': Deallocation complete in', dealloc_end_time - dealloc_start_time, 'seconds'
-   
-   ! OPTIONAL: Add small delay to allow OS memory consolidation
-   ! This can help reduce memory fragmentation for subsequent runs
-   if (dealloc_end_time - dealloc_start_time > 1.0d0) then
-     write(*,*) 'Process', myid, ': Slow deallocation detected - consider memory optimization'
-   end if
+   ! Deallocate arrays
+   if (allocated(arr_co)) deallocate(arr_co, stat=ierr)
+   if (allocated(arr_cl_v2)) deallocate(arr_cl_v2, stat=ierr)
+   if (allocated(arr_trid)) deallocate(arr_trid, stat=ierr)
+   if (allocated(arr_out)) deallocate(arr_out, stat=ierr)
  
 return 
 end subroutine
