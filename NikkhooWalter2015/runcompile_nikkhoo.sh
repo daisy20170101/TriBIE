@@ -3,14 +3,33 @@
 #===============================================================================
 # Nikkhoo-Walter Stiffness Calculation - Compilation Script
 # Compiles calc_nikkhoo.f90 and its dependencies with MPI/OpenMP support
+#
+# Usage:
+#   ./runcompile_nikkhoo.sh          # Use mpif90 (default, MPI+OpenMP)
+#   ./runcompile_nikkhoo.sh gfortran # Use gfortran (OpenMP only, no MPI)
+#   ./runcompile_nikkhoo.sh mpi      # Use mpif90 explicitly
 #===============================================================================
 
 echo "=========================================="
 echo "Nikkhoo-Walter Stiffness Compilation"
 echo "=========================================="
 
-# Set compiler and flags
-COMPILER="mpif90"
+# Parse command line argument for compiler selection
+COMPILER_OPTION="${1:-mpi}"
+
+# Set compiler based on option
+case "$COMPILER_OPTION" in
+    gfortran|gnu|serial)
+        COMPILER="gfortran"
+        echo "Mode: Serial/OpenMP (gfortran)"
+        ;;
+    mpi|mpif90|*)
+        COMPILER="mpif90"
+        echo "Mode: MPI/OpenMP (mpif90)"
+        ;;
+esac
+
+# Set compiler flags
 OPTIMIZATION_FLAGS="-O3 -march=native -mtune=native -ffast-math -funroll-loops -ftree-vectorize"
 DEBUG_FLAGS="-g -fbacktrace -Wall"
 OPENMP_FLAGS="-fopenmp"
@@ -105,9 +124,14 @@ if [ -f "calc_nikkhoo" ]; then
     echo "Size: $(ls -lh calc_nikkhoo | awk '{print $5}')"
     echo ""
     echo "Usage:"
-    echo "  Single process:  ./calc_nikkhoo"
-    echo "  MPI parallel:    mpirun -np <nprocs> ./calc_nikkhoo"
-    echo "  Hybrid MPI+OMP:  OMP_NUM_THREADS=<threads> mpirun -np <nprocs> ./calc_nikkhoo"
+    if [ "$COMPILER" = "gfortran" ]; then
+        echo "  Single process:  ./calc_nikkhoo"
+        echo "  OpenMP parallel: OMP_NUM_THREADS=<threads> ./calc_nikkhoo"
+    else
+        echo "  Single process:  ./calc_nikkhoo"
+        echo "  MPI parallel:    mpirun -np <nprocs> ./calc_nikkhoo"
+        echo "  Hybrid MPI+OMP:  OMP_NUM_THREADS=<threads> mpirun -np <nprocs> ./calc_nikkhoo"
+    fi
     echo ""
     echo "Input:  triangular_mesh.gts (GTS format mesh file)"
     echo "Output: trigreen_<rank>.bin, position.bin"
