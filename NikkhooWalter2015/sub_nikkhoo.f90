@@ -61,9 +61,9 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! write(*,*) '=== Main Dislocation Contribution ==='
   ! write(*,*) 'Stress: Sxx=', sts_ms(1), 'Syy=', sts_ms(2), 'Szz=', sts_ms(3), &
-             'Sxy=', sts_ms(4), 'Sxz=', sts_ms(5), 'Syz=', sts_ms(6)
+  !            'Sxy=', sts_ms(4), 'Sxz=', sts_ms(5), 'Syz=', sts_ms(6)
   ! write(*,*) 'Strain: Exx=', str_ms(1), 'Eyy=', str_ms(2), 'Ezz=', str_ms(3), &
-             'Exy=', str_ms(4), 'Exz=', str_ms(5), 'Eyz=', str_ms(6)
+  !            'Exy=', str_ms(4), 'Exz=', str_ms(5), 'Eyz=', str_ms(6)
   
   ! Calculate harmonic function contribution
   ! TEMPORARILY COMMENTED OUT TO DEBUG
@@ -76,9 +76,9 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! write(*,*) '=== Harmonic Function Contribution ==='
   ! write(*,*) 'Stress: Sxx=', sts_fsc(1), 'Syy=', sts_fsc(2), 'Szz=', sts_fsc(3), &
-             'Sxy=', sts_fsc(4), 'Sxz=', sts_fsc(5), 'Syz=', sts_fsc(6)
+  !            'Sxy=', sts_fsc(4), 'Sxz=', sts_fsc(5), 'Syz=', sts_fsc(6)
   ! write(*,*) 'Strain: Exx=', str_fsc(1), 'Eyy=', str_fsc(2), 'Ezz=', str_fsc(3), &
-             'Exy=', str_fsc(4), 'Exz=', str_fsc(5), 'Eyz=', str_fsc(6)
+  !            'Exy=', str_fsc(4), 'Exz=', str_fsc(5), 'Eyz=', str_fsc(6)
   
   ! Calculate image dislocation contribution
   p1_img = p1; p2_img = p2; p3_img = p3
@@ -96,9 +96,9 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! write(*,*) '=== Image Dislocation Contribution ==='
   ! write(*,*) 'Stress: Sxx=', sts_is(1), 'Syy=', sts_is(2), 'Szz=', sts_is(3), &
-             'Sxy=', sts_is(4), 'Sxz=', sts_is(5), 'Syz=', sts_is(6)
+  !            'Sxy=', sts_is(4), 'Sxz=', sts_is(5), 'Syz=', sts_is(6)
   ! write(*,*) 'Strain: Exx=', str_is(1), 'Eyy=', str_is(2), 'Ezz=', str_is(3), &
-             'Exy=', str_is(4), 'Exz=', str_is(5), 'Eyz=', str_is(6)
+  !            'Exy=', str_is(4), 'Exz=', str_is(5), 'Eyz=', str_is(6)
   
   ! Special case for surface elements
   if (abs(p1_img(3)) < EPS .and. abs(p2_img(3)) < EPS .and. abs(p3_img(3)) < EPS) then
@@ -115,9 +115,9 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! write(*,*) '=== Total Results ==='
   ! write(*,*) 'Stress: Sxx=', stress(1), 'Syy=', stress(2), 'Szz=', stress(3), &
-             'Sxy=', stress(4), 'Sxz=', stress(5), 'Syz=', stress(6)
+  !            'Sxy=', stress(4), 'Sxz=', stress(5), 'Syz=', stress(6)
   ! write(*,*) 'Strain: Exx=', strain(1), 'Eyy=', strain(2), 'Ezz=', strain(3), &
-             'Exy=', strain(4), 'Exz=', strain(5), 'Eyz=', strain(6)
+  !            'Exy=', strain(4), 'Exz=', strain(5), 'Eyz=', strain(6)
 
 end subroutine tdstress_hs
 
