@@ -68,7 +68,7 @@ echo ""
 # Check if source files exist
 echo "Checking source files..."
 if [ ! -f "phy3d_module_non.f90" ]; then
-    echo "ERROR: phy3d_module_non.f90 not found!"
+    echo "ERROR: phy3d_module_bp6.f90 not found!"
     exit 1
 fi
 
@@ -90,13 +90,13 @@ echo ""
 echo "Starting compilation..."
 
 # Step 1: Compile phy3d_module_non.f90 first
-echo "Step 1: Compiling phy3d_module_non.f90..."
-$COMPILER $ALL_FLAGS -c phy3d_module_non.f90 -o phy3d_module_non.o
+echo "Step 1: Compiling phy3d_module_bp6.f90..."
+$COMPILER $ALL_FLAGS -c phy3d_module_bp6.f90 -o phy3d_module_bp6.o
 if [ $? -ne 0 ]; then
-    echo "ERROR: Failed to compile phy3d_module_non.f90"
+    echo "ERROR: Failed to compile phy3d_module_bp6.f90"
     exit 1
 fi
-echo "✓ phy3d_module_non.f90 compiled successfully"
+echo "✓ phy3d_module_bp6.f90 compiled successfully"
 
 # Step 2: Compile 3dtri_BP5.f90 with HDF5 support
 echo "Step 2: Compiling 3dtri_BP5.f90 with HDF5 support..."
@@ -111,7 +111,7 @@ echo "✓ 3dtri_BP5.f90 compiled successfully"
 
 # Step 3: Link all object files with HDF5 libraries
 echo "Step 3: Linking object files with HDF5 libraries..."
-$COMPILER $ALL_FLAGS -o 3dtri_BP5 3dtri_BP5.o phy3d_module_non.o $HDF5_LIBS
+$COMPILER $ALL_FLAGS -o 3dtri_BP5 3dtri_BP5.o phy3d_module_bp6.o $HDF5_LIBS
 
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to link object files"

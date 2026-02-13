@@ -107,6 +107,23 @@ mpirun -np <n_processes> ../src/3dtri_BP5
 - **`Vpl`**: Plate velocity (typically 1e-10 to 1e-9 m/s)
 - **`tmax`**: Maximum simulation time in years
 
+#### **Fluid Injection Parameters**
+The code now includes pore fluid pressure effects from fluid injection, modeled using analytical solutions for fluid diffusion in porous media. The following parameters control the fluid injection physics:
+
+- **`alpha`**: Hydraulic diffusivity (0.1 m²/s) - Controls how fast fluid pressure diffuses through the fault zone
+- **`beta`**: Fluid compressibility (1e-8 Pa⁻¹) - Controls the fluid's response to pressure changes
+- **`phi`**: Porosity (0.1) - Fraction of rock volume occupied by fluid
+- **`q0`**: Injection rate (1.25e-6 m³/s/m²) - Fluid injection rate per unit area
+- **`toff`**: Injection duration (100 days = 8.64e6 s) - Duration of fluid injection
+
+The pore fluid pressure evolution is computed using:
+1. **`compute_G(z,t,alpha)`**: Green's function for 1D fluid diffusion, accounting for the distance `z` from injection point and time `t`
+2. **`compute_dGdt(z,t,alpha)`**: Time derivative of the Green's function for pressure rate calculations
+3. **`heavi(t)`**: Heaviside step function to model injection start/stop
+4. **`dirac_delta(t)`**: Dirac delta function approximation for instantaneous pressure changes
+
+The effective normal stress is modified by the pore fluid pressure: `σ_eff = σ_n - p_fluid`, where `p_fluid = (q0/(βφ√α)) × [G(t) - G(t-toff)]`. This affects the rate-and-state friction law through the effective normal stress term, potentially triggering seismic events or altering fault behavior.
+
 #### **Output Control**
 - **`tint_out`**: Main output interval
 - **`tmin_out`**: Minimum output interval
