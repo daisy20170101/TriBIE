@@ -92,10 +92,11 @@ program debug_nikkhoo
   write(*,*) '  vdip = (', vdip(1), ',', vdip(2), ',', vdip(3), ')'
   write(*,*) ''
   
-  ! Transformation matrix (transpose as in MATLAB)
-  A(1, :) = vnorm
-  A(2, :) = vstrike
-  A(3, :) = vdip
+  ! Transformation matrix (columns are unit vectors, matching sub_nikkhoo.f90)
+  ! coord_trans uses transpose(A), so we need columns here
+  A(:, 1) = vnorm
+  A(:, 2) = vstrike
+  A(:, 3) = vdip
   
   write(*,*) '=== Transformation Matrix A (EFCS to TDCS) ==='
   write(*,*) '  A(1,:) = (', A(1,1), ',', A(1,2), ',', A(1,3), ')'
