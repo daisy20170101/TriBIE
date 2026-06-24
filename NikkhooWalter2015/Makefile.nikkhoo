@@ -1,0 +1,40 @@
+# Makefile for Nikkhoo & Walter triangular dislocation test
+# Usage: make -f Makefile.nikkhoo
+
+FC = gfortran
+FFLAGS = -O2 -g -Wall -fcheck=all
+LDFLAGS = 
+
+# Source files
+SOURCES = sub_nikkhoo.f90 test_nikkhoo.f90
+OBJECTS = $(SOURCES:.f90=.o)
+TARGET = test_nikkhoo
+
+# Default target
+all: $(TARGET)
+
+# Build the test program
+$(TARGET): $(OBJECTS)
+	$(FC) $(FFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Compile Fortran source files
+%.o: %.f90
+	$(FC) $(FFLAGS) -c $< -o $@
+
+# Clean up
+clean:
+	rm -f $(OBJECTS) $(TARGET)
+
+# Run the test
+run: $(TARGET)
+	./$(TARGET)
+
+# Help
+help:
+	@echo "Available targets:"
+	@echo "  all     - Build the test program (default)"
+	@echo "  clean   - Remove object files and executable"
+	@echo "  run     - Build and run the test program"
+	@echo "  help    - Show this help message"
+
+.PHONY: all clean run help
