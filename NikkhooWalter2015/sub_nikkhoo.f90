@@ -14,13 +14,17 @@
 !==============================================================================
 
 module nikkhoo_walter
+  use, intrinsic :: ieee_arithmetic
   implicit none
-  
+
   ! Precision parameters
   integer, parameter :: DP = selected_real_kind(15, 307)
   real(DP), parameter :: PI = 3.141592653589793238462643383279502884197_DP
   real(DP), parameter :: EPS = 1.0e-15_DP
-  
+
+  ! Debug output control - set to .false. for production use
+  logical :: DEBUG_OUTPUT = .false.
+
   contains
 
 !==============================================================================
@@ -55,11 +59,11 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   call tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
                           sts_ms, str_ms)
   
-  write(*,*) '=== Main Dislocation Contribution ==='
-  write(*,*) 'Stress: Sxx=', sts_ms(1), 'Syy=', sts_ms(2), 'Szz=', sts_ms(3), &
-             'Sxy=', sts_ms(4), 'Sxz=', sts_ms(5), 'Syz=', sts_ms(6)
-  write(*,*) 'Strain: Exx=', str_ms(1), 'Eyy=', str_ms(2), 'Ezz=', str_ms(3), &
-             'Exy=', str_ms(4), 'Exz=', str_ms(5), 'Eyz=', str_ms(6)
+  ! write(*,*) '=== Main Dislocation Contribution ==='
+  ! write(*,*) 'Stress: Sxx=', sts_ms(1), 'Syy=', sts_ms(2), 'Szz=', sts_ms(3), &
+  !            'Sxy=', sts_ms(4), 'Sxz=', sts_ms(5), 'Syz=', sts_ms(6)
+  ! write(*,*) 'Strain: Exx=', str_ms(1), 'Eyy=', str_ms(2), 'Ezz=', str_ms(3), &
+  !            'Exy=', str_ms(4), 'Exz=', str_ms(5), 'Eyz=', str_ms(6)
   
   ! Calculate harmonic function contribution
   ! TEMPORARILY COMMENTED OUT TO DEBUG
@@ -70,11 +74,11 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   sts_fsc = 0.0_DP
   str_fsc = 0.0_DP
   
-  write(*,*) '=== Harmonic Function Contribution ==='
-  write(*,*) 'Stress: Sxx=', sts_fsc(1), 'Syy=', sts_fsc(2), 'Szz=', sts_fsc(3), &
-             'Sxy=', sts_fsc(4), 'Sxz=', sts_fsc(5), 'Syz=', sts_fsc(6)
-  write(*,*) 'Strain: Exx=', str_fsc(1), 'Eyy=', str_fsc(2), 'Ezz=', str_fsc(3), &
-             'Exy=', str_fsc(4), 'Exz=', str_fsc(5), 'Eyz=', str_fsc(6)
+  ! write(*,*) '=== Harmonic Function Contribution ==='
+  ! write(*,*) 'Stress: Sxx=', sts_fsc(1), 'Syy=', sts_fsc(2), 'Szz=', sts_fsc(3), &
+  !            'Sxy=', sts_fsc(4), 'Sxz=', sts_fsc(5), 'Syz=', sts_fsc(6)
+  ! write(*,*) 'Strain: Exx=', str_fsc(1), 'Eyy=', str_fsc(2), 'Ezz=', str_fsc(3), &
+  !            'Exy=', str_fsc(4), 'Exz=', str_fsc(5), 'Eyz=', str_fsc(6)
   
   ! Calculate image dislocation contribution
   p1_img = p1; p2_img = p2; p3_img = p3
@@ -82,19 +86,19 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   p2_img(3) = -p2(3)
   p3_img(3) = -p3(3)
   
-  write(*,*) '=== Image Dislocation Debug ==='
-  write(*,*) 'Original triangle: P1=', p1, 'P2=', p2, 'P3=', p3
-  write(*,*) 'Image triangle: P1_img=', p1_img, 'P2_img=', p2_img, 'P3_img=', p3_img
-  write(*,*) 'Slip vector: ss=', ss, 'ds=', ds, 'ts=', ts
+  ! write(*,*) '=== Image Dislocation Debug ==='
+  ! write(*,*) 'Original triangle: P1=', p1, 'P2=', p2, 'P3=', p3
+  ! write(*,*) 'Image triangle: P1_img=', p1_img, 'P2_img=', p2_img, 'P3_img=', p3_img
+  ! write(*,*) 'Slip vector: ss=', ss, 'ds=', ds, 'ts=', ts
   
   call tdstress_fs(x, y, z, p1_img, p2_img, p3_img, ss, ds, ts, mu, lambda, &
                           sts_is, str_is)
   
-  write(*,*) '=== Image Dislocation Contribution ==='
-  write(*,*) 'Stress: Sxx=', sts_is(1), 'Syy=', sts_is(2), 'Szz=', sts_is(3), &
-             'Sxy=', sts_is(4), 'Sxz=', sts_is(5), 'Syz=', sts_is(6)
-  write(*,*) 'Strain: Exx=', str_is(1), 'Eyy=', str_is(2), 'Ezz=', str_is(3), &
-             'Exy=', str_is(4), 'Exz=', str_is(5), 'Eyz=', str_is(6)
+  ! write(*,*) '=== Image Dislocation Contribution ==='
+  ! write(*,*) 'Stress: Sxx=', sts_is(1), 'Syy=', sts_is(2), 'Szz=', sts_is(3), &
+  !            'Sxy=', sts_is(4), 'Sxz=', sts_is(5), 'Syz=', sts_is(6)
+  ! write(*,*) 'Strain: Exx=', str_is(1), 'Eyy=', str_is(2), 'Ezz=', str_is(3), &
+  !            'Exy=', str_is(4), 'Exz=', str_is(5), 'Eyz=', str_is(6)
   
   ! Special case for surface elements
   if (abs(p1_img(3)) < EPS .and. abs(p2_img(3)) < EPS .and. abs(p3_img(3)) < EPS) then
@@ -102,18 +106,18 @@ subroutine tdstress_hs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     sts_is(6) = -sts_is(6)  ! yz component
     str_is(5) = -str_is(5)  ! xz component
     str_is(6) = -str_is(6)  ! yz component
-    write(*,*) 'Applied surface element correction'
+    ! write(*,*) 'Applied surface element correction'
   end if
   
   ! Calculate total stress and strain
   stress = sts_ms + sts_is + sts_fsc
   strain = str_ms + str_is + str_fsc
   
-  write(*,*) '=== Total Results ==='
-  write(*,*) 'Stress: Sxx=', stress(1), 'Syy=', stress(2), 'Szz=', stress(3), &
-             'Sxy=', stress(4), 'Sxz=', stress(5), 'Syz=', stress(6)
-  write(*,*) 'Strain: Exx=', strain(1), 'Eyy=', strain(2), 'Ezz=', strain(3), &
-             'Exy=', strain(4), 'Exz=', strain(5), 'Eyz=', strain(6)
+  ! write(*,*) '=== Total Results ==='
+  ! write(*,*) 'Stress: Sxx=', stress(1), 'Syy=', stress(2), 'Szz=', stress(3), &
+  !            'Sxy=', stress(4), 'Sxz=', stress(5), 'Syz=', stress(6)
+  ! write(*,*) 'Strain: Exx=', strain(1), 'Eyy=', strain(2), 'Ezz=', strain(3), &
+  !            'Exy=', strain(4), 'Exz=', strain(5), 'Eyz=', strain(6)
 
 end subroutine tdstress_hs
 
@@ -153,25 +157,25 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   real(DP) :: exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p
   real(DP) :: exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n
   
-  write(*,*) '=== DEBUG tdstress_fs START ==='
-  write(*,*) 'Input: x=', x, 'y=', y, 'z=', z
-  write(*,*) 'P1=', p1, 'P2=', p2, 'P3=', p3
-  write(*,*) 'ss=', ss, 'ds=', ds, 'ts=', ts
-  write(*,*) 'Triangle vertices being used:'
-  write(*,*) '  P1 = (', p1(1), ',', p1(2), ',', p1(3), ')'
-  write(*,*) '  P2 = (', p2(1), ',', p2(2), ',', p2(3), ')'
-  write(*,*) '  P3 = (', p3(1), ',', p3(2), ',', p3(3), ')'
-  write(*,*) 'mu=', mu, 'lambda=', lambda
+  ! write(*,*) '=== DEBUG tdstress_fs START ==='
+  ! write(*,*) 'Input: x=', x, 'y=', y, 'z=', z
+  ! write(*,*) 'P1=', p1, 'P2=', p2, 'P3=', p3
+  ! write(*,*) 'ss=', ss, 'ds=', ds, 'ts=', ts
+  ! write(*,*) 'Triangle vertices being used:'
+  ! write(*,*) '  P1 = (', p1(1), ',', p1(2), ',', p1(3), ')'
+  ! write(*,*) '  P2 = (', p2(1), ',', p2(2), ',', p2(3), ')'
+  ! write(*,*) '  P3 = (', p3(1), ',', p3(2), ',', p3(3), ')'
+  ! write(*,*) 'mu=', mu, 'lambda=', lambda
   
   ! Calculate Poisson's ratio
   nu = 1.0_DP / (1.0_DP + lambda / mu) / 2.0_DP
-  write(*,*) 'nu =', nu
+  ! write(*,*) 'nu =', nu
   
   ! Slip vector components
   bx = ts  ! Tensile-slip
   by = ss  ! Strike-slip
   bz = ds  ! Dip-slip
-  write(*,*) 'Slip vector: bx=', bx, 'by=', by, 'bz=', bz
+  ! write(*,*) 'Slip vector: bx=', bx, 'by=', by, 'bz=', bz
   
   ! Calculate unit vectors
   ey = [0.0_DP, 1.0_DP, 0.0_DP]
@@ -180,7 +184,7 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Normal vector
   call cross_product(p2 - p1, p3 - p1, vnorm)
   vnorm = vnorm / norm2(vnorm)
-  write(*,*) 'vnorm =', vnorm
+  ! write(*,*) 'vnorm =', vnorm
   
   ! Strike vector
   call cross_product(ez, vnorm, vstrike)
@@ -192,20 +196,20 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
     end if
   end if
   vstrike = vstrike / norm2(vstrike)
-  write(*,*) 'vstrike =', vstrike
+  ! write(*,*) 'vstrike =', vstrike
   
   ! Dip vector
   call cross_product(vnorm, vstrike, vdip)
-  write(*,*) 'vdip =', vdip
+  ! write(*,*) 'vdip =', vdip
   
   ! Transformation matrix (columns are unit vectors for coordinate transformations)
   A(:, 1) = vnorm
   A(:, 2) = vstrike
   A(:, 3) = vdip
-  write(*,*) 'Transformation matrix A:'
-  write(*,*) 'A(1,:) =', A(1, 1), A(1, 2), A(1, 3)
-  write(*,*) 'A(2,:) =', A(2, 1), A(2, 2), A(2, 3)
-  write(*,*) 'A(3,:) =', A(3, 1), A(3, 2), A(3, 3)
+  ! write(*,*) 'Transformation matrix A:'
+  ! write(*,*) 'A(1,:) =', A(1, 1), A(1, 2), A(1, 3)
+  ! write(*,*) 'A(2,:) =', A(2, 1), A(2, 2), A(2, 3)
+  ! write(*,*) 'A(3,:) =', A(3, 1), A(3, 2), A(3, 3)
   
   ! Transform coordinates to TDCS
   p1_td = 0.0_DP
@@ -216,31 +220,31 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   call coord_trans(p1(1) - p2(1), p1(2) - p2(2), p1(3) - p2(3), A, p1_td(1), p1_td(2), p1_td(3))
   call coord_trans(p3(1) - p2(1), p3(2) - p2(2), p3(3) - p2(3), A, p3_td(1), p3_td(2), p3_td(3))
   
-  write(*,*) 'TDCS coordinates:'
-  write(*,*) 'Calculation point: x_td=', x_td, 'y_td=', y_td, 'z_td=', z_td
-  write(*,*) 'p1_td =', p1_td
-  write(*,*) 'p2_td =', p2_td
-  write(*,*) 'p3_td =', p3_td
+  ! write(*,*) 'TDCS coordinates:'
+  ! write(*,*) 'Calculation point: x_td=', x_td, 'y_td=', y_td, 'z_td=', z_td
+  ! write(*,*) 'p1_td =', p1_td
+  ! write(*,*) 'p2_td =', p2_td
+  ! write(*,*) 'p3_td =', p3_td
   
   ! Calculate unit vectors along TD sides
   e12 = (p2_td - p1_td) / norm2(p2_td - p1_td)
   e13 = (p3_td - p1_td) / norm2(p3_td - p1_td)
   e23 = (p3_td - p2_td) / norm2(p3_td - p2_td)
   
-  write(*,*) 'Unit vectors along TD sides:'
-  write(*,*) 'e12 =', e12
-  write(*,*) 'e13 =', e13
-  write(*,*) 'e23 =', e23
+  ! write(*,*) 'Unit vectors along TD sides:'
+  ! write(*,*) 'e12 =', e12
+  ! write(*,*) 'e13 =', e13
+  ! write(*,*) 'e23 =', e23
   
   ! Calculate angles
   A_angle = acos(dot_product(e12, e13))
   B_angle = acos(-dot_product(e12, e23))
   C_angle = acos(dot_product(e23, e13))
   
-  write(*,*) 'Triangle angles:'
-  write(*,*) 'A_angle =', A_angle, 'rad =', A_angle * 180.0_DP / PI, 'deg'
-  write(*,*) 'B_angle =', B_angle, 'rad =', B_angle * 180.0_DP / PI, 'deg'
-  write(*,*) 'C_angle =', C_angle, 'rad =', C_angle * 180.0_DP / PI, 'deg'
+  ! write(*,*) 'Triangle angles:'
+  ! write(*,*) 'A_angle =', A_angle, 'rad =', A_angle * 180.0_DP / PI, 'deg'
+  ! write(*,*) 'B_angle =', B_angle, 'rad =', B_angle * 180.0_DP / PI, 'deg'
+  ! write(*,*) 'C_angle =', C_angle, 'rad =', C_angle * 180.0_DP / PI, 'deg'
   
   ! Determine configuration
   call trimode_finder(y_td, z_td, x_td, p1_td, p2_td, p3_td, trimode)
@@ -249,11 +253,11 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   casen_log = (trimode == -1)
   casez_log = (trimode == 0)
   
-  write(*,*) 'Configuration:'
-  write(*,*) 'trimode =', trimode
-  write(*,*) 'casep_log =', casep_log
-  write(*,*) 'casen_log =', casen_log
-  write(*,*) 'casez_log =', casez_log
+  ! write(*,*) 'Configuration:'
+  ! write(*,*) 'trimode =', trimode
+  ! write(*,*) 'casep_log =', casep_log
+  ! write(*,*) 'casen_log =', casen_log
+  ! write(*,*) 'casez_log =', casez_log
   
   ! Initialize results
   exx = 0.0_DP; eyy = 0.0_DP; ezz = 0.0_DP
@@ -261,96 +265,75 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   ! Calculate strains based on configuration
   if (casep_log) then
-    write(*,*) '=== Configuration I (casep_log) ==='
+    ! write(*,*) '=== Configuration I (casep_log) ==='
     ! Configuration I - Calculate three angular dislocation contributions
     ! First angular dislocation: A angle, p1, -e13
-    write(*,*) 'First angular dislocation: A_angle=', A_angle, 'p1_td=', p1_td, '-e13=', -e13
+    ! write(*,*) 'First angular dislocation: A_angle=', A_angle, 'p1_td=', p1_td, '-e13=', -e13
     call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, -e13, &
                    exx, eyy, ezz, exy, exz, eyz)
-    write(*,*) 'After first: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+    ! write(*,*) 'After first: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
     ! Second angular dislocation: B angle, p2, e12
-    write(*,*) 'Second angular dislocation: B_angle=', B_angle, 'p2_td=', p2_td, 'e12=', e12
+    ! write(*,*) 'Second angular dislocation: B_angle=', B_angle, 'p2_td=', p2_td, 'e12=', e12
     call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, e12, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    write(*,*) 'Second contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
+    ! write(*,*) 'Second contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
     exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
     exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
-    write(*,*) 'After second: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+    ! write(*,*) 'After second: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
     ! Third angular dislocation: C angle, p3, e23
-    write(*,*) 'Third angular dislocation: C_angle=', C_angle, 'p3_td=', p3_td, 'e23=', e23
+    ! write(*,*) 'Third angular dislocation: C_angle=', C_angle, 'p3_td=', p3_td, 'e23=', e23
     call tdsetup_s(x_td, y_td, z_td, C_angle, bx, by, bz, nu, p3_td, e23, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    write(*,*) 'Third contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
+    ! write(*,*) 'Third contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
     exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
     exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
-    write(*,*) 'After third: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+    ! write(*,*) 'After third: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
   else if (casen_log) then
-    write(*,*) '=== Configuration II (casen_log) ==='
+    ! write(*,*) '=== Configuration II (casen_log) ==='
     ! Configuration II - Calculate three angular dislocation contributions
     ! First angular dislocation: A angle, p1, e13
-    write(*,*) 'First angular dislocation: A_angle=', A_angle, 'p1_td=', p1_td, 'e13=', e13
+    ! write(*,*) 'First angular dislocation: A_angle=', A_angle, 'p1_td=', p1_td, 'e13=', e13
     call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, e13, &
                    exx, eyy, ezz, exy, exz, eyz)
-    write(*,*) 'After first: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+    ! write(*,*) 'After first: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
     ! Second angular dislocation: B angle, p2, -e12
-    write(*,*) 'Second angular dislocation: B_angle=', B_angle, 'p2_td=', p2_td, '-e12=', -e12
+    ! write(*,*) 'Second angular dislocation: B_angle=', B_angle, 'p2_td=', p2_td, '-e12=', -e12
     call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, -e12, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    write(*,*) 'Second contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
+    ! write(*,*) 'Second contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
     exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
     exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
-    write(*,*) 'After second: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+    ! write(*,*) 'After second: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
     ! Third angular dislocation: C angle, p3, -e23
-    write(*,*) 'Third angular dislocation: C_angle=', C_angle, 'p3_td=', p3_td, '-e23=', -e23
+    ! write(*,*) 'Third angular dislocation: C_angle=', C_angle, 'p3_td=', p3_td, '-e23=', -e23
     call tdsetup_s(x_td, y_td, z_td, C_angle, bx, by, bz, nu, p3_td, -e23, &
                    exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    write(*,*) 'Third contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
+    ! write(*,*) 'Third contribution: exx=', exx_p, 'eyy=', eyy_p, 'ezz=', ezz_p, 'exy=', exy_p, 'exz=', exz_p, 'eyz=', eyz_p
     exx = exx + exx_p; eyy = eyy + eyy_p; ezz = ezz + ezz_p
     exy = exy + exy_p; exz = exz + exz_p; eyz = eyz + eyz_p
-    write(*,*) 'After third: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+    ! write(*,*) 'After third: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
     
   else if (casez_log) then
-    ! For points on the triangle, use average of positive and negative cases
-    ! Configuration I (positive)
-    call tdsetup_s(x_td, y_td, z_td, A_angle, bx, by, bz, nu, p1_td, -e13, &
-                   exx_p, eyy_p, ezz_p, exy_p, exz_p, eyz_p)
-    call tdsetup_s(x_td, y_td, z_td, B_angle, bx, by, bz, nu, p2_td, e12, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
-    exx_p = exx_p + exx_n; eyy_p = eyy_p + eyy_n; ezz_p = ezz_p + ezz_n
-    exy_p = exy_p + exy_n; exz_p = exz_p + exz_n; eyz_p = eyz_p + eyz_n
-    call tdsetup_s(x_td, y_td, z_td, C_angle, bx, by, bz, nu, p3_td, e23, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
-    exx_p = exx_p + exx_n; eyy_p = eyy_p + eyy_n; ezz_p = ezz_p + ezz_n
-    exy_p = exy_p + exy_n; exz_p = exz_p + exz_n; eyz_p = eyz_p + eyz_n
-    
-    ! Configuration II (negative)
-    call tdsetup_s(x_td, y_td, z_td, A_angle, -bx, -by, -bz, nu, p1_td, e13, &
-                   exx_n, eyy_n, ezz_n, exy_n, exz_n, eyz_n)
-    call tdsetup_s(x_td, y_td, z_td, B_angle, -bx, -by, -bz, nu, p2_td, -e12, &
-                   exx, eyy, ezz, exy, exz, eyz)
-    exx_n = exx_n + exx; eyy_n = eyy_n + eyy; ezz_n = ezz_n + ezz
-    exy_n = exy_n + exy; exz_n = exz_n + exz; eyz_n = eyz_n + eyz
-    call tdsetup_s(x_td, y_td, z_td, C_angle, -bx, -by, -bz, nu, p3_td, -e23, &
-                   exx, eyy, ezz, exy, exz, eyz)
-    exx_n = exx_n + exx; eyy_n = eyy_n + eyy; ezz_n = ezz_n + ezz
-    exy_n = exy_n + exy; exz_n = exz_n + exz; eyz_n = eyz_n + eyz
-    
-    ! Average the results
-    exx = (exx_p + exx_n) / 2.0_DP
-    eyy = (eyy_p + eyy_n) / 2.0_DP
-    ezz = (ezz_p + ezz_n) / 2.0_DP
-    exy = (exy_p + exy_n) / 2.0_DP
-    exz = (exz_p + exz_n) / 2.0_DP
-    eyz = (eyz_p + eyz_n) / 2.0_DP
-    end if
+    ! Points on triangle edges - return NaN as per MATLAB TDstressFS.m implementation
+    ! MATLAB explicitly sets: exx(casezLog,1) = nan; etc.
+    ! These are singular points where the strain field is undefined
+    ! write(*,*) '=== Configuration III (casez_log) - Point on triangle edge ==='
+    ! write(*,*) 'Setting strain to NaN (matching MATLAB behavior)'
+    exx = ieee_value(0.0_DP, ieee_quiet_nan)
+    eyy = ieee_value(0.0_DP, ieee_quiet_nan)
+    ezz = ieee_value(0.0_DP, ieee_quiet_nan)
+    exy = ieee_value(0.0_DP, ieee_quiet_nan)
+    exz = ieee_value(0.0_DP, ieee_quiet_nan)
+    eyz = ieee_value(0.0_DP, ieee_quiet_nan)
+  end if
   
   ! Transform strain tensor to EFCS
-  write(*,*) 'Before tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+  ! write(*,*) 'Before tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
   
 
   call tens_trans(exx, eyy, ezz, exy, exz, eyz, A, &
@@ -360,7 +343,7 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   exx = exx_out; eyy = eyy_out; ezz = ezz_out
   exy = exy_out; exz = exz_out; eyz = eyz_out
   
-  write(*,*) 'After tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+  ! write(*,*) 'After tensor transformation: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
   
   ! Calculate stress tensor
   sxx = 2.0_DP * mu * exx + lambda * (exx + eyy + ezz)
@@ -370,11 +353,11 @@ subroutine tdstress_fs(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   sxz = 2.0_DP * mu * exz
   syz = 2.0_DP * mu * eyz
   
-  write(*,*) '=== Final tdstress_fs Results ==='
-  write(*,*) 'Strain: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
-  write(*,*) 'Stress: sxx=', sxx, 'syy=', syy, 'szz=', szz, 'sxy=', sxy, 'sxz=', sxz, 'syz=', syz
-  write(*,*) '=== DEBUG tdstress_fs END ==='
-  write(*,*) ''
+  ! write(*,*) '=== Final tdstress_fs Results ==='
+  ! write(*,*) 'Strain: exx=', exx, 'eyy=', eyy, 'ezz=', ezz, 'exy=', exy, 'exz=', exz, 'eyz=', eyz
+  ! write(*,*) 'Stress: sxx=', sxx, 'syy=', syy, 'szz=', szz, 'sxy=', sxy, 'sxz=', sxz, 'syz=', syz
+  ! write(*,*) '=== DEBUG tdstress_fs END ==='
+  ! write(*,*) ''
   
   ! Output
   stress(1) = sxx; stress(2) = syy; stress(3) = szz
@@ -413,10 +396,10 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   real(DP) :: x_td_temp, y_td_temp, z_td_temp
   integer :: trimode_temp
   
-  write(*,*) '=== DEBUG tdstress_harfunc START ==='
-  write(*,*) 'Input: x=', x, 'y=', y, 'z=', z
-  write(*,*) 'P1=', p1, 'P2=', p2, 'P3=', p3
-  write(*,*) 'ss=', ss, 'ds=', ds, 'ts=', ts
+  ! write(*,*) '=== DEBUG tdstress_harfunc START ==='
+  ! write(*,*) 'Input: x=', x, 'y=', y, 'z=', z
+  ! write(*,*) 'P1=', p1, 'P2=', p2, 'P3=', p3
+  ! write(*,*) 'ss=', ss, 'ds=', ds, 'ts=', ts
   
   ! Check if point is inside the triangle - harmonic function should be zero for points inside
   ! We need to determine the triangle configuration using the same logic as tdstress_fs
@@ -436,10 +419,10 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   
   call cross_product(vnorm_temp, vstrike_temp, vdip_temp)
   
-  ! Transformation matrix
-  A_temp(1, :) = vnorm_temp
-  A_temp(2, :) = vstrike_temp
-  A_temp(3, :) = vdip_temp
+  ! Transformation matrix (columns are unit vectors, matching tdstress_fs)
+  A_temp(:, 1) = vnorm_temp
+  A_temp(:, 2) = vstrike_temp
+  A_temp(:, 3) = vdip_temp
   
   ! Transform coordinates to TDCS
   p1_td_temp = 0.0_DP
@@ -453,15 +436,15 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   ! Determine configuration
   call trimode_finder(y_td_temp, z_td_temp, x_td_temp, p1_td_temp, p2_td_temp, p3_td_temp, trimode_temp)
   
-  write(*,*) 'trimode_temp =', trimode_temp
+  ! write(*,*) 'trimode_temp =', trimode_temp
   
   ! If point is inside triangle (trimode = 1), harmonic function should be zero
   if (trimode_temp == 1) then
-    write(*,*) 'Point is inside triangle - harmonic function should be zero'
+    ! write(*,*) 'Point is inside triangle - harmonic function should be zero'
     stress = 0.0_DP
     strain = 0.0_DP
-    write(*,*) '=== DEBUG tdstress_harfunc END (zero result) ==='
-    write(*,*) ''
+    ! write(*,*) '=== DEBUG tdstress_harfunc END (zero result) ==='
+    ! write(*,*) ''
     return
   end if
   
@@ -491,27 +474,27 @@ subroutine tdstress_harfunc(x, y, z, p1, p2, p3, ss, ds, ts, mu, lambda, &
   call coord_trans(bx, by, bz, A, bX_out, bY_out, bZ_out)
   
   ! Calculate contributions from each side
-  write(*,*) 'Calling angsetup_fsc_s for side P1-P2'
+  ! write(*,*) 'Calling angsetup_fsc_s for side P1-P2'
   call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p1, p2, mu, lambda, stress1, strain1)
-  write(*,*) 'Side P1-P2 result: stress=', stress1, 'strain=', strain1
+  ! write(*,*) 'Side P1-P2 result: stress=', stress1, 'strain=', strain1
   
-  write(*,*) 'Calling angsetup_fsc_s for side P2-P3'
+  ! write(*,*) 'Calling angsetup_fsc_s for side P2-P3'
   call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p2, p3, mu, lambda, stress2, strain2)
-  write(*,*) 'Side P2-P3 result: stress=', stress2, 'strain=', strain2
+  ! write(*,*) 'Side P2-P3 result: stress=', stress2, 'strain=', strain2
   
-  write(*,*) 'Calling angsetup_fsc_s for side P3-P1'
+  ! write(*,*) 'Calling angsetup_fsc_s for side P3-P1'
   call angsetup_fsc_s(x, y, z, bX_out, bY_out, bZ_out, p3, p1, mu, lambda, stress3, strain3)
-  write(*,*) 'Side P3-P1 result: stress=', stress3, 'strain=', strain3
+  ! write(*,*) 'Side P3-P1 result: stress=', stress3, 'strain=', strain3
   
   ! Total contribution
   stress = stress1 + stress2 + stress3
   strain = strain1 + strain2 + strain3
   
-  write(*,*) '=== Final tdstress_harfunc Results ==='
-  write(*,*) 'Total stress:', stress
-  write(*,*) 'Total strain:', strain
-  write(*,*) '=== DEBUG tdstress_harfunc END ==='
-  write(*,*) ''
+  ! write(*,*) '=== Final tdstress_harfunc Results ==='
+  ! write(*,*) 'Total stress:', stress
+  ! write(*,*) 'Total strain:', strain
+  ! write(*,*) '=== DEBUG tdstress_harfunc END ==='
+  ! write(*,*) ''
 
 end subroutine tdstress_harfunc
 
@@ -530,11 +513,11 @@ subroutine tens_trans(txx1, tyy1, tzz1, txy1, txz1, tyz1, A, &
   real(DP) :: A_lin(9)
   
   ! Debug output
-  write(*,*) 'tens_trans input: txx1=', txx1, 'tyy1=', tyy1, 'tzz1=', tzz1, 'txy1=', txy1, 'txz1=', txz1, 'tyz1=', tyz1
-  write(*,*) 'tens_trans matrix A:'
-  write(*,*) 'A(1,:) =', A(1,1), A(1,2), A(1,3)
-  write(*,*) 'A(2,:) =', A(2,1), A(2,2), A(2,3)
-  write(*,*) 'A(3,:) =', A(3,1), A(3,2), A(3,3)
+  ! write(*,*) 'tens_trans input: txx1=', txx1, 'tyy1=', tyy1, 'tzz1=', tzz1, 'txy1=', txy1, 'txz1=', txz1, 'tyz1=', tyz1
+  ! write(*,*) 'tens_trans matrix A:'
+  ! write(*,*) 'A(1,:) =', A(1,1), A(1,2), A(1,3)
+  ! write(*,*) 'A(2,:) =', A(2,1), A(2,2), A(2,3)
+  ! write(*,*) 'A(3,:) =', A(3,1), A(3,2), A(3,3)
   
   ! Convert 3x3 matrix to linearized format (column-major order like MATLAB)
   ! MATLAB: A(1)=A(1,1), A(2)=A(2,1), A(3)=A(3,1), A(4)=A(1,2), A(5)=A(2,2), A(6)=A(3,2), A(7)=A(1,3), A(8)=A(2,3), A(9)=A(3,3)
@@ -549,14 +532,14 @@ subroutine tens_trans(txx1, tyy1, tzz1, txy1, txz1, tyz1, A, &
   A_lin(9) = A(3,3)  ! A(3,3)
   
   ! Debug output for linearized matrix
-  write(*,*) 'Linearized matrix A_lin:'
-  write(*,*) 'A_lin(1-3) =', A_lin(1), A_lin(2), A_lin(3)
-  write(*,*) 'A_lin(4-6) =', A_lin(4), A_lin(5), A_lin(6)
-  write(*,*) 'A_lin(7-9) =', A_lin(7), A_lin(8), A_lin(9)
-  write(*,*) 'Expected MATLAB linearized:'
-  write(*,*) 'A_lin(1-3) = -0.000000 0.447214 0.894427'
-  write(*,*) 'A_lin(4-6) = -1.000000 -0.000000 0.000000'
-  write(*,*) 'A_lin(7-9) = 0.000000 -0.894427 0.447214'
+  ! write(*,*) 'Linearized matrix A_lin:'
+  ! write(*,*) 'A_lin(1-3) =', A_lin(1), A_lin(2), A_lin(3)
+  ! write(*,*) 'A_lin(4-6) =', A_lin(4), A_lin(5), A_lin(6)
+  ! write(*,*) 'A_lin(7-9) =', A_lin(7), A_lin(8), A_lin(9)
+  ! write(*,*) 'Expected MATLAB linearized:'
+  ! write(*,*) 'A_lin(1-3) = -0.000000 0.447214 0.894427'
+  ! write(*,*) 'A_lin(4-6) = -1.000000 -0.000000 0.000000'
+  ! write(*,*) 'A_lin(7-9) = 0.000000 -0.894427 0.447214'
   
   ! Use the same formulas as MATLAB TensTrans function
   txx2 = A_lin(1)**2*txx1 + 2*A_lin(1)*A_lin(4)*txy1 + 2*A_lin(1)*A_lin(7)*txz1 + 2*A_lin(4)*A_lin(7)*tyz1 + &
@@ -581,7 +564,7 @@ subroutine tens_trans(txx1, tyy1, tzz1, txy1, txz1, tyz1, A, &
          A_lin(8)*A_lin(9)*tzz1
   
   ! Debug output
-  write(*,*) 'tens_trans output: txx2=', txx2, 'tyy2=', tyy2, 'tzz2=', tzz2, 'txy2=', txy2, 'txz2=', txz2, 'tyz2=', tyz2
+  ! write(*,*) 'tens_trans output: txx2=', txx2, 'tyy2=', tyy2, 'tzz2=', tzz2, 'txy2=', txy2, 'txz2=', txz2, 'tyz2=', tyz2
 
 end subroutine tens_trans
 
@@ -642,8 +625,8 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   side_vec = PB - PA
   beta = acos(-dot_product(side_vec, [0.0_DP, 0.0_DP, 1.0_DP]) / norm2(side_vec))
   
-  write(*,*) 'angsetup_fsc_s: PA=', PA, 'PB=', PB
-  write(*,*) 'side_vec=', side_vec, 'beta=', beta, 'rad =', beta * 180.0_DP / PI, 'deg'
+  ! write(*,*) 'angsetup_fsc_s: PA=', PA, 'PB=', PB
+  ! write(*,*) 'side_vec=', side_vec, 'beta=', beta, 'rad =', beta * 180.0_DP / PI, 'deg'
   
   ! Check for special cases
   if (abs(beta) < EPS .or. abs(PI - beta) < EPS) then
@@ -676,8 +659,8 @@ subroutine angsetup_fsc_s(x, y, z, bX, bY, bZ, PA, PB, mu, lambda, &
   ! points near the free surface
   I_mask = (beta * y1A) >= 0.0_DP
   
-  write(*,*) 'y1A=', y1A, 'y2A=', y2A, 'y3A=', y3A
-  write(*,*) 'beta*y1A=', beta * y1A, 'I_mask=', I_mask
+  ! write(*,*) 'y1A=', y1A, 'y2A=', y2A, 'y3A=', y3A
+  ! write(*,*) 'beta*y1A=', beta * y1A, 'I_mask=', I_mask
   
   ! Initialize arrays
   v11A = 0.0_DP; v22A = 0.0_DP; v33A = 0.0_DP
@@ -802,17 +785,19 @@ subroutine trimode_finder(x, y, z, p1, p2, p3, trimode)
   ! Note: MATLAB uses 2D coordinates (y, z) in TDCS
   ! The function is called with (y_td, z_td, x_td), so x=y_td, y=z_td, z=x_td
   ! p1, p2, p3 are 3D coordinates but MATLAB uses p1(2:3), p2(2:3), p3(2:3)
-  ! So p1(2)=y, p1(3)=z, etc.
-  denominator = (p2(2) - p3(2)) * (p1(2) - p3(2)) + (p3(2) - p2(2)) * (p1(3) - p3(3))
-  
+  ! MATLAB 2-element vectors: p(1)=y, p(2)=z
+  ! Fortran 3-element vectors: p(2)=y, p(3)=z
+  ! Therefore: MATLAB p(1) -> Fortran p(2), MATLAB p(2) -> Fortran p(3)
+  denominator = (p2(3) - p3(3)) * (p1(2) - p3(2)) + (p3(2) - p2(2)) * (p1(3) - p3(3))
+
   if (abs(denominator) < 1.0e-15_DP) then
     ! Degenerate triangle case
     trimode = 1
     return
-    end if
-  
-  a = ((p2(2) - p3(2)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
-  b = ((p3(2) - p1(2)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
+  end if
+
+  a = ((p2(3) - p3(3)) * (x - p3(2)) + (p3(2) - p2(2)) * (y - p3(3))) / denominator
+  b = ((p3(3) - p1(3)) * (x - p3(2)) + (p1(2) - p3(2)) * (y - p3(3))) / denominator
   c = 1.0_DP - a - b
   
   ! Initialize to first configuration
@@ -866,17 +851,17 @@ subroutine tdsetup_s(x, y, z, alpha, bx, by, bz, nu, tri_vertex, side_vec, &
   A(2, 2) = side_vec(3)   ! SideVec(3)
   
   ! Debug output for transformation matrix
-  write(*,*) 'tdsetup_s: side_vec =', side_vec
-  write(*,*) 'tdsetup_s: A matrix ='
-  write(*,*) 'A(1,:) =', A(1,1), A(1,2)
-  write(*,*) 'A(2,:) =', A(2,1), A(2,2)
+  ! write(*,*) 'tdsetup_s: side_vec =', side_vec
+  ! write(*,*) 'tdsetup_s: A matrix ='
+  ! write(*,*) 'A(1,:) =', A(1,1), A(1,2)
+  ! write(*,*) 'A(2,:) =', A(2,1), A(2,2)
   
   ! Transform coordinates of the calculation points from TDCS into ADCS
   ! MATLAB: r1 = A*[y'-TriVertex(2);z'-TriVertex(3)];
   y1 = A(1, 1) * (y - tri_vertex(2)) + A(1, 2) * (z - tri_vertex(3))
   z1 = A(2, 1) * (y - tri_vertex(2)) + A(2, 2) * (z - tri_vertex(3))
   
-  write(*,*) 'tdsetup_s: y1 =', y1, 'z1 =', z1
+  ! write(*,*) 'tdsetup_s: y1 =', y1, 'z1 =', z1
   
   ! Transform the in-plane slip vector components from TDCS into ADCS
   ! MATLAB: r2 = A*[by;bz];
