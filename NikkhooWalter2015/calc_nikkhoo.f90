@@ -360,8 +360,8 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
   l_miu = parm_l / parm_miu
 
   ! Unit strike-slip (ss=1, ds=0, ts=0)
-  ss = 0.d0
-  ds = -1.d0
+  ss = -1.d0
+  ds = 0.d0
   ts = 0.d0
 
   ! Allocate work arrays
