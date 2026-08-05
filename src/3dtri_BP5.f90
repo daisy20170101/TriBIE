@@ -1673,11 +1673,16 @@ end if
 
     if(icos==ncos)then
        ! HDF5 output for time-series variables instead of binary files
+
+       ! Synchronize all MPI processes before HDF5 output
+       call MPI_Barrier(MPI_COMM_WORLD, ierr)
+
+       ! Only the master MPI process writes HDF5 to prevent concurrent file access.
+       ! Wrap in !$OMP MASTER so dormant OpenMP threads do not race on HDF5 global state.
+       if(myid==master)then
+       !$OMP MASTER
        write(*,*) 'DEBUG: Triggering HDF5 output - icos =', icos, 'ncos =', ncos
-       
-       ! CRITICAL: Synchronize all MPI processes before HDF5 output
-       
-       ! Only master MPI process should do HDF5 output to avoid deadlock
+
        ! Initialize HDF5 if not already done
        if (.not. hdf5_initialized) then
           call h5open_f(hdferr)
@@ -2034,15 +2039,16 @@ end if
        
        write(*,*) 'Time-series data written to HDF5: ', trim(hdf5_filename)
        write(*,*) 'XDMF visualization file created: ', trim(xdmf_filename)
-       
-     
+
        ! Update global counter for accumulative writing
        global_time_steps_written = global_time_steps_written + icos
-       
+
        icos = 0
-       
-       ! CRITICAL: Synchronize all MPI processes after HDF5 output      
-    end if
+
+       !$OMP END MASTER
+       end if  ! myid==master
+       call MPI_Barrier(MPI_COMM_WORLD, ierr)
+    end if  ! icos==ncos
 
 
 	if(inul == nnul)then
@@ -2052,9 +2058,9 @@ end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
-      ! CRITICAL: Synchronize all MPI processes before SSE HDF5 output
-      
-      ! Only master MPI process should do HDF5 output to avoid deadlock
+      call MPI_Barrier(MPI_COMM_WORLD, ierr)
+      if(myid==master)then
+      !$OMP MASTER
          ! Initialize HDF5 if not already done
          if (.not. hdf5_initialized) then
             call h5open_f(hdferr)
@@ -2365,10 +2371,12 @@ end if
       ! Update global SSE counter for accumulative writing
       global_sse_steps_written = global_sse_steps_written + nsse
       isse = 0
-      
-      ! CRITICAL: Synchronize all MPI processes after SSE HDF5 output
-     
-  end if
+
+      !$OMP END MASTER
+      end if  ! myid==master
+      call MPI_Barrier(MPI_COMM_WORLD, ierr)
+
+  end if  ! isse==nsse
 
 
 else
