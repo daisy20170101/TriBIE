@@ -129,6 +129,9 @@ program main
   ! File existence checking variables
   logical :: trigreen_file_exists
   character(len=256) :: trigreen_filename
+
+  ! Stiffness matrix debugging variables
+  real (DP) :: stiff_absmax_local, stiff_absmax_global
   
   ! MPI_Scatterv variables for uneven distribution
 
@@ -470,7 +473,15 @@ end if
      end do
   end do
   !$OMP END PARALLEL DO
-  
+
+  ! DEBUG: report largest absolute value of the stiffness matrix
+  stiff_absmax_local = maxval(dabs(stiff))
+  call MPI_Allreduce(stiff_absmax_local, stiff_absmax_global, 1, MPI_Real8, MPI_MAX, MPI_COMM_WORLD, ierr)
+  write(*,*) 'Process', myid, ': local max abs(stiff) =', stiff_absmax_local
+  if (myid == master) then
+     write(*,*) 'DEBUG: global max abs(stiff) across all processes =', stiff_absmax_global
+  end if
+
   ! TriGreen integration summary
   if (use_trigreen_format) then
      write(*,*) 'Process', myid, ': TriGreen stiffness matrix loaded successfully'
