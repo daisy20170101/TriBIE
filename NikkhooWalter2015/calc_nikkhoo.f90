@@ -340,6 +340,10 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
   ! Slip components for unit slip
   real(DP) :: ss, ds, ts
 
+  ! Vertex winding order check
+  real(DP) :: nv_chk(3), p2_swap(3)
+  integer :: n_flipped
+
   ! Global coordinate system
   c_global = 0.d0
   do i = 1, 3
@@ -371,16 +375,34 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
   allocate(arr_out(max(1, local_cells), n_cell))
 
   ! Pre-compute triangle data for all cells (needed for source triangles)
+  ! Vertex order (p1,p2,p3) sets the sign of the Nikkhoo-Walter normal/strike/dip
+  ! frame inside tdstress_hs, which is not self-correcting like calc_local_coordinate.
+  ! Enforce nv(3)=cross(p2-p1,p3-p1)(3) >= 0 for every triangle so all source
+  ! triangles share the same "normal-up" convention used for observer frames.
+  n_flipped = 0
   do k = 1, n_cell
     vj(1:3) = arr_cell(k, 1:3)
     p1(1:3) = arr_vertex(vj(1), 1:3)
     p2(1:3) = arr_vertex(vj(2), 1:3)
     p3(1:3) = arr_vertex(vj(3), 1:3)
 
+    call cross_product_local(p2 - p1, p3 - p1, nv_chk)
+    if (nv_chk(3) < 0.0_DP) then
+      p2_swap = p2
+      p2 = p3
+      p3 = p2_swap
+      n_flipped = n_flipped + 1
+    end if
+
     arr_trid(1:3, k) = p1(1:3)
     arr_trid(4:6, k) = p2(1:3)
     arr_trid(7:9, k) = p3(1:3)
   end do
+
+  if (myid == 0 .and. n_flipped > 0) then
+    write(*,*) "WARNING: ", n_flipped, " of", n_cell, &
+               " triangles had inconsistent vertex winding order; vertices 2 and 3 were swapped"
+  end if
 
   ! Pre-compute centroids and local coordinate systems for local cells
   if (local_cells > 0) then
@@ -388,10 +410,11 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
       k = start_idx + j - 1
       if (k > n_cell) cycle
 
-      vj(1:3) = arr_cell(k, 1:3)
-      p1(1:3) = arr_vertex(vj(1), 1:3)
-      p2(1:3) = arr_vertex(vj(2), 1:3)
-      p3(1:3) = arr_vertex(vj(3), 1:3)
+      ! Use the winding-corrected vertex order so the observer frame matches
+      ! the convention enforced above for the source triangles
+      p1(1:3) = arr_trid(1:3, k)
+      p2(1:3) = arr_trid(4:6, k)
+      p3(1:3) = arr_trid(7:9, k)
 
       ! Calculate centroid
       co = (p1 + p2 + p3) / 3.d0
