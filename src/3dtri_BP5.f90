@@ -1762,9 +1762,6 @@ end if
     if(icos==ncos)then
        ! HDF5 output for time-series variables instead of binary files
 
-       ! Synchronize all MPI processes before HDF5 output
-       call MPI_Barrier(MPI_COMM_WORLD, ierr)
-
        ! Only the master MPI process writes HDF5 to prevent concurrent file access.
        ! Wrap in !$OMP MASTER so dormant OpenMP threads do not race on HDF5 global state.
        if(myid==master)then
@@ -2135,18 +2132,16 @@ end if
 
        !$OMP END MASTER
        end if  ! myid==master
-       call MPI_Barrier(MPI_COMM_WORLD, ierr)
     end if  ! icos==ncos
 
 
 	if(inul == nnul)then
        ! Null slip data collection completed - no output files needed
-       inul = 0 
+       inul = 0
 	end if
 
    if(isse==nsse)then
       ! HDF5 output for SSE time-series variables instead of binary files
-      call MPI_Barrier(MPI_COMM_WORLD, ierr)
       if(myid==master)then
       !$OMP MASTER
          ! Initialize HDF5 if not already done
@@ -2462,7 +2457,6 @@ end if
 
       !$OMP END MASTER
       end if  ! myid==master
-      call MPI_Barrier(MPI_COMM_WORLD, ierr)
 
   end if  ! isse==nsse
 
