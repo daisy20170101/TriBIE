@@ -19,7 +19,8 @@
 !   triangular_mesh.gts - GTS format mesh file with triangular elements
 !
 ! Output:
-!   trigreen_<rank>.bin - Binary stiffness matrix files (one per MPI process)
+!   trigreen_<rank>.bin - Binary shear stress stiffness matrix files (one per MPI process)
+!   trigreen_norm_<rank>.bin - Binary normal stress stiffness matrix files (one per MPI process)
 !   position.bin - Centroid positions of all elements
 !===============================================================================
 
@@ -184,7 +185,7 @@ program calc_nikkhoo
       write(*,*) "Calculation completed successfully!"
       write(*,*) "========================================================"
       write(*,*) "Total time:", end_time - start_time, "seconds"
-      write(*,*) "Output files: trigreen_<rank>.bin, position.bin"
+      write(*,*) "Output files: trigreen_<rank>.bin, trigreen_norm_<rank>.bin, position.bin"
     end if
   end if
 
@@ -332,7 +333,7 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
 
   ! Work arrays
   real(DP), allocatable :: arr_co(:,:), arr_trid(:,:), arr_cl_v(:,:,:)
-  real(DP), allocatable :: arr_out(:,:)
+  real(DP), allocatable :: arr_out(:,:), arr_out_norm(:,:)
 
   ! Load balancing
   integer :: local_cells, start_idx
@@ -373,6 +374,7 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
   allocate(arr_trid(9, n_cell))
   allocate(arr_cl_v(3, 3, max(1, local_cells)))
   allocate(arr_out(max(1, local_cells), n_cell))
+  allocate(arr_out_norm(max(1, local_cells), n_cell))
 
   ! Pre-compute triangle data for all cells (needed for source triangles)
   ! Vertex order (p1,p2,p3) sets the sign of the Nikkhoo-Walter normal/strike/dip
@@ -430,9 +432,11 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
       arr_cl_v(1:3, 3, j) = c_local_v(7:9)
 
       arr_out(j, :) = 0.d0
+      arr_out_norm(j, :) = 0.d0
     end do
   else
     arr_out(1, :) = 0.d0
+    arr_out_norm(1, :) = 0.d0
     arr_co(:, 1) = 0.d0
     arr_cl_v(:, :, 1) = 0.d0
   end if
@@ -444,7 +448,7 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
   !============================================================================
   if (local_cells > 0) then
     !$OMP PARALLEL DO PRIVATE(i, j, k, src_p1, src_p2, src_p3, stress, strain, sig33) &
-    !$OMP& SHARED(arr_co, arr_trid, arr_out, arr_cl_v, n_cell, local_cells, start_idx)
+    !$OMP& SHARED(arr_co, arr_trid, arr_out, arr_out_norm, arr_cl_v, n_cell, local_cells, start_idx)
     do j = 1, local_cells
       k = start_idx + j - 1
       if (k > n_cell) cycle
@@ -464,6 +468,7 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
         ! Check for NaN (singular points)
         if (ieee_is_nan(stress(1)) .or. ieee_is_nan(strain(1))) then
           arr_out(j, i) = 0.d0
+          arr_out_norm(j, i) = 0.d0
           cycle
         end if
 
@@ -492,6 +497,16 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
         if (ieee_is_nan(arr_out(j, i))) then
           arr_out(j, i) = 0.d0
         end if
+
+        ! Calculate normal stress change in local coordinate system
+        ! sigma_n = n' * sigma * n (normal dotted with stress dotted with normal)
+        ! Output in Bar (0.1 MPa) - negative sign for convention
+        arr_out_norm(j, i) = -1.0d0/100.0d0 * &
+               dot_product(arr_cl_v(:, 3, j), matmul(sig33, arr_cl_v(:, 3, j)))
+        ! Check for NaN in result
+        if (ieee_is_nan(arr_out_norm(j, i))) then
+          arr_out_norm(j, i) = 0.d0
+        end if
       end do
     end do
     !$OMP END PARALLEL DO
@@ -510,11 +525,21 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
       write(14) arr_out(i, :)
     end do
     close(14)
+
+    open(15, file='trigreen_norm_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
+    do i = 1, local_cells
+      write(15) arr_out_norm(i, :)
+    end do
+    close(15)
   else
     ! Write dummy entry for compatibility
     open(14, file='trigreen_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
     write(14) (0.d0, i=1, n_cell)
     close(14)
+
+    open(15, file='trigreen_norm_'//trim(adjustl(cTemp))//'.bin', form='unformatted', access='stream')
+    write(15) (0.d0, i=1, n_cell)
+    close(15)
   end if
 
   ! Master writes position data
@@ -543,7 +568,7 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
   end if
 
   ! Cleanup
-  deallocate(arr_co, arr_trid, arr_cl_v, arr_out)
+  deallocate(arr_co, arr_trid, arr_cl_v, arr_out, arr_out_norm)
 
 end subroutine calc_nikkhoo_allcell
 
