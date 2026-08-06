@@ -130,8 +130,13 @@ program main
   logical :: trigreen_file_exists
   character(len=256) :: trigreen_filename
 
+  ! Normal-stress stiffness (TriGreen trigreen_norm_*.bin) file variables
+  logical :: trigreen_norm_file_exists
+  character(len=256) :: trigreen_norm_filename
+
   ! Stiffness matrix debugging variables
   real (DP) :: stiff_absmax_local, stiff_absmax_global
+  real (DP) :: stiff2_absmax_local, stiff2_absmax_global
   
   ! MPI_Scatterv variables for uneven distribution
 
@@ -342,6 +347,7 @@ program main
        yt0(2*local_cells),sr(local_cells),vi(local_cells))
 
   ALLOCATE (stiff(local_cells,Nt_all))   !!! stiffness of Stuart green calculation
+  ALLOCATE (stiff2(local_cells,Nt_all))  !!! normal-stress stiffness from Nikkhoo trigreen_norm files
 
   !Read in stiffness matrix, in nprocs segments
 
@@ -363,10 +369,24 @@ program main
      
      open(5, file=trigreen_filename, form='unformatted', access='stream', status='old')
      write(*,*) 'Process', myid, ': Successfully loaded TriGreen file: ', trim(trigreen_filename)
+
+     ! Load matching normal-stress TriGreen file (trigreen_norm_<rank>.bin)
+     trigreen_norm_filename = trim(stiffname)//'trigreen_norm_'//trim(adjustl(cTemp))//'.bin'
+
+     inquire(file=trigreen_norm_filename, exist=trigreen_norm_file_exists)
+     if (.not. trigreen_norm_file_exists) then
+        write(*,*) 'ERROR: TriGreen normal-stress file not found: ', trim(trigreen_norm_filename)
+        write(*,*) 'Process', myid, 'cannot continue without TriGreen normal-stress file'
+        call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+     end if
+
+     open(7, file=trigreen_norm_filename, form='unformatted', access='stream', status='old')
+     write(*,*) 'Process', myid, ': Successfully loaded TriGreen normal-stress file: ', trim(trigreen_norm_filename)
   else
      ! Load original ssGreen format files
      open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
      write(*,*) 'Loading ssGreen file: ssGreen_', trim(adjustl(cTemp)), '.bin'
+     stiff2 = 0.d0   ! No normal-stress Green's functions available for ssGreen format
   end if
 
 if(myid==master)then
@@ -453,7 +473,25 @@ end if
       
   200 continue
   close(5)
-  
+
+  ! Read normal-stress stiffness matrix (TriGreen format only)
+  if (use_trigreen_format) then
+     do i=1,local_cells
+        do j=1,Nt_all
+           read(7, err=998) stiff2(i,j)
+        end do
+     end do
+
+     goto 201
+
+     998 write(*,*) 'Process', myid, ': ERROR reading normal-stress stiffness matrix from TriGreen file'
+         write(*,*) 'Process', myid, ': File may be corrupted or incomplete'
+         call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+
+     201 continue
+     close(7)
+  end if
+
   ! SECOND: Process data in parallel (OpenMP for computation only, NO file I/O)
   !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
@@ -470,6 +508,20 @@ end if
           write(*,*) 'Process', myid, ': NaN detected at position (', i, ',', j, ') - set to 0'
           !$OMP END CRITICAL
         end if
+        if(use_trigreen_format)then
+           if(stiff2(i,j).lt.-1.6d0.or.stiff2(i,j).gt.1.6d0)then
+              stiff2(i,j) = 0.d0
+              !$OMP CRITICAL
+              write(*,*) 'Process', myid, ': Extreme value in stiff2 at position (', i, ',', j, ') =', stiff2(i,j)
+              !$OMP END CRITICAL
+           end if
+           if(stiff2(i,j) /= stiff2(i,j))then  ! Check for NaN using IEEE standard
+             stiff2(i,j)=0.d0
+             !$OMP CRITICAL
+             write(*,*) 'Process', myid, ': NaN detected in stiff2 at position (', i, ',', j, ') - set to 0'
+             !$OMP END CRITICAL
+           end if
+        end if
      end do
   end do
   !$OMP END PARALLEL DO
@@ -480,6 +532,14 @@ end if
   write(*,*) 'Process', myid, ': local max abs(stiff) =', stiff_absmax_local
   if (myid == master) then
      write(*,*) 'DEBUG: global max abs(stiff) across all processes =', stiff_absmax_global
+  end if
+
+  ! DEBUG: report largest absolute value of the normal-stress stiffness matrix
+  stiff2_absmax_local = maxval(dabs(stiff2))
+  call MPI_Allreduce(stiff2_absmax_local, stiff2_absmax_global, 1, MPI_Real8, MPI_MAX, MPI_COMM_WORLD, ierr)
+  write(*,*) 'Process', myid, ': local max abs(stiff2) =', stiff2_absmax_local
+  if (myid == master) then
+     write(*,*) 'DEBUG: global max abs(stiff2) across all processes =', stiff2_absmax_global
   end if
 
   ! TriGreen integration summary
@@ -1031,7 +1091,7 @@ end if
   end if
 
 
-  DEALLOCATE (stiff,vi,sr)
+  DEALLOCATE (stiff,stiff2,vi,sr)
   DEALLOCATE (x,z_all,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
   DEALLOCATE (cca,ccb,xLf,seff)
@@ -1179,16 +1239,17 @@ end subroutine rkqs
 !------------------------------------------------------------------------------
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
        USE mpi
-       USE phy3d_module_non, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
+       USE phy3d_module_non, only: phy1,phy2,tau1,tau2, stiff,stiff2,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
             tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs
        implicit none
        integer, parameter :: DP = kind(1.0d0)
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
-       real (DP) :: t,yt(nv),dydt(nv)   
-       real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
+       real (DP) :: t,yt(nv),dydt(nv)
+       real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc,frc
        real (DP) :: psi,help1,help2,help
        real (DP) :: SECNDS
        real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
+       real (DP) :: zzfric_norm(Nt)   ! normal-stress rate from stiff2 (Nikkhoo trigreen_norm)
        
        ! Local variables for blocking optimization
        integer :: block_size, j_start, j_end, i_block, j_block, i_end_block, j_end_block
@@ -1228,15 +1289,23 @@ end subroutine rkqs
        ! CORRECT: Simple nested loop for matrix-vector multiplication
        do i=1, Nt
           zzfric(i) = 0d0  ! Initialize to zero
-          
+          zzfric_norm(i) = 0d0  ! Initialize to zero
+
           !$OMP SIMD PRIVATE(temp_sum)
           do j=1, Nt_all   ! Sum over all source cells
              temp_sum = stiff(i,j) * zz_all(j)
              zzfric(i) = zzfric(i) + temp_sum
           end do
           !$OMP END SIMD
+
+          !$OMP SIMD PRIVATE(temp_sum)
+          do j=1, Nt_all   ! Sum over all source cells (normal-stress coupling)
+             temp_sum = stiff2(i,j) * zz_all(j)
+             zzfric_norm(i) = zzfric_norm(i) + temp_sum
+          end do
+          !$OMP END SIMD
        end do
- 
+
        call CPU_TIME(tm2)
        if ((tm2-tm1) .lt. 0.03)then
           tmmult=tmmult+tm2-tm1
@@ -1265,8 +1334,9 @@ end subroutine rkqs
        end do
 
        ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
-       !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
+       !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3,frc)
        do i=1,Nt
+         frc = f0+cca(i)*dlog(yt(2*i-1)/V0)+ccb(i)*dlog(V0*yt(2*i)/xLf(i))
           psi = dlog(V0*yt(2*i)/xLf(i))
           help1 = yt(2*i-1)/(2*V0)
           help2 = (f0+ccb(i)*psi)/cca(i)
@@ -1277,7 +1347,7 @@ end subroutine rkqs
 !aging             
 	  deriv3 = 1-yt(2*i-1)*yt(2*i)/xLf(i)
 !slip law	     deriv3 = -yt(2*i-1)*yt(2*i)/xLf(i)*dlog(yt(2*i-1)*yt(2*i)/xLf(i))
-          dydt(2*i-1) = -(zzfric(i)+deriv1*deriv3)/(eta+deriv2) ! total shear traction
+          dydt(2*i-1) = -(zzfric(i)+deriv1*deriv3- frc* zzfric_norm(i))/(eta+deriv2) ! total shear traction
           dydt(2*i)=deriv3     
        end do
        !$OMP END SIMD
