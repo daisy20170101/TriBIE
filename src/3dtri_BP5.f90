@@ -605,6 +605,12 @@ end if
    end if
 
   call MPI_Bcast(z_all,Nt_all,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+
+   call MPI_Scatterv(z_all,sendcounts,displs,MPI_Real8,z,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for z, ierr =', ierr, 'on process', myid
+      stop
+   end if
   
   ! Validate scattered parameters for each process
   write(*,*) 'Process', myid, 'scattered parameters validation:'
@@ -777,7 +783,7 @@ end if
   ! Main simulation loop
   do while(cyclecont) 
 
-     call derivs(myid,dydt,3*local_cells,Nt_all,local_cells,t,yt,z_all,x)
+     call derivs(myid,dydt,3*local_cells,Nt_all,local_cells,t,yt,z_all,z)
 
      do j=1,3*local_cells
         yt_scale(j)=dabs(yt(j))+dabs(dt_try*dydt(j))
@@ -785,7 +791,7 @@ end if
      end do
 
      CALL rkqs(myid,yt,dydt,3*local_cells,Nt_all,local_cells,t,dt_try,accuracy,yt_scale, &
-          dt_did,dt_next,z_all,x)
+          dt_did,dt_next,z_all,z)
 
      dt = dt_did
      dt_try = dt_next
@@ -1125,7 +1131,7 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
   integer, parameter :: DP = kind(1.0d0)   
   integer :: n,i,j,k,NMAX,Nt,Nt_all
   real (DP) :: eps,hdid,hnext,htry,x
-  real (DP) :: dydx(n),y(n),yscal(n),z_all(Nt_all),p(Nt) !p is position
+  real (DP) :: dydx(n),y(n),yscal(n),z_all(Nt_all),p(Nt) !p is passed through to derivs as the local depth array
   external derivs
   real (DP) :: errmax,errmax1,h,htemp,xnew,errmax_all(nprocs)
   real (DP), dimension(:), allocatable :: yerr,ytemp
@@ -1240,7 +1246,7 @@ end subroutine rkqs
      end subroutine rkck
 !------------------------------------------------------------------------------
 !------------------------------------------------------------------------------
-     subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,x)
+     subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,z)
        USE mpi
        USE phy3d_module_non, only: phy1,phy2,tau1,tau2, stiff,stiff2,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
             tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs
@@ -1251,7 +1257,7 @@ end subroutine rkqs
        real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc,frc
        real (DP) :: psi,help1,help2,help
        real (DP) :: SECNDS
-       real (DP) :: sr(Nt),z_all(Nt_all),x(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
+       real (DP) :: sr(Nt),z_all(Nt_all),z(Nt),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
        real (DP) :: zzfric_norm(Nt)   ! normal-stress rate from stiff2 (Nikkhoo trigreen_norm)
        
        ! Local variables for blocking optimization
@@ -1272,6 +1278,7 @@ end subroutine rkqs
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
           zz(i)=yt(3*i-2)-Vpl
+          if (z(i) < -2.0d0) zz(i) = 0.d0   ! lock elements deeper than 2 km
        end do
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
