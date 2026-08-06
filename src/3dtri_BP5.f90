@@ -1278,7 +1278,7 @@ end subroutine rkqs
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
           zz(i)=yt(3*i-2)-Vpl
-          if (z(i) < -2.0d0) zz(i) = 0.d0   ! lock elements deeper than 2 km
+          if (z(i) < 2.0d0) zz(i) = 0.d0   ! lock elements shallower than 2 km (z positive down)
        end do
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
