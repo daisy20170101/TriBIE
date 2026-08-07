@@ -1297,6 +1297,9 @@ end subroutine rkqs
        tm1=tm2
 
        ! CORRECT: Simple nested loop for matrix-vector multiplication
+       ! Parallelize across observer cells i: each iteration only writes its own
+       ! zzfric(i)/zzfric_norm(i) and reads shared, read-only stiff/stiff2/zz_all.
+       !$OMP PARALLEL DO PRIVATE(i,j,temp_sum) SCHEDULE(STATIC)
        do i=1, Nt
           zzfric(i) = 0d0  ! Initialize to zero
           zzfric_norm(i) = 0d0  ! Initialize to zero
@@ -1315,6 +1318,7 @@ end subroutine rkqs
           end do
           !$OMP END SIMD
        end do
+       !$OMP END PARALLEL DO
 
        call CPU_TIME(tm2)
        if ((tm2-tm1) .lt. 0.03)then
