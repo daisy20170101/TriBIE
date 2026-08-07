@@ -117,7 +117,7 @@ program main
   ! Dynamic load balancing variables (compatible with calc_trigreen.f90)
   integer :: base_cells, extra_cells, local_cells, start_idx
   logical :: use_trigreen_format = .true.  ! Set to .true. to use TriGreen files
-  logical :: norm_flag = .true.  ! Set to .false. to skip reading stiff2 and use zero normal-stress coupling
+  logical :: norm_flag = .false.  ! Set to .false. to skip reading stiff2 and use zero normal-stress coupling
   
   ! MPI scatter arrays for different data types
   integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
@@ -502,7 +502,7 @@ end if
   !$OMP PARALLEL DO PRIVATE(i,j) SCHEDULE(STATIC)
   do i=1,local_cells !! observe (now using local_cells instead of Nt)
      do j=1,Nt_all !! source
-        if(stiff(i,j).lt.-1.6d0.or.stiff(i,j).gt.1.6d0)then
+        if(stiff(i,j).lt.-0.8d0.or.stiff(i,j).gt.0.8d0)then
            stiff(i,j) = 0.d0
            !$OMP CRITICAL
            write(*,*) 'Process', myid, ': Extreme value at position (', i, ',', j, ') =', stiff(i,j)
@@ -677,7 +677,7 @@ end if
 
   accuracy = 1.d-4
   epsv = 1.0d-3
-  dtmin = 1.d-10
+  dtmin = 1.d-9
   dt_try=dtmin
   Vint = Vpl
 
@@ -1285,7 +1285,6 @@ end subroutine rkqs
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
           zz(i)=yt(3*i-2)-Vpl
-          if (dabs(z(i)) < 3.0d0) zz(i) = 0.d0   ! lock elements shallower than 2 km (z positive down)
        end do
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
@@ -1310,14 +1309,14 @@ end subroutine rkqs
 
           !$OMP SIMD PRIVATE(temp_sum)
           do j=1, Nt_all   ! Sum over all source cells
-             temp_sum = stiff(i,j) * zz_all(j)
+             temp_sum = -stiff(i,j) * zz_all(j)
              zzfric(i) = zzfric(i) + temp_sum
           end do
           !$OMP END SIMD
 
           !$OMP SIMD PRIVATE(temp_sum)
           do j=1, Nt_all   ! Sum over all source cells (normal-stress coupling)
-             temp_sum = stiff2(i,j) * zz_all(j)
+             temp_sum = -stiff2(i,j) * zz_all(j)
              zzfric_norm(i) = zzfric_norm(i) + temp_sum
           end do
           !$OMP END SIMD
