@@ -117,6 +117,7 @@ program main
   ! Dynamic load balancing variables (compatible with calc_trigreen.f90)
   integer :: base_cells, extra_cells, local_cells, start_idx
   logical :: use_trigreen_format = .true.  ! Set to .true. to use TriGreen files
+  logical :: norm_flag = .true.  ! Set to .false. to skip reading stiff2 and use zero normal-stress coupling
   
   ! MPI scatter arrays for different data types
   integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
@@ -370,18 +371,23 @@ program main
      open(5, file=trigreen_filename, form='unformatted', access='stream', status='old')
      write(*,*) 'Process', myid, ': Successfully loaded TriGreen file: ', trim(trigreen_filename)
 
-     ! Load matching normal-stress TriGreen file (trigreen_norm_<rank>.bin)
-     trigreen_norm_filename = trim(stiffname)//'trigreen_norm_'//trim(adjustl(cTemp))//'.bin'
+     if (norm_flag) then
+        ! Load matching normal-stress TriGreen file (trigreen_norm_<rank>.bin)
+        trigreen_norm_filename = trim(stiffname)//'trigreen_norm_'//trim(adjustl(cTemp))//'.bin'
 
-     inquire(file=trigreen_norm_filename, exist=trigreen_norm_file_exists)
-     if (.not. trigreen_norm_file_exists) then
-        write(*,*) 'ERROR: TriGreen normal-stress file not found: ', trim(trigreen_norm_filename)
-        write(*,*) 'Process', myid, 'cannot continue without TriGreen normal-stress file'
-        call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+        inquire(file=trigreen_norm_filename, exist=trigreen_norm_file_exists)
+        if (.not. trigreen_norm_file_exists) then
+           write(*,*) 'ERROR: TriGreen normal-stress file not found: ', trim(trigreen_norm_filename)
+           write(*,*) 'Process', myid, 'cannot continue without TriGreen normal-stress file'
+           call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+        end if
+
+        open(7, file=trigreen_norm_filename, form='unformatted', access='stream', status='old')
+        write(*,*) 'Process', myid, ': Successfully loaded TriGreen normal-stress file: ', trim(trigreen_norm_filename)
+     else
+        stiff2 = 0.d0   ! norm_flag disabled: no normal-stress coupling
+        write(*,*) 'Process', myid, ': norm_flag = .false., setting stiff2 = 0 (no TriGreen normal-stress file read)'
      end if
-
-     open(7, file=trigreen_norm_filename, form='unformatted', access='stream', status='old')
-     write(*,*) 'Process', myid, ': Successfully loaded TriGreen normal-stress file: ', trim(trigreen_norm_filename)
   else
      ! Load original ssGreen format files
      open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
@@ -474,8 +480,8 @@ end if
   200 continue
   close(5)
 
-  ! Read normal-stress stiffness matrix (TriGreen format only)
-  if (use_trigreen_format) then
+  ! Read normal-stress stiffness matrix (TriGreen format only, and only if norm_flag is enabled)
+  if (use_trigreen_format .and. norm_flag) then
      do i=1,local_cells
         do j=1,Nt_all
            read(7, err=998) stiff2(i,j)
@@ -508,7 +514,7 @@ end if
           write(*,*) 'Process', myid, ': NaN detected at position (', i, ',', j, ') - set to 0'
           !$OMP END CRITICAL
         end if
-        if(use_trigreen_format)then
+        if(use_trigreen_format .and. norm_flag)then
            if(stiff2(i,j).lt.-1.6d0.or.stiff2(i,j).gt.1.6d0)then
               stiff2(i,j) = 0.d0
               !$OMP CRITICAL
