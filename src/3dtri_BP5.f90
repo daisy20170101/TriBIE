@@ -1396,19 +1396,31 @@ end subroutine rkqs
       USE mpi
       USE phy3d_module_non, only: yrs,p18,Nl,Nd,Nab,xmu,xnu,gamma, &
            Iprofile,foldername,jobname,profile
+      use hdf5  ! Add HDF5 support for vardep XDMF/HDF5 output
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer, parameter :: DN=9
       integer :: k,i,j,kk,Iperb,record,l,m,nn,Nt,Nt_all
 
       real (DP) :: temp(DN),dep(DN),dist(DN),ptemp(Nt_all), &
-           ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, & 
+           ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, &
            hnucl
       real (DP) :: cca_all(Nt_all),ccb_all(Nt_all),ccab_all(Nt_all), &
            xLf_all(Nt_all),seff_all(Nt_all),x_all(Nt_all),z_all(Nt_all),vi_all(Nt_all)
 
       real (DP) ::a(Nab),tpr(Nab),zp(Nab),b(nab),ab(nab)
 
+      ! HDF5/XDMF output of the depth-dependent parameter fields
+      integer(HID_T) :: file_id, group_id, dset_id, dspace_id
+      integer(HSIZE_T) :: dims_1d(1), dims_2d(2)
+      integer :: hdferr, ios
+      logical :: file_exists
+      character(len=256) :: vardep_hdf5_filename, vardep_xdmf_filename
+
+      ! Mesh geometry/topology read from the GTS file (same mesh used for the simulation)
+      integer :: n_vertices, n_edges_dummy, n_cells
+      real(DP), allocatable :: vertex_coords(:,:), vertex_coords_transposed(:,:)
+      integer*4, allocatable :: cell_connectivity(:,:), cell_connectivity_transposed(:,:)
 
       !----------------------------------------------------------------------------
       !     iseff defines what eff. normal stress down-dip profiles
@@ -1498,6 +1510,177 @@ end subroutine rkqs
               ccab_all(i),cca_all(i),vi_all(i)
       end do
       close(2)
+
+      !----------------------------------------------------------------------------
+      !     Write the same depth-dependent fields to an HDF5 file, with a companion
+      !     XDMF wrapper (referencing the simulation mesh) for visualization.
+      !----------------------------------------------------------------------------
+      inquire(file='triangular_mesh.gts', exist=file_exists)
+      if (.not. file_exists) then
+         write(*,*) 'ERROR: triangular_mesh.gts file not found!'
+         write(*,*) 'Cannot write vardep HDF5/XDMF output without the mesh file.'
+         stop
+      end if
+
+      open(98, file='triangular_mesh.gts', status='old', action='read', iostat=ios)
+      if (ios /= 0) then
+         write(*,*) 'ERROR: Failed to open triangular_mesh.gts, iostat =', ios
+         stop
+      end if
+
+      read(98,*, iostat=ios) n_vertices, n_edges_dummy, n_cells
+      if (ios /= 0) then
+         write(*,*) 'ERROR: Failed to read mesh dimensions from triangular_mesh.gts, iostat =', ios
+         close(98)
+         stop
+      end if
+
+      allocate(vertex_coords(n_vertices, 3))
+      allocate(cell_connectivity(n_cells, 3))
+
+      do i = 1, n_vertices
+         read(98,*, iostat=ios) vertex_coords(i, 1), vertex_coords(i, 2), vertex_coords(i, 3)
+         if (ios /= 0) then
+            write(*,*) 'ERROR: Failed to read vertex', i, 'from triangular_mesh.gts, iostat =', ios
+            close(98)
+            stop
+         end if
+      end do
+
+      do i = 1, n_cells
+         read(98,*, iostat=ios) cell_connectivity(i, 1), cell_connectivity(i, 2), cell_connectivity(i, 3)
+         if (ios /= 0) then
+            write(*,*) 'ERROR: Failed to read cell', i, 'from triangular_mesh.gts, iostat =', ios
+            close(98)
+            stop
+         end if
+         ! Keep 0-based indexing for Paraview compatibility
+         cell_connectivity(i, :) = cell_connectivity(i, :) - 1
+      end do
+      close(98)
+
+      call h5open_f(hdferr)
+
+      vardep_hdf5_filename = trim(foldername)//'vardep_'//trim(jobname)//'.h5'
+      call h5fcreate_f(trim(vardep_hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
+
+      ! Mesh geometry/topology (same layout convention as output()'s HDF5 mesh)
+      call h5gcreate_f(file_id, '/mesh', group_id, hdferr)
+
+      allocate(vertex_coords_transposed(3, n_vertices))
+      do i = 1, n_vertices
+         vertex_coords_transposed(1, i) = vertex_coords(i, 1)
+         vertex_coords_transposed(2, i) = vertex_coords(i, 2)
+         vertex_coords_transposed(3, i) = vertex_coords(i, 3)
+      end do
+      dims_2d = (/3, n_vertices/)
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'geometry', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vertex_coords_transposed, dims_2d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      deallocate(vertex_coords_transposed)
+
+      allocate(cell_connectivity_transposed(3, n_cells))
+      do i = 1, n_cells
+         cell_connectivity_transposed(1, i) = cell_connectivity(i, 1)
+         cell_connectivity_transposed(2, i) = cell_connectivity(i, 2)
+         cell_connectivity_transposed(3, i) = cell_connectivity(i, 3)
+      end do
+      dims_2d = (/3, n_cells/)
+      call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'topology', H5T_STD_I32LE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_STD_I32LE, cell_connectivity_transposed, dims_2d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+      deallocate(cell_connectivity_transposed)
+
+      call h5gclose_f(group_id, hdferr)
+      deallocate(vertex_coords, cell_connectivity)
+
+      ! Depth-dependent parameter fields, one 1D dataset per field
+      call h5gcreate_f(file_id, '/vardep', group_id, hdferr)
+      dims_1d = (/Nt_all/)
+
+      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'z', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, z_all, dims_1d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+
+      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'seff', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, seff_all, dims_1d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+
+      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'xLf', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, xLf_all, dims_1d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+
+      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'ccab', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, ccab_all, dims_1d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+
+      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'cca', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, cca_all, dims_1d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+
+      call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
+      call h5dcreate_f(group_id, 'vi', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+      call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, vi_all, dims_1d, hdferr)
+      call h5dclose_f(dset_id, hdferr)
+      call h5sclose_f(dspace_id, hdferr)
+
+      call h5gclose_f(group_id, hdferr)
+      call h5fclose_f(file_id, hdferr)
+
+      ! Companion XDMF file: a single static grid with the 6 fields as cell attributes
+      vardep_xdmf_filename = trim(foldername)//'vardep_'//trim(jobname)//'.xdmf'
+      open(99, file=trim(vardep_xdmf_filename), status='replace')
+      write(99,'(A)') '<?xml version="1.0" ?>'
+      write(99,'(A)') '<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>'
+      write(99,'(A)') '<Xdmf Version="2.0">'
+      write(99,'(A)') ' <Domain>'
+      write(99,'(A)') '  <Grid Name="vardep" GridType="Uniform">'
+      write(99,'(A,I0,A)') '   <Topology TopologyType="Triangle" NumberOfElements="',n_cells,'">'
+      write(99,'(A,I0,3A)') '    <DataItem NumberType="Int" Precision="8" Format="HDF" Dimensions="',n_cells,' 3">vardep_', trim(jobname), '.h5:/mesh/topology</DataItem>'
+      write(99,'(A)') '   </Topology>'
+      write(99,'(A,I0,A)') '   <Geometry name="geo" GeometryType="XYZ" NumberOfElements="',n_vertices,'">'
+      write(99,'(A,I0,3A)') '    <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',n_vertices,' 3">vardep_', trim(jobname), '.h5:/mesh/geometry</DataItem>'
+      write(99,'(A)') '   </Geometry>'
+      write(99,'(A)') '   <Attribute Name="z" Center="Cell">'
+      write(99,'(A,I0,3A)') '    <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',Nt_all,'">vardep_', trim(jobname), '.h5:/vardep/z</DataItem>'
+      write(99,'(A)') '   </Attribute>'
+      write(99,'(A)') '   <Attribute Name="seff" Center="Cell">'
+      write(99,'(A,I0,3A)') '    <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',Nt_all,'">vardep_', trim(jobname), '.h5:/vardep/seff</DataItem>'
+      write(99,'(A)') '   </Attribute>'
+      write(99,'(A)') '   <Attribute Name="xLf" Center="Cell">'
+      write(99,'(A,I0,3A)') '    <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',Nt_all,'">vardep_', trim(jobname), '.h5:/vardep/xLf</DataItem>'
+      write(99,'(A)') '   </Attribute>'
+      write(99,'(A)') '   <Attribute Name="ccab" Center="Cell">'
+      write(99,'(A,I0,3A)') '    <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',Nt_all,'">vardep_', trim(jobname), '.h5:/vardep/ccab</DataItem>'
+      write(99,'(A)') '   </Attribute>'
+      write(99,'(A)') '   <Attribute Name="cca" Center="Cell">'
+      write(99,'(A,I0,3A)') '    <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',Nt_all,'">vardep_', trim(jobname), '.h5:/vardep/cca</DataItem>'
+      write(99,'(A)') '   </Attribute>'
+      write(99,'(A)') '   <Attribute Name="vi" Center="Cell">'
+      write(99,'(A,I0,3A)') '    <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="',Nt_all,'">vardep_', trim(jobname), '.h5:/vardep/vi</DataItem>'
+      write(99,'(A)') '   </Attribute>'
+      write(99,'(A)') '  </Grid>'
+      write(99,'(A)') ' </Domain>'
+      write(99,'(A)') '</Xdmf>'
+      close(99)
+
+      write(*,*) 'vardep fields written to HDF5: ', trim(vardep_hdf5_filename)
+      write(*,*) 'vardep XDMF visualization file created: ', trim(vardep_xdmf_filename)
+
 300   format(5(1x,A20))
       RETURN
     END subroutine resdep
