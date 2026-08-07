@@ -1988,6 +1988,27 @@ end if
           ! Open existing time-series group
           time_series_group_name = '/time_series'
           call h5gopen_f(file_id, trim(time_series_group_name), group_id, hdferr)
+
+          ! Self-heal: files written before slipz1_norm existed won't have this
+          ! dataset, so create it on demand instead of failing later at h5dopen_f.
+          call h5lexists_f(group_id, 'slipz1_norm', mesh_group_exists, hdferr)
+          if (.not. mesh_group_exists) then
+             write(*,*) 'INFO: slipz1_norm dataset missing from existing HDF5 file; creating it now'
+             dims_2d = (/INT(Nt_all, HSIZE_T), INT(global_time_steps_written, HSIZE_T)/)
+             maxdims_2d = (/INT(Nt_all, HSIZE_T), H5S_UNLIMITED_F/)
+             if (global_time_steps_written <= 1) then
+                chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(1, HSIZE_T)/)
+             else
+                chunk_2d = (/INT(min(Nt_all, 1000), HSIZE_T), INT(min(global_time_steps_written, 100), HSIZE_T)/)
+             end if
+             call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl_id, hdferr)
+             call h5pset_chunk_f(dcpl_id, 2, chunk_2d, hdferr)
+             call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
+             call h5dcreate_f(group_id, 'slipz1_norm', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
+             call h5dclose_f(dset_id, hdferr)
+             call h5sclose_f(dspace_id, hdferr)
+             call h5pclose_f(dcpl_id, hdferr)
+          end if
        else
           ! Create new file and initialize datasets with extensible dimensions
           call h5fcreate_f(trim(hdf5_filename), H5F_ACC_TRUNC_F, file_id, hdferr)
