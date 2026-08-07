@@ -1256,7 +1256,7 @@ end subroutine rkqs
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,z)
        USE mpi
        USE phy3d_module_non, only: phy1,phy2,tau1,tau2, stiff,stiff2,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
-            tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs
+            tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs,omp_flag
        implicit none
        integer, parameter :: DP = kind(1.0d0)
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
@@ -1285,7 +1285,7 @@ end subroutine rkqs
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
           zz(i)=yt(3*i-2)-Vpl
-          if (z(i) < 3.0d0) zz(i) = 0.d0   ! lock elements shallower than 2 km (z positive down)
+          if (dabs(z(i)) < 3.0d0) zz(i) = 0.d0   ! lock elements shallower than 2 km (z positive down)
        end do
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
@@ -1306,7 +1306,7 @@ end subroutine rkqs
        ! CORRECT: Simple nested loop for matrix-vector multiplication
        ! Parallelize across observer cells i: each iteration only writes its own
        ! zzfric(i)/zzfric_norm(i) and reads shared, read-only stiff/stiff2/zz_all.
-       !$OMP PARALLEL DO PRIVATE(i,j,temp_sum) SCHEDULE(STATIC)
+       !$OMP PARALLEL DO IF(omp_flag) PRIVATE(i,j,temp_sum) SCHEDULE(STATIC)
        do i=1, Nt
           temp_sum = 0d0
           !$OMP SIMD REDUCTION(+:temp_sum)

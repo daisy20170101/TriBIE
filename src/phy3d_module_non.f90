@@ -15,6 +15,8 @@ real (DP0), parameter :: yrs=365.*24.*3600.d0, yrd=365.d0
 
 real (DP0) :: tm1,tm2,tmday,tmelse,tmmidn,tmmult,Vpl
 
+logical :: omp_flag = .false.  ! Set to .false. to run the stiffness matrix-vector loop in derivs serially
+
 real (DP0), DIMENSION(:), ALLOCATABLE :: tau1,tau2,tau0,cca,ccb,seff,xLf,phy1,phy2
 !real (DP0), DIMENSION(:,:,:), ALLOCATABLE :: fr
 real (DP0), DIMENSION(:,:), ALLOCATABLE :: stiff,stiff2
