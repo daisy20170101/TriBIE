@@ -82,7 +82,7 @@ program main
        maxnum,msse1,msse2,areasse1,areasse2,tmv,tas,tcos,tnul,tsse
   real (DP),dimension(:,:,:),allocatable :: outs1
   real (DP), DIMENSION(:,:), ALLOCATABLE :: slipz1_inter, &
-       slipz1_cos,slipave_inter,slipave_cos, slipz1_v, &
+       slipz1_cos,slipave_inter,slipave_cos, slipz1_v, slipz1_norm, &
        v_cos,slip_cos,v_nul,slip_nul,slipz1_tau,slipz1_sse
 
   integer,DIMENSION(:),ALLOCATABLE :: intdepz1,intdepz2,intdepz3,ssetime
@@ -318,7 +318,7 @@ program main
      ALLOCATE (slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos), &
           slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos), &
           v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),slipz1_tau(Nt_all,ncos),slipz1_sse(Nt_all,nsse) )
-     ALLOCATE(intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all),slipz1_v(Nt_all,ncos),ssetime(nsse)  )
+     ALLOCATE(intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all),slipz1_v(Nt_all,ncos),slipz1_norm(Nt_all,ncos),ssetime(nsse)  )
 
      allocate(moment(nmv),Trup(Nt_all),rup(Nt_all),area(Nt_all))
      allocate(surf1(n_obv,Nt_all),surf2(n_obv,Nt_all),surf3(n_obv,Nt_all),obvs(nmv,6,n_obv))
@@ -868,7 +868,7 @@ end if
          outs1(imv,3,i) =  dlog10(yt_all(3*s1(i)-2)*1.d-3/yrs) ! log10(V) m/s
          outs1(imv,4,i) =  dlog10(max(yt_all(3*s1(i)-2)*1.d-3/yrs*phy2_all(s1(i))/phy1_all(s1(i)),1d-20))
          outs1(imv,5,i) = tau1_all(s1(i))/10 ! MPa
-         outs1(imv,6,i) = tau2_all(s1(i))/10
+         outs1(imv,6,i) = yt_all(3*i-1)/10
          outs1(imv,7,i) = dlog10(yt_all(3*s1(i))*yrs) ! log10(theta)
         end do
 
@@ -946,6 +946,7 @@ end if
                  ! Use direct MPI gather order (no mapping)
                  slipz1_cos(i,icos) = slip_all(i)*1.d-3
                  slipz1_v(i,icos) = dlog10(yt_all(3*i-2)*1.d-3/yrs)
+                 slipz1_norm(i,icos) = yt_all(3*i-1)/10
                  slipz1_tau(i,icos) = tau1_all(i)
               end do
               
@@ -984,7 +985,7 @@ end if
              slipz1_inter,slipz1_tau,slipz1_sse, &
              slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
              xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-             n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map)         
+             n_intz1,n_intz2,n_intz3,slipz1_v,slipz1_norm,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map)         
          !$OMP END MASTER
      end if
 
@@ -1032,7 +1033,7 @@ if(myid==master)then
           slipz1_inter,slipz1_tau,slipz1_sse, &
           slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
           xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-          n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
+          n_intz1,n_intz2,n_intz3,slipz1_v,slipz1_norm,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
      !$OMP END MASTER
 
 end if
@@ -1085,7 +1086,7 @@ end if
              v_cos,slip_cos,v_nul,slip_nul)
      end if
      if (allocated(intdepz1)) then
-        DEALLOCATE (intdepz1,intdepz2,intdepz3,ssetime,slipz1_v)
+        DEALLOCATE (intdepz1,intdepz2,intdepz3,ssetime,slipz1_v,slipz1_norm)
      end if
 
      ! Deallocate more master-only arrays
@@ -1618,7 +1619,7 @@ subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
      slipz1_inter,slipz1_tau,slipz1_sse,&
      slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
      xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
-    n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
+    n_intz1,n_intz2,n_intz3,slipz1_v,slipz1_norm,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
 
 
 USE mpi
@@ -1639,7 +1640,7 @@ real (DP), allocatable, SAVE :: tcos_all(:)
 real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),&
         v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,ncos),slipz1_sse(Nt_all,nsse), &
      v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),xi_all(Nt_all),x_all(Nt_all),&
-      slipz1_v(Nt_all,ncos)
+      slipz1_v(Nt_all,ncos),slipz1_norm(Nt_all,ncos)
 integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
 integer :: intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all)
 integer :: mpi_to_mesh_map(Nt_all)  ! FIXED: Add mpi_to_mesh_map parameter
@@ -1854,9 +1855,14 @@ end if
           call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
-          
+
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
+          call h5dcreate_f(group_id, 'slipz1_norm', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+
           call h5pclose_f(dcpl_id, hdferr)
-          
+
           dims_1d = (/INT(icos, HSIZE_T)/)
           maxdims_1d = (/H5S_UNLIMITED_F/)
           ! FIXED: Use optimal chunk size for 1D time arrays
@@ -1891,7 +1897,11 @@ end if
           call h5dopen_f(group_id, 'slipz1_cos', dset_id, hdferr)
           call h5dset_extent_f(dset_id, dims_2d, hdferr)
           call h5dclose_f(dset_id, hdferr)
-          
+
+          call h5dopen_f(group_id, 'slipz1_norm', dset_id, hdferr)
+          call h5dset_extent_f(dset_id, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+
           ! Extend 1D dataset
           dims_1d = (/INT(global_time_steps_written + icos, HSIZE_T)/)
           call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
@@ -1932,11 +1942,24 @@ end if
        ! Data is already in mesh order from lines 875-877, no reordering needed
        
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
-       
+
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
        call h5dclose_f(dset_id, hdferr)
-       
+
+       ! Write slipz1_norm data using hyperslab selection
+       call h5dopen_f(group_id, 'slipz1_norm', dset_id, hdferr)
+       call h5dget_space_f(dset_id, filespace_id, hdferr)
+
+       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
+       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_norm(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
+
+       call h5sclose_f(memspace_id, hdferr)
+       call h5sclose_f(filespace_id, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+
        ! Write time array using hyperslab selection
        call h5dopen_f(group_id, 'tcos', dset_id, hdferr)
        call h5dget_space_f(dset_id, filespace_id, hdferr)
@@ -1963,7 +1986,13 @@ end if
        write(100) slipz1_v(:,1:icos)
        close(100)
        write(*,*) 'Validation: slipz1_v data written to ', trim(foldername)//'slipz1_appendix.dat'
-       
+
+       ! Write slipz1_norm data to binary file for validation
+       open(unit=104, file=trim(foldername)//'slipz1_norm'//jobname, form='unformatted', access='stream', position='append', status='unknown')
+       write(104) slipz1_norm(:,1:icos)
+       close(104)
+       write(*,*) 'Validation: slipz1_norm data written to ', trim(foldername)//'slipz1_norm'//jobname
+
        ! Write tcos data to binary file for validation
        open(unit=101, file=trim(foldername)//'t-cos'//jobname, form='unformatted', access='stream', position='append', status='unknown')
        write(101) tcos(1:icos)
@@ -2123,6 +2152,12 @@ end if
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
           write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
+          write(99,'(A)') '     </DataItem>'
+          write(99,'(A)') '    </Attribute>'
+          write(99,'(A)') '    <Attribute Name="normal_stress" Center="Cell">'
+          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
+          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_norm</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
           write(99,'(A)') '   </Grid>'
@@ -2633,7 +2668,15 @@ else
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_v(:,1:icos), dims_2d, hdferr)
        call h5dclose_f(dset_id, hdferr)
        call h5sclose_f(dspace_id, hdferr)
-       
+
+       ! Write partial slipz1_norm data (normal stress time series)
+       dims_2d = (/Nt_all, icos/)
+       call h5screate_simple_f(2, dims_2d, dspace_id, hdferr)
+       call h5dcreate_f(group_id, 'slipz1_norm_partial', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_norm(:,1:icos), dims_2d, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+       call h5sclose_f(dspace_id, hdferr)
+
        ! Write partial time array
        dims_1d = (/icos/)
        call h5screate_simple_f(1, dims_1d, dspace_id, hdferr)
