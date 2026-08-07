@@ -1279,7 +1279,7 @@ end subroutine rkqs
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
        do i=1,Nt
           zz(i)=yt(3*i-2)-Vpl
-          if (z(i) < 2.0d0) zz(i) = 0.d0   ! lock elements shallower than 2 km (z positive down)
+          if (z(i) < 3.0d0) zz(i) = 0.d0   ! lock elements shallower than 2 km (z positive down)
        end do
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
@@ -1302,22 +1302,21 @@ end subroutine rkqs
        ! zzfric(i)/zzfric_norm(i) and reads shared, read-only stiff/stiff2/zz_all.
        !$OMP PARALLEL DO PRIVATE(i,j,temp_sum) SCHEDULE(STATIC)
        do i=1, Nt
-          zzfric(i) = 0d0  ! Initialize to zero
-          zzfric_norm(i) = 0d0  ! Initialize to zero
-
-          !$OMP SIMD PRIVATE(temp_sum)
+          temp_sum = 0d0
+          !$OMP SIMD REDUCTION(+:temp_sum)
           do j=1, Nt_all   ! Sum over all source cells
-             temp_sum = stiff(i,j) * zz_all(j)
-             zzfric(i) = zzfric(i) + temp_sum
+             temp_sum = temp_sum + stiff(i,j) * zz_all(j)
           end do
           !$OMP END SIMD
+          zzfric(i) = temp_sum
 
-          !$OMP SIMD PRIVATE(temp_sum)
+          temp_sum = 0d0
+          !$OMP SIMD REDUCTION(+:temp_sum)
           do j=1, Nt_all   ! Sum over all source cells (normal-stress coupling)
-             temp_sum = stiff2(i,j) * zz_all(j)
-             zzfric_norm(i) = zzfric_norm(i) + temp_sum
+             temp_sum = temp_sum + stiff2(i,j) * zz_all(j)
           end do
           !$OMP END SIMD
+          zzfric_norm(i) = temp_sum
        end do
        !$OMP END PARALLEL DO
 
