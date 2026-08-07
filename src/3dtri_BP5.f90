@@ -1256,7 +1256,7 @@ end subroutine rkqs
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,z)
        USE mpi
        USE phy3d_module_non, only: phy1,phy2,tau1,tau2, stiff,stiff2,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
-            tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs,omp_flag
+            tm1,tm2,tmday,tmelse,tmmidn,tmmult,sendcounts,displs
        implicit none
        integer, parameter :: DP = kind(1.0d0)
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
@@ -1304,27 +1304,24 @@ end subroutine rkqs
        tm1=tm2
 
        ! CORRECT: Simple nested loop for matrix-vector multiplication
-       ! Parallelize across observer cells i: each iteration only writes its own
-       ! zzfric(i)/zzfric_norm(i) and reads shared, read-only stiff/stiff2/zz_all.
-       !$OMP PARALLEL DO IF(omp_flag) PRIVATE(i,j,temp_sum) SCHEDULE(STATIC)
        do i=1, Nt
-          temp_sum = 0d0
-          !$OMP SIMD REDUCTION(+:temp_sum)
-          do j=1, Nt_all   ! Sum over all source cells
-             temp_sum = temp_sum + stiff(i,j) * zz_all(j)
-          end do
-          !$OMP END SIMD
-          zzfric(i) = temp_sum
+          zzfric(i) = 0d0  ! Initialize to zero
+          zzfric_norm(i) = 0d0  ! Initialize to zero
 
-          temp_sum = 0d0
-          !$OMP SIMD REDUCTION(+:temp_sum)
-          do j=1, Nt_all   ! Sum over all source cells (normal-stress coupling)
-             temp_sum = temp_sum + stiff2(i,j) * zz_all(j)
+          !$OMP SIMD PRIVATE(temp_sum)
+          do j=1, Nt_all   ! Sum over all source cells
+             temp_sum = stiff(i,j) * zz_all(j)
+             zzfric(i) = zzfric(i) + temp_sum
           end do
           !$OMP END SIMD
-          zzfric_norm(i) = temp_sum
+
+          !$OMP SIMD PRIVATE(temp_sum)
+          do j=1, Nt_all   ! Sum over all source cells (normal-stress coupling)
+             temp_sum = stiff2(i,j) * zz_all(j)
+             zzfric_norm(i) = zzfric_norm(i) + temp_sum
+          end do
+          !$OMP END SIMD
        end do
-       !$OMP END PARALLEL DO
 
        call CPU_TIME(tm2)
        if ((tm2-tm1) .lt. 0.03)then
