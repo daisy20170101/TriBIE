@@ -1,0 +1,6 @@
+calc_nikkhoo
+debug_nikkhoo
+test_nikkhoo
+*.o
+*.mod
+log
