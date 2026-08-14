@@ -1,0 +1,47 @@
+#===============================================================================
+# Makefile.bp8 -- builds bp8_main (SEAS Benchmark BP8-QD-GS driver)
+#
+# Usage:
+#   make -f Makefile.bp8               # Build with mpif90 (default)
+#   make -f Makefile.bp8 run-mpi-N      # Build and run with N MPI processes
+#
+# Note: run-mpi-N must use the SAME N as the calc_nikkhoo_fs run that
+# generated the trigreen_*.bin files it reads (see
+# NikkhooWalter2015/Makefile.fs) -- both use the identical
+# (Nt_all, nprocs, myid) element decomposition formula.
+#===============================================================================
+
+FC = mpif90
+FFLAGS = -O3 -fopenmp -ffree-line-length-none -ffree-form -g -fbacktrace
+NIKKHOO_DIR = ../NikkhooWalter2015
+
+SOURCES = module_bp8.f90 module_pore_fluid_2d.f90 3dtri_BP8.f90
+OBJECTS = $(SOURCES:.f90=.o)
+TARGET = bp8_main
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS)
+	$(FC) $(FFLAGS) -o $@ $^
+
+# Placed after 'all' so it doesn't silently become the default goal (see
+# the comment in NikkhooWalter2015/Makefile.fs).
+3dtri_BP8.o: module_bp8.o module_pore_fluid_2d.o
+
+%.o: %.f90
+	$(FC) $(FFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJECTS) $(TARGET) *.mod
+
+run-mpi-%: $(TARGET)
+	mpirun -np $* ./$(TARGET)
+
+help:
+	@echo "bp8_main: SEAS Benchmark BP8-QD-GS driver"
+	@echo "  make -f Makefile.bp8               - build"
+	@echo "  make -f Makefile.bp8 run-mpi-N      - build and run with N MPI ranks"
+	@echo "Run from an example directory (e.g. example4/) containing"
+	@echo "parameter1.txt and the calc_nikkhoo_fs output files."
+
+.PHONY: all clean help
