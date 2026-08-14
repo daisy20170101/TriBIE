@@ -874,6 +874,24 @@ subroutine write_all_output(myid, t, yt, dydt, local_cells, Nt_all, sendcounts, 
   call write_profile_row(418, t, Vmax, 'x2', pa,    n_side, dz, half, Nt_all)
   call write_profile_row(419, t, Vmax, 'x3', pa,    n_side, dz, half, Nt_all)
 
+  ! Flush every output file after each step: this is a multi-day run with
+  ! no checkpointing, so an interrupted/killed/preempted job should not
+  ! lose output that the code already "wrote" but the OS never persisted.
+  ! (Small files like global.dat can otherwise sit at 0 bytes for hours --
+  ! confirmed during testing: killing an in-progress run left it empty
+  ! even though station/profile files, which cross the buffer threshold
+  ! sooner due to higher per-step byte volume, already showed data.)
+  block
+    integer :: fu
+    do fu = 301, 309
+      flush(fu)
+    end do
+    flush(400)
+    do fu = 410, 419
+      flush(fu)
+    end do
+  end block
+
   deallocate(s2l, s3l, V2l, V3l, thl)
   deallocate(s2a, s3a, V2a, V3a, tha, tau2a, tau3a, pa, dpdta, q2a, q3a)
 

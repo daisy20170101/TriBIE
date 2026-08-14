@@ -64,14 +64,33 @@ mpirun -np 4 ../src/bp8_main
 ```
 
 `-np 4` with `OMP_NUM_THREADS=2` (8 total threads) is a reasonable default
-for an 8-core machine; adjust both consistently for your hardware. The
-stiffness calculation is O(N^2) in element count (12,800^2 element pairs,
-each needing 2 full-space Green's function evaluations) — expect several
-minutes even in parallel; the mechanical time-stepping run covers 30
-simulated days and its wall-clock time depends on how much of that the
-adaptive integrator spends taking small steps during the active slip
-transient (unknown until run — the pore-pressure precompute step alone is
-cheap, under a minute).
+for an 8-core machine; adjust both consistently for your hardware.
+
+**Measured timing (this repo's 8-core dev machine, -np 4, OMP_NUM_THREADS=2):**
+- Stiffness calculation (step 2, 12,800^2 element pairs x 2 full-space
+  Green's function evaluations each): **~62 minutes**. The output
+  (`trigreen_*.bin`, `position.bin`, ~4.9GB total for the 800m/10m mesh)
+  is **not** committed to git (see `.gitignore` — this is regenerable data,
+  and 4.9GB is far too large for a git repo) — you need to run step 2
+  yourself before step 3. `triangular_mesh.gts` (500KB) *is* committed,
+  so you don't need to regenerate the mesh itself unless you want a
+  different resolution/domain size.
+- Mechanical time-stepping run (step 3): the pore-pressure precompute
+  (721 hourly snapshots on an 81x81 grid) takes well under a minute. The
+  adaptive RK integration is the expensive part: **observed ~400
+  simulated-seconds per wall-clock minute** early in the run (first ~19
+  of 720 simulated hours, still well within the 100-hour injection
+  window) — extrapolating, **the full 30-day run needs on the order of
+  4-5 wall-days** on hardware like this. This will likely change (faster
+  or slower) once slip actually accelerates past the early near-steady
+  regime, so treat this as a rough planning number, not a guarantee.
+  Budget accordingly, or run on more cores / a cluster.
+- Every output file is flushed after each write (`write_all_output` in
+  `3dtri_BP8.f90`), so an interrupted job (killed, preempted, crashed)
+  keeps whatever it had written up to the last completed output step —
+  there's no separate checkpoint/restart mechanism, so a genuinely
+  interrupted run has to restart from t=0, but you won't lose *visibility*
+  into how far it got.
 
 ## parameter1.txt format
 
