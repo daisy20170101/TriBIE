@@ -33,6 +33,17 @@ Nikkhoo M. and Walter T.R., 2015. Triangular dislocation: An analytical, artefac
 - **Artefact-free**: Uses the improved method to avoid numerical artifacts
 - **MPI/OpenMP hybrid parallelization**: Efficient stiffness matrix calculation
 - **Validated**: Results match MATLAB implementation (minor floating-point differences expected)
+- **Full-space solution**: `tdstress_fs` (used directly, with no image source, for whole-space
+  problems like BP8) validated against an independent Python port of `TDstressFS.m`
+  (`debug/validate_tdstress_fs.py`) and a matching Fortran driver
+  (`debug/test_tdstress_fs.f90`) — 9 points spanning both trimode configurations and
+  both sides of the fault plane agree to 6 significant figures. Far-field stress decay
+  also confirmed to converge to the expected 1/r^3 rate (`debug/test_tdstress_fs_decay.f90`).
+- **Full-space stiffness driver**: `calc_nikkhoo_fs.f90` builds the four in-plane shear
+  stiffness matrices (`trigreen_{22,23,32,33}_*.bin`) for a flat whole-space fault (BP8).
+  See its module docstring for the traction-extraction convention (traction on a `z=0`
+  mesh is `(Sxz,Syz)`, not `Sxy`) and `debug/validate_calc_nikkhoo_fs.py` for the numeric
+  checks, including a real bug this testing caught during development.
 
 ## Parallel Stiffness Calculation (calc_nikkhoo)
 

@@ -23,9 +23,6 @@ SOURCES = m_nikkhoo_green.f90 sub_nikkhoo.f90 calc_nikkhoo.f90
 OBJECTS = $(SOURCES:.f90=.o)
 TARGET = calc_nikkhoo
 
-# Module dependencies
-calc_nikkhoo.o: m_nikkhoo_green.o sub_nikkhoo.o
-
 #===============================================================================
 # Targets
 #===============================================================================
@@ -36,6 +33,12 @@ all: $(TARGET)
 # Link executable
 $(TARGET): $(OBJECTS)
 	$(FC) $(FFLAGS) -o $@ $^
+
+# Module dependencies. Placed after 'all' so it doesn't silently become the
+# default goal (GNU Make picks the first target in the file as the default
+# when none is given on the command line -- a prerequisite-only rule still
+# counts).
+calc_nikkhoo.o: m_nikkhoo_green.o sub_nikkhoo.o
 
 # Compile Fortran source files
 %.o: %.f90
