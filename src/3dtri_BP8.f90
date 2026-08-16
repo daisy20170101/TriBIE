@@ -57,7 +57,7 @@ program bp8_main
   integer :: base_cells, extra_cells, local_cells, start_idx
   integer :: Nt_all
   integer, dimension(:), allocatable :: sendcounts, displs
-  integer :: i, out_step_count
+  integer :: i, k, out_step_count
 
   real(DP), dimension(:), allocatable :: yt, dydt, yt_scale
   real(DP) :: t, dt_try, dt_did, dt_next, eps, next_out_time
@@ -105,6 +105,21 @@ program bp8_main
 
   call load_stiffness_and_positions(myid, local_cells, Nt_all)
   call pf_history_init(Nt_all, myid)
+
+  ! Zone which LOCAL elements fall inside the true frictional domain
+  ! Omega_f (|x2|<lf_fixed and |x3|<lf_fixed, both fixed at 400m by BP8
+  ! Table 1) vs. outside it, where Eq. 13 forces V=0 identically -- this
+  ! is what lets the mesh be bigger than Omega_f (e.g. for a domain-
+  ! independence check) without silently giving every extra element
+  ! rate-and-state friction. See derivs() and set_initial_conditions().
+  allocate(is_active(max(1, local_cells)))
+  do i = 1, local_cells
+    k = start_idx + i - 1
+    is_active(i) = (abs(cx2_all(k)) < lf_fixed) .and. (abs(cx3_all(k)) < lf_fixed)
+  end do
+  if (myid == master_id) then
+    write(*,*) "Omega_f (lf_fixed=", lf_fixed, "m) active elements (this rank):", count(is_active), "/", local_cells
+  end if
 
   n_state = 5 * local_cells
   allocate(yt(n_state), dydt(n_state), yt_scale(n_state))
@@ -177,8 +192,15 @@ subroutine read_parameters(myid)
   eta = 0.5_DP * xmu / cs
   lf_half = 0.5_DP * real(n_side, DP) * dz_cell
 
+  if (lf_half < lf_fixed) then
+    write(*,*) "ERROR: mesh half-domain (", lf_half, "m) is smaller than Omega_f (lf_fixed=", &
+               lf_fixed, "m) -- the mesh must cover at least the true frictional domain."
+    stop 1
+  end if
+
   if (myid == 0) then
-    write(*,*) "Parameters: n_side=", n_side, " dz=", dz_cell, " lf=", lf_half
+    write(*,*) "Parameters: n_side=", n_side, " dz=", dz_cell, " mesh_half_domain=", lf_half, &
+                " Omega_f_half(fixed)=", lf_fixed
     write(*,*) "mu=", xmu, " eta=", eta, " seff0=", seff0, " tauinit=", tauinit
     write(*,*) "a=", fric_a, " b=", fric_b, " Drs=", fric_Drs
     write(*,*) "Q0=", Q0inj, " toff(hr)=", toff/3600.0_DP, " Lgauss=", Lgauss
@@ -263,7 +285,12 @@ subroutine pf_history_init(Nt_all, myid)
   real(DP) :: half, dxg, th
   integer :: ih, ii
 
-  half = lf_half
+  ! Fluid flow (BP8 Eq. 17-18) is confined to Omega_f itself, not whatever
+  ! the mesh's own extent happens to be -- so this domain is lf_fixed
+  ! (400m, fixed), never lf_half. With NXY=81 fixed too, dxg is always
+  ! exactly 10m, matching the required profile-output node spacing
+  ! regardless of the mesh's own cell size.
+  half = lf_fixed
   dxg = 2.0_DP * half / real(NXY - 1, DP)
   dt_hist = 3600.0_DP
   n_hours_hist = int(ceiling(tf_end / dt_hist)) + 1
@@ -323,12 +350,32 @@ subroutine set_initial_conditions(yt, local_cells)
   theta_init = (fric_Drs / fric_Vstar) * &
                exp((fric_a * log(2.0_DP * fric_Vstar * X0 / Vmag0) - fric_fstar) / fric_b)
 
+  ! Fixed reference traction (Eq. 29): tau0 = tauinit * V/|V| at t=0.
+  tau0_2 = tauinit * Vinit / Vmag0
+  tau0_3 = tauinit * Vzero / Vmag0
+
   do i = 1, local_cells
     yt(5*i-4) = 0.0_DP      ! s2
     yt(5*i-3) = 0.0_DP      ! s3
-    yt(5*i-2) = Vinit       ! V2
-    yt(5*i-1) = Vzero       ! V3
-    yt(5*i)   = theta_init  ! theta
+    if (is_active(i)) then
+      yt(5*i-2) = Vinit       ! V2
+      yt(5*i-1) = Vzero       ! V3
+      yt(5*i)   = theta_init  ! theta
+    else
+      ! Outside Omega_f: locked, V=0 identically (Eq. 13), but elastic
+      ! stress still evolves there via coupling with the active region.
+      ! Since V is never used for a locked element, these two state slots
+      ! are repurposed to hold the accumulated elastic stress change
+      ! (Dtau2, Dtau3) instead of (V2, V3) -- see derivs() and
+      ! write_all_output(), which report tau = tau0 + Dtau there (Eq. 8
+      ! with V=0) rather than a meaningless zero. Reporting zero was the
+      ! bug behind an earlier version's spurious dip in profile/station
+      ! output interpolated near the Omega_f boundary on a mesh bigger
+      ! than Omega_f.
+      yt(5*i-2) = 0.0_DP      ! Dtau2, starts at 0 (Dtau(0)=0 everywhere)
+      yt(5*i-1) = 0.0_DP      ! Dtau3
+      yt(5*i)   = theta_init  ! unused
+    end if
   end do
 end subroutine set_initial_conditions
 
@@ -382,9 +429,20 @@ subroutine derivs(myid, dydt, nv, Nt_all, Nt, t, yt, sendcounts, displs)
 
   allocate(V2_all(Nt_all), V3_all(Nt_all))
 
+  ! IMPORTANT: for a locked (inactive) element, yt(5i-2)/yt(5i-1) do NOT
+  ! hold velocity -- they're repurposed to hold accumulated stress change
+  ! (Dtau2, Dtau3; see set_initial_conditions). The gathered V2_all/V3_all
+  ! below feed every OTHER element's elastic-coupling sum, so they must
+  ! reflect the true (always-zero, Eq. 13) velocity there regardless of
+  ! what yt itself contains.
   do i = 1, Nt
-    V2_local(i) = yt(5*i-2)
-    V3_local(i) = yt(5*i-1)
+    if (is_active(i)) then
+      V2_local(i) = yt(5*i-2)
+      V3_local(i) = yt(5*i-1)
+    else
+      V2_local(i) = 0.0_DP
+      V3_local(i) = 0.0_DP
+    end if
   end do
 
   call MPI_Allgatherv(V2_local, Nt, MPI_Real8, V2_all, sendcounts, displs, MPI_Real8, MPI_COMM_WORLD, ierr)
@@ -395,6 +453,19 @@ subroutine derivs(myid, dydt, nv, Nt_all, Nt, t, yt, sendcounts, displs)
 
     dtau2_el = dot_product(K22(i, :), V2_all) + dot_product(K23(i, :), V3_all)
     dtau3_el = dot_product(K32(i, :), V2_all) + dot_product(K33(i, :), V3_all)
+
+    ! Outside Omega_f (see is_active in the main program): V=0 identically
+    ! for all time (Eq. 13), a hard boundary condition, not something
+    ! solved for -- but its stress still evolves, tracked via the
+    ! repurposed yt(5i-2)/yt(5i-1) slots (see set_initial_conditions).
+    if (.not. is_active(i)) then
+      dydt(5*i-4) = 0.0_DP
+      dydt(5*i-3) = 0.0_DP
+      dydt(5*i-2) = dtau2_el
+      dydt(5*i-1) = dtau3_el
+      dydt(5*i)   = 0.0_DP
+      cycle
+    end if
 
     call pf_lookup(t, k, p_val, dpdt_val)
     sigma_bar = seff0 - p_val
@@ -727,7 +798,7 @@ subroutine open_one_profile(unit_no, fname, axis_name, var_name)
   implicit none
   integer, intent(in) :: unit_no
   character(len=*), intent(in) :: fname, axis_name, var_name
-  integer :: i, n_nodes
+  integer :: i
   character(len=32) :: fmt_str
 
   open(unit_no, file=trim(foldername)//trim(fname), status='unknown')
@@ -740,8 +811,8 @@ subroutine open_one_profile(unit_no, fname, axis_name, var_name)
   write(unit_no,'(A)') '# Column #1 = Time (s)'
   write(unit_no,'(A)') '# Column #2 = Max_slip_rate (log10 m/s)'
   write(unit_no,'(A)') '# Columns #3-83 = '//trim(var_name)//' at each node'
-  write(unit_no,'(A,F6.1,A,F6.1,A,F6.1,A,F6.1,A)') '# Computational domain: -', lf_half, &
-      'm < x2 < ', lf_half, ' m, -', lf_half, ' m < x3 < ', lf_half, ' m'
+  write(unit_no,'(A,F6.1,A,F6.1,A,F6.1,A,F6.1,A)') '# Computational domain (Omega_f, fixed): -', lf_fixed, &
+      'm < x2 < ', lf_fixed, ' m, -', lf_fixed, ' m < x3 < ', lf_fixed, ' m'
   write(unit_no,'(A)') '# The line below lists the names of the data fields'
   write(unit_no,'(A)') trim(axis_name)
   write(unit_no,'(A)') 't'
@@ -749,10 +820,12 @@ subroutine open_one_profile(unit_no, fname, axis_name, var_name)
   write(unit_no,'(A)') trim(var_name)
   write(unit_no,'(A)') '# Here are the data'
 
-  n_nodes = n_side + 1   ! nodes at exactly dz_cell spacing from -lf to +lf (n_side cells span the full domain)
-  write(fmt_str,'(A,I0,A)') '(2E22.14,', n_nodes, 'E15.7)'
+  ! Fixed 10m-spaced nodes from -400 to 400 (BP8 Section 4.3), regardless
+  ! of the mesh's own resolution/domain size -- see node_dz_fixed/
+  ! n_nodes_fixed/lf_fixed in bp8_module.f90.
+  write(fmt_str,'(A,I0,A)') '(2E22.14,', n_nodes_fixed, 'E15.7)'
   write(unit_no,fmt_str) 0.0_DP, 0.0_DP, &
-      (-lf_half + real(i-1,DP)*dz_cell, i=1,n_nodes)
+      (-lf_fixed + real(i-1,DP)*node_dz_fixed, i=1,n_nodes_fixed)
 end subroutine open_one_profile
 
 
@@ -823,14 +896,27 @@ subroutine write_all_output(myid, t, yt, dydt, local_cells, Nt_all, sendcounts, 
     call pf_lookup(t, k, pa(k), dpdta(k))
     sigma_bar = seff0 - pa(k)
 
-    Vmag = max(sqrt(V2a(k)**2 + V3a(k)**2), 1.0d-20)
-    e2 = V2a(k) / Vmag
-    e3 = V3a(k) / Vmag
-    X = (Vmag / (2.0_DP*fric_Vstar)) * exp((fric_fstar + fric_b*log(fric_Vstar*tha(k)/fric_Drs))/fric_a)
-    f_coef = fric_a * log(X + sqrt(1.0_DP + X**2))
+    if (abs(cx2_all(k)) < lf_fixed .and. abs(cx3_all(k)) < lf_fixed) then
+      ! Active: tau follows from the current friction law (self-
+      ! consistent with the force balance the ODE integrates).
+      Vmag = max(sqrt(V2a(k)**2 + V3a(k)**2), 1.0d-20)
+      e2 = V2a(k) / Vmag
+      e3 = V3a(k) / Vmag
+      X = (Vmag / (2.0_DP*fric_Vstar)) * exp((fric_fstar + fric_b*log(fric_Vstar*tha(k)/fric_Drs))/fric_a)
+      f_coef = fric_a * log(X + sqrt(1.0_DP + X**2))
 
-    tau2a(k) = sigma_bar * f_coef * e2
-    tau3a(k) = sigma_bar * f_coef * e3
+      tau2a(k) = sigma_bar * f_coef * e2
+      tau3a(k) = sigma_bar * f_coef * e3
+    else
+      ! Locked: V=0, so tau = tau0 + Dtau (Eq. 8 with no radiation-damping
+      ! term); V2a(k)/V3a(k) hold the accumulated Dtau2/Dtau3 here (see
+      ! set_initial_conditions/derivs), NOT velocity. Reporting a bare
+      ! zero here (an earlier version of this code) corrupted bilinear
+      ! interpolation of output fields near the Omega_f boundary whenever
+      ! the mesh was bigger than Omega_f.
+      tau2a(k) = tau0_2 + V2a(k)
+      tau3a(k) = tau0_3 + V3a(k)
+    end if
 
     ! Darcy velocity via central finite difference of the pressure history
     ! at neighboring elements (Eq. 16): q_j = -(k/eta)*dp/dx_j, and
@@ -839,9 +925,13 @@ subroutine write_all_output(myid, t, yt, dydt, local_cells, Nt_all, sendcounts, 
     call darcy_component(t, k, 3, q3a(k))
   end do
 
+  ! Vmax/moment_rate must use TRUE velocity: locked elements' V2a/V3a
+  ! hold Dtau, not velocity (see above), and are always physically V=0,
+  ! so they're simply excluded here rather than read as if they were speed.
   Vmax = 0.0_DP
   moment_rate = 0.0_DP
   do k = 1, Nt_all
+    if (abs(cx2_all(k)) >= lf_fixed .or. abs(cx3_all(k)) >= lf_fixed) cycle
     Vmag = sqrt(V2a(k)**2 + V3a(k)**2)
     Vmax = max(Vmax, Vmag)
     moment_rate = moment_rate + xmu * Vmag * (0.5_DP * dz**2)
@@ -966,27 +1056,31 @@ subroutine write_station_row(unit_no, t, x2q, x3q, n_side, dz, half, &
 end subroutine write_station_row
 
 
+! Query points are the FIXED BP8-required grid (-lf_fixed to lf_fixed at
+! node_dz_fixed=10m, n_nodes_fixed=81 nodes; see bp8_module.f90) regardless
+! of the mesh's own resolution/domain size. n_side/dz/half here describe
+! the MESH's own (interpolation-source) grid, passed through to
+! build_cell_field/bilinear_cell -- a coarser or larger mesh just means
+! the same fixed query points get interpolated from a coarser or
+! differently-sized source grid.
 subroutine write_profile_row(unit_no, t, Vmax, axis, field, n_side, dz, half, Nt_all)
-  use bp8_module, only: DP
+  use bp8_module, only: DP, lf_fixed, n_nodes_fixed, node_dz_fixed
   implicit none
   integer, intent(in) :: unit_no, n_side, Nt_all
   real(DP), intent(in) :: t, Vmax, dz, half
   character(len=2), intent(in) :: axis
   real(DP), intent(in) :: field(Nt_all)
-  integer :: i, n_nodes
-  real(DP), allocatable :: row(:)
+  integer :: i
+  real(DP) :: row(n_nodes_fixed)
   real(DP) :: node, cellf(n_side, n_side)
   real(DP) :: bilinear_cell
   external :: bilinear_cell
   character(len=32) :: fmt_str
 
-  n_nodes = n_side + 1   ! n_side cells span the full domain -> n_side+1 nodes
-  allocate(row(n_nodes))
-
   call build_cell_field(field, Nt_all, n_side, cellf)
 
-  do i = 1, n_nodes
-    node = -half + real(i-1, DP) * dz
+  do i = 1, n_nodes_fixed
+    node = -lf_fixed + real(i-1, DP) * node_dz_fixed
     if (axis == 'x2') then
       row(i) = bilinear_cell(cellf, n_side, dz, half, node, 0.0_DP)
     else
@@ -994,7 +1088,6 @@ subroutine write_profile_row(unit_no, t, Vmax, axis, field, n_side, dz, half, Nt
     end if
   end do
 
-  write(fmt_str,'(A,I0,A)') '(2E22.14,', n_nodes, 'E15.7)'
+  write(fmt_str,'(A,I0,A)') '(2E22.14,', n_nodes_fixed, 'E15.7)'
   write(unit_no,fmt_str) t, log10(max(Vmax,1.0d-20)), row
-  deallocate(row)
 end subroutine write_profile_row

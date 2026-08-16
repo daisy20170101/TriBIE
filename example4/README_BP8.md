@@ -18,26 +18,40 @@ example4/
   out/                   # bp8_main's output (created empty; see .gitkeep)
 ```
 
-## Mesh: exactly Omega_f, no locked buffer
+## Mesh: any size >= Omega_f; the true frictional domain is fixed
 
-Unlike example2/example3 (BP5/BP6, half-space, need a locked buffer around
-the seismogenic patch to represent the surrounding fault), this mesh is
-**exactly** the frictional domain Omega_f = (-lf,lf) x (-lf,lf) = 800m x
-800m at the required 10m cell size (80x80 cells, 12,800 triangles). No
-buffer is needed: BP8 Eq. (13) forces V=0 identically for all time outside
-Omega_f, and a region with zero slip for all time contributes zero elastic
-stress to its neighbors regardless of how far a mesh extends (a standard
-property of boundary-integral crack/fault problems) — so meshing a locked
-buffer around Omega_f would give the identical answer at a much higher
-cost. This is *not* the same situation as BP5/6's transition zones, where
-the "locked" region actually creeps at a nonzero (if slow) rate and does
-contribute.
+`3dtri_BP8.f90` zones each element by its centroid: inside Omega_f
+(|x2|<400m and |x3|<400m, fixed by BP8 Table 1 -- `lf_fixed` in
+`module_bp8.f90`, a compile-time constant, *not* read from
+parameter1.txt) it gets rate-and-state friction as normal; outside it,
+Eq. (13)'s V=0 boundary condition is enforced exactly (its state is never
+integrated). The mesh itself just needs to cover at least Omega_f --
+`example4/stiffness/triangular_mesh.gts` here is the default 800m x 800m
+case (mesh = exactly Omega_f, no extra elements), but a bigger mesh
+(e.g. `make_bp8_mesh.py --domain 1200`) works too, with the extra
+elements automatically locked. `read_parameters` errors out if the mesh
+is smaller than Omega_f.
 
-That said, this is an assumption worth checking empirically, and the
-benchmark's own tip (Section 6) is to verify results are independent of
-computational domain size — `make_bp8_mesh.py --domain <bigger>` makes
-that straightforward if you want to confirm it (see "Domain-independence
-check" below).
+Locked elements still matter for output: BP8 Eq. (8) says their shear
+stress is `tau0 + Dtau(t)` (V=0 removes the radiation-damping term, not
+the elastic-coupling one) -- it is *not* simply zero, and reporting zero
+there corrupts bilinear-interpolated output (profile lines, stations) near
+the Omega_f boundary on any mesh bigger than Omega_f. `derivs()` tracks
+`Dtau2`/`Dtau3` for locked elements by repurposing their (otherwise
+unused, since V=0) velocity state slots; `write_all_output` reports
+`tau0 + Dtau` for them instead of zero. This was a real bug caught by
+diffing a padded (1000m) mesh against an exact (800m) one at the same
+resolution: shear stress near the boundary was off by up to 50% before
+the fix, and matches to ~1e-6 relative (floating-point-level) after it.
+
+Profile-line output (Section 4.3) is always the fixed 81-node, exactly-
+10m-spaced grid from -400 to 400 regardless of the mesh's own resolution
+or domain size (`n_nodes_fixed`/`node_dz_fixed` in `module_bp8.f90`) --
+interpolated via `bilinear_cell` from whatever the mesh actually provides.
+
+The benchmark's own tip (Section 6) is to verify results are independent
+of computational domain size; see "Domain-independence check" below for
+how to actually exercise the padded-mesh path now that it's implemented.
 
 ## Build
 
@@ -102,7 +116,7 @@ uniform, Table 1, rather than read from a var-*.dat profile file):
 |---|---|
 | 1 | `foldername` — output directory (must exist, trailing `/`) |
 | 2 | `stiffname` — path to calc_nikkhoo_fs output (trailing `/`) |
-| 3 | `n_side dz_cell` — mesh cells across the full domain, cell size (m) |
+| 3 | `n_side dz_cell` — mesh cells across the full domain, cell size (m). Must satisfy `n_side*dz_cell >= 800` (mesh covers at least Omega_f, lf=400m fixed) or the run errors out at startup. |
 | 4 | `mu nu rho` — shear modulus (Pa), Poisson's ratio, density (kg/m^3) |
 | 5 | `seff0 tauinit` — initial effective normal stress, initial shear stress (Pa) |
 | 6 | `a b Drs Vstar fstar` — rate-and-state friction parameters (Drs, Vstar in m, m/s) |
@@ -135,21 +149,25 @@ line, it's a single string constant to change (`FIELDS_TS` in
 
 ## Domain-independence check
 
-To verify the "mesh = exactly Omega_f" assumption (see above) holds in
-practice, not just in principle, rerun steps 1-3 with a larger domain,
-e.g.:
+To verify that meshing beyond Omega_f doesn't change the result, rerun
+steps 1-3 with a larger domain, e.g.:
 
 ```bash
-python3 make_bp8_mesh.py --domain 1200 --cell-size 10 --out triangular_mesh_1200.gts
+mkdir -p stiffness_1200 && cd stiffness_1200
+python3 ../make_bp8_mesh.py --domain 1200 --cell-size 10 --out triangular_mesh.gts
+mpirun -np 4 ../../NikkhooWalter2015/calc_nikkhoo_fs
 ```
 
-and update `n_side` in a copy of `parameter1.txt` to 120 (1200/10). Compare
-station time series between the two runs — the frictional patch itself
-(Omega_f, the inner 800m x 800m) should be governed by rate-and-state
-friction in the larger mesh too (only what's genuinely *outside* Omega_f
-is locked at V=0), so this also exercises the `f_coef` friction-law
-zoning; a version of `3dtri_BP8.f90` doing this would need an `n_side_omega_f`
-parameter distinct from the mesh's own `n_side` to zone which elements are
-frictional vs. locked — not yet implemented here, since the base case
-(mesh = Omega_f exactly) has no locked elements to zone in the first
-place.
+then a copy of `parameter1.txt` with `n_side=120` (1200/10) and
+`stiffname=./stiffness_1200/`. No other changes are needed — the extra
+elements outside |x2|,|x3|<400 are automatically locked (Eq. 13), and
+profile/station output still reports the fixed -400..400, 10m-spaced grid
+either way.
+
+This was actually exercised during development: a 1000m/10m mesh (n_side=100)
+compared against the exact 800m/10m case matched to ~1e-6 relative
+(floating-point level) in shear stress, slip, and pore pressure profiles,
+and `global.dat` (Vmax, moment rate) matched exactly. If you rerun this
+check yourself and see a bigger discrepancy than that, look at
+`is_active`/`tau0_2`/`tau0_3` in `3dtri_BP8.f90` first — that's where the
+padded-mesh-specific logic lives.
