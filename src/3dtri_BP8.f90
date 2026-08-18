@@ -451,8 +451,10 @@ subroutine derivs(myid, dydt, nv, Nt_all, Nt, t, yt, sendcounts, displs)
   do i = 1, Nt
     k = displs(myid) + i   ! global index (1-based) of local element i
 
-    dtau2_el = dot_product(K22(i, :), V2_all) + dot_product(K23(i, :), V3_all)
-    dtau3_el = dot_product(K32(i, :), V2_all) + dot_product(K33(i, :), V3_all)
+    ! K22/K23/K32/K33 are in MPa/m (see MPA_TO_PA in bp8_module); every
+    ! other quantity here is in Pa, so convert before use.
+    dtau2_el = MPA_TO_PA * (dot_product(K22(i, :), V2_all) + dot_product(K23(i, :), V3_all))
+    dtau3_el = MPA_TO_PA * (dot_product(K32(i, :), V2_all) + dot_product(K33(i, :), V3_all))
 
     ! Outside Omega_f (see is_active in the main program): V=0 identically
     ! for all time (Eq. 13), a hard boundary condition, not something

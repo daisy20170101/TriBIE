@@ -30,6 +30,25 @@ module bp8_module
   ! locked (V=0, Eq. 13) boundary condition BP8 actually specifies there.
   real(DP), parameter :: lf_fixed = 400.0_DP
 
+  ! NikkhooWalter2015/calc_nikkhoo_fs.f90 computes the stiffness matrices
+  ! (trigreen_{22,23,32,33}_*.bin) with mu in MPa (fs_mu in that file),
+  ! matching the pre-existing convention in the original half-space
+  ! calc_nikkhoo.f90 it was adapted from -- so K22/K23/K32/K33 entries are
+  ! stress in MPa per meter of slip, NOT Pa. Every other quantity in this
+  ! driver (seff0, tauinit, xmu, ...) is read directly from parameter1.txt
+  ! in Pa (SI, matching BP8 Table 1), so the elastic feedback computed
+  ! from K (dot) V must be scaled by this factor before use, or it comes
+  ! out 1e6x too weak -- confirmed to be exactly what was suppressing the
+  ! pore-pressure-driven slip-rate transient (peak slip rate far below a
+  ! reference solution's, with the wrong decrease-then-partial-recovery
+  ! shape instead of a real increase-then-decrease transient) in testing.
+  ! Fixed here rather than by changing calc_nikkhoo_fs.f90's own MPa
+  ! convention, since re-deriving the stiffness matrices is expensive
+  ! (~1 hour for the 800m/10m mesh) and changing units on the generation
+  ! side would silently invalidate this constant for already-computed
+  ! trigreen_*.bin files.
+  real(DP), parameter :: MPA_TO_PA = 1.0d6
+
   ! BP8 Section 4.3: profile-line output nodes are required at EXACTLY
   ! 10 m spacing from -400 to 400 m (81 nodes), regardless of the mesh's
   ! own cell size -- so these are fixed too, not derived from n_side/dz_cell.
