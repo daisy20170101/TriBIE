@@ -399,15 +399,22 @@ end subroutine set_initial_conditions
 ! dsigma_bar/dt=-dp/dt), dV/dt=e2*dV2/dt+e3*dV3/dt (chain rule on
 ! V=sqrt(V2^2+V3^2)), and de_j/dt=(1/V)*sum_k(delta_jk-e_j*e_k)*dV_k/dt.
 ! Collecting dV2/dt, dV3/dt terms gives the symmetric 2x2 linear system
-! solved below (A,B,D,R2,R3); it reduces to BP5's scalar formula
-! dV/dt=R/(eta+deriv_V) in the 1-component limit (e2=1, e3=0, B=0), which
-! is a useful correctness check on the algebra.
+! solved below (A,B,D,R2,R3), with
+!   R_j = dDtau_j/dt - deriv_theta*dtheta/dt*e_j + f*dp/dt*e_j
+! (the theta-term is NEGATIVE, the pressure-term POSITIVE -- verified
+! both symbolically and against 3dtri_BP5.f90's own scalar analog,
+! "-deriv1*deriv3 + frc*dydt(3*i-2)"; an earlier version of this file had
+! both backwards, which suppressed the pore-pressure-driven acceleration
+! this benchmark is about). In the 1-component limit (e2=1, e3=0, B=0)
+! this reduces to BP5's scalar formula dV/dt=R/(eta+deriv_V), a useful
+! correctness check on the algebra.
 !
 ! dDtau_j/dt itself is K_j2 (dot) V2_all + K_j3 (dot) V3_all: the elastic
 ! stiffness applied to velocity directly (no Vpl subtraction, unlike
 ! BP5/6 -- BP8 has no far-field plate loading), which is exactly
 ! d/dt[K (dot) slip(t)] since K is a constant linear operator, so slip
-! itself never needs to appear in the stress calculation.
+! itself never needs to appear in the stress calculation. K22/K23/K32/K33
+! are read in MPa/m (see MPA_TO_PA in bp8_module) and scaled to Pa/m here.
 !===============================================================================
 subroutine derivs(myid, dydt, nv, Nt_all, Nt, t, yt, sendcounts, displs)
   use mpi
@@ -493,8 +500,20 @@ subroutine derivs(myid, dydt, nv, Nt_all, Nt, t, yt, sendcounts, displs)
     D_c = eta + deriv_V * e3**2 + (F_resist / V) * (1.0_DP - e3**2)
     B_c = e2 * e3 * (deriv_V - F_resist / V)
 
-    R2 = dtau2_el + deriv_theta * dtheta_dt * e2 - f_coef * dpdt_val * e2
-    R3 = dtau3_el + deriv_theta * dtheta_dt * e3 - f_coef * dpdt_val * e3
+    ! Sign check (verified both symbolically and against 3dtri_BP5.f90's
+    ! own scalar analog, which has "-deriv1*deriv3 + frc*dydt(3*i-2)",
+    ! i.e. theta-term negative, pressure-term positive): differentiating
+    ! F=sigma_bar*f(V,theta), sigma_bar=seff0-p gives
+    ! dF/dt = -dp/dt*f + deriv_V*dV/dt + deriv_theta*dtheta/dt, and
+    ! solving dDtau/dt - eta*dV/dt = dF/dt for dV/dt puts
+    ! (-deriv_theta*dtheta/dt + f*dp/dt) in the numerator alongside
+    ! dDtau/dt -- an earlier version of this file had both signs
+    ! backwards, which (combined with the MPA_TO_PA fix above) was
+    ! suppressing the pore-pressure-driven slip-rate transient: the
+    ! dominant term at low V was the (wrongly-signed) pressure term,
+    ! driving V the wrong direction instead of accelerating it.
+    R2 = dtau2_el - deriv_theta * dtheta_dt * e2 + f_coef * dpdt_val * e2
+    R3 = dtau3_el - deriv_theta * dtheta_dt * e3 + f_coef * dpdt_val * e3
 
     det = A_c * D_c - B_c**2
     if (abs(det) < 1.0d-300) det = sign(1.0d-300, det)
