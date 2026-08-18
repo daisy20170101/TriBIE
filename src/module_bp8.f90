@@ -81,6 +81,21 @@ module bp8_module
   real(DP), dimension(:,:), allocatable :: K22, K23, K32, K33  ! (local_cells, Nt_all)
   logical, dimension(:), allocatable :: is_active              ! true if |cx2|<lf_fixed and |cx3|<lf_fixed (local elements)
 
+  ! Slip rate and fault shear traction for the LOCAL elements, produced by
+  ! derivs() (which solves the force balance for V rather than integrating
+  ! it -- see the derivation there). These are not ODE state: they are
+  ! diagnostics of the current state, recomputed on every derivs() call.
+  ! write_all_output() gathers them directly, which is valid because the
+  ! main loop calls derivs() with the ACCEPTED state immediately before
+  ! each output step.
+  real(DP), dimension(:), allocatable :: Vsol2, Vsol3, tausol2, tausol3
+  ! Warm-start guess for the Newton solve (previous accepted V). Affects
+  ! only iteration count, never the converged answer.
+  real(DP), dimension(:), allocatable :: Vguess
+  ! Largest Newton residual seen since the last output (sanity monitor).
+  real(DP) :: newton_max_resid = 0.0_DP
+  integer :: newton_max_iter = 0
+
   ! Full arrays (every rank has the complete set, broadcast once at startup)
   real(DP), dimension(:), allocatable :: cx2_all, cx3_all
 

@@ -121,8 +121,14 @@ program bp8_main
     write(*,*) "Omega_f (lf_fixed=", lf_fixed, "m) active elements (this rank):", count(is_active), "/", local_cells
   end if
 
-  n_state = 5 * local_cells
+  ! State is (s2, s3, theta) per element -- 3 components, NOT 5. Slip rate
+  ! is no longer integrated; it is solved from the force balance each time
+  ! derivs() is called (see the derivation there).
+  n_state = 3 * local_cells
   allocate(yt(n_state), dydt(n_state), yt_scale(n_state))
+  allocate(Vsol2(max(1,local_cells)), Vsol3(max(1,local_cells)))
+  allocate(tausol2(max(1,local_cells)), tausol3(max(1,local_cells)))
+  allocate(Vguess(max(1,local_cells)))
   call set_initial_conditions(yt, local_cells)
 
   if (myid == master_id) call open_output_files()
@@ -338,7 +344,7 @@ subroutine set_initial_conditions(yt, local_cells)
   use bp8_module
   implicit none
   integer, intent(in) :: local_cells
-  real(DP), intent(out) :: yt(5*local_cells)
+  real(DP), intent(out) :: yt(3*local_cells)
   real(DP) :: Vmag0, f_init, theta_init, X0
   integer :: i
 
@@ -354,67 +360,129 @@ subroutine set_initial_conditions(yt, local_cells)
   tau0_2 = tauinit * Vinit / Vmag0
   tau0_3 = tauinit * Vzero / Vmag0
 
+  ! State: (s2, s3, theta). Slip starts at zero everywhere (Eq. 26) --
+  ! including outside Omega_f, where it stays zero for all time (Eq. 13),
+  ! so no special-casing is needed here or in derivs(): a locked element's
+  ! stress follows from the global slip field like any other element's.
   do i = 1, local_cells
-    yt(5*i-4) = 0.0_DP      ! s2
-    yt(5*i-3) = 0.0_DP      ! s3
-    if (is_active(i)) then
-      yt(5*i-2) = Vinit       ! V2
-      yt(5*i-1) = Vzero       ! V3
-      yt(5*i)   = theta_init  ! theta
-    else
-      ! Outside Omega_f: locked, V=0 identically (Eq. 13), but elastic
-      ! stress still evolves there via coupling with the active region.
-      ! Since V is never used for a locked element, these two state slots
-      ! are repurposed to hold the accumulated elastic stress change
-      ! (Dtau2, Dtau3) instead of (V2, V3) -- see derivs() and
-      ! write_all_output(), which report tau = tau0 + Dtau there (Eq. 8
-      ! with V=0) rather than a meaningless zero. Reporting zero was the
-      ! bug behind an earlier version's spurious dip in profile/station
-      ! output interpolated near the Omega_f boundary on a mesh bigger
-      ! than Omega_f.
-      yt(5*i-2) = 0.0_DP      ! Dtau2, starts at 0 (Dtau(0)=0 everywhere)
-      yt(5*i-1) = 0.0_DP      ! Dtau3
-      yt(5*i)   = theta_init  ! unused
-    end if
+    yt(3*i-2) = 0.0_DP      ! s2
+    yt(3*i-1) = 0.0_DP      ! s3
+    yt(3*i)   = theta_init  ! theta (unused where locked)
+    Vguess(i) = Vmag0       ! Newton warm start
   end do
 end subroutine set_initial_conditions
 
 
 !===============================================================================
-! Right-hand side of the coupled ODE system for (s2,s3,V2,V3,theta) per
-! element. Derivation:
+! Solves the scalar force balance for the slip-rate magnitude V > 0:
 !
-! Force balance (BP8 Eq. 8-10): tau_j = tau0_j + Dtau_j(t) - eta*V_j =
-!   sigma_bar(t) * f(V,theta) * V_j/V,  j=2,3, V=|V|, sigma_bar=seff0-p(t)
+!     G(V) = eta*V + sigma_bar*f(V,theta) - |tau_el| = 0
 !
-! Differentiate w.r.t. t (tau0 constant, drops out -- this mirrors
-! 3dtri_BP5.f90's scalar derivs, which differentiates the same kind of
-! algebraic force balance to get an explicit ODE for dV/dt instead of an
-! implicit per-step solve): with e_j=V_j/V,
+! where |tau_el| = |tau0 + Dtau| is the magnitude of the elastic traction
+! (BP8 Eq. 8 rearranged, see derivs() for why the direction decouples).
 !
-!   dDtau_j/dt - eta*dV_j/dt = dF/dt*e_j + F*de_j/dt
+! G is strictly increasing in V (both eta*V and f are), so the root is
+! unique and Newton is globally convergent from any positive start. The
+! iteration runs on W = ln V, since V ranges over ~20 decades; there
+! dG/dW = eta*V + sigma_bar*a*X/sqrt(1+X^2) stays O(sigma_bar*a), which is
+! well conditioned.
 !
-! where F=sigma_bar*f, dF/dt = deriv_V*dV/dt + deriv_theta*dtheta/dt -
-! f*dp/dt (deriv_V=dF/dV, deriv_theta=dF/dtheta, dF/dsigma_bar=f and
-! dsigma_bar/dt=-dp/dt), dV/dt=e2*dV2/dt+e3*dV3/dt (chain rule on
-! V=sqrt(V2^2+V3^2)), and de_j/dt=(1/V)*sum_k(delta_jk-e_j*e_k)*dV_k/dt.
-! Collecting dV2/dt, dV3/dt terms gives the symmetric 2x2 linear system
-! solved below (A,B,D,R2,R3), with
-!   R_j = dDtau_j/dt - deriv_theta*dtheta/dt*e_j + f*dp/dt*e_j
-! (the theta-term is NEGATIVE, the pressure-term POSITIVE -- verified
-! both symbolically and against 3dtri_BP5.f90's own scalar analog,
-! "-deriv1*deriv3 + frc*dydt(3*i-2)"; an earlier version of this file had
-! both backwards, which suppressed the pore-pressure-driven acceleration
-! this benchmark is about). In the 1-component limit (e2=1, e3=0, B=0)
-! this reduces to BP5's scalar formula dV/dt=R/(eta+deriv_V), a useful
-! correctness check on the algebra.
+! X = (V/2V*)exp((f* + b ln(V* theta/Drs))/a) can overflow double precision
+! for large V or theta, so it is formed in logs and the large-X limits
+! asinh(X) -> ln(2X) and X/sqrt(1+X^2) -> 1 are used past ln X > 30.
+!===============================================================================
+subroutine solve_slip_rate(tau_mag, sigma_bar, theta, V_start, V, n_iter, resid)
+  use bp8_module
+  implicit none
+  real(DP), intent(in) :: tau_mag, sigma_bar, theta, V_start
+  real(DP), intent(out) :: V, resid
+  integer, intent(out) :: n_iter
+
+  real(DP) :: W, dW, lnX, X, f_coef, dfdV_term, G, dGdW, sq
+  real(DP), parameter :: LNX_BIG = 30.0_DP
+  integer :: it
+
+  W = log(max(V_start, 1.0d-25))
+
+  do it = 1, 100
+    lnX = log(max(exp(W), 1.0d-300) / (2.0_DP * fric_Vstar)) &
+          + (fric_fstar + fric_b * log(fric_Vstar * theta / fric_Drs)) / fric_a
+
+    if (lnX > LNX_BIG) then
+      ! asinh(X) = ln(2X) to double precision here; X/sqrt(1+X^2) = 1
+      f_coef = fric_a * (log(2.0_DP) + lnX)
+      dfdV_term = fric_a
+    else
+      X = exp(lnX)
+      sq = sqrt(1.0_DP + X**2)
+      f_coef = fric_a * log(X + sq)
+      dfdV_term = fric_a * X / sq
+    end if
+
+    G = eta * exp(W) + sigma_bar * f_coef - tau_mag
+    dGdW = eta * exp(W) + sigma_bar * dfdV_term
+
+    dW = -G / dGdW
+    ! Cap the step: keeps the first iterations sane when the warm start is
+    ! many decades off (e.g. right after a rapid acceleration).
+    dW = max(-5.0_DP, min(5.0_DP, dW))
+    W = W + dW
+    n_iter = it
+    if (abs(dW) < 1.0d-13) exit
+  end do
+
+  V = exp(W)
+  resid = abs(G) / max(abs(tau_mag), 1.0_DP)
+end subroutine solve_slip_rate
+
+
+!===============================================================================
+! Right-hand side of the ODE system for (s2, s3, theta) per element.
 !
-! dDtau_j/dt itself is K_j2 (dot) V2_all + K_j3 (dot) V3_all: the elastic
-! stiffness applied to velocity directly (no Vpl subtraction, unlike
-! BP5/6 -- BP8 has no far-field plate loading), which is exactly
-! d/dt[K (dot) slip(t)] since K is a constant linear operator, so slip
-! itself never needs to appear in the stress calculation. K22/K23/K32/K33
-! are read in MPa/m (see MPA_TO_PA in bp8_module) and scaled to Pa/m here.
+! ALGEBRAIC (Newton) FORMULATION. Rather than differentiating the force
+! balance to get an explicit dV/dt (the approach in 3dtri_BP5.f90, and in
+! earlier versions of this file), the balance is solved directly for V at
+! every stage. Slip rate is therefore a function of the state, not part of
+! it, and the constraint holds to Newton tolerance by construction at
+! every RK stage -- it cannot drift, and no partial derivative of f with
+! respect to theta ever enters. That matters here: an earlier derivative-
+! form version had a spurious factor of `a` in df/dtheta which made the
+! state-weakening feedback 62.5x too weak, and because the resulting ODE
+! was no longer the exact derivative of the balance, the error showed up
+! as a ~22% force-balance violation that tightening the integrator
+! tolerance could not reduce. This formulation removes that whole class of
+! bug: only f itself and df/dV are needed, and df/dV is exercised directly
+! by the Newton residual.
+!
+! Force balance (BP8 Eq. 8-10), with tau_el_j = tau0_j + Dtau_j the elastic
+! traction and sigma_bar = seff0 - p(t):
+!
+!     tau_el_j - eta*V_j = sigma_bar * f(V,theta) * V_j/V,   j=2,3
+!
+! Substituting V_j = V*e_j and collecting:
+!
+!     tau_el_j = e_j * ( eta*V + sigma_bar*f(V,theta) )
+!
+! The bracket is a positive scalar, so **e_j is parallel to tau_el_j**: the
+! slip direction is set by the traction direction, and the magnitude
+! follows from the scalar equation
+!
+!     eta*V + sigma_bar*f(V,theta) = |tau_el|
+!
+! solved by solve_slip_rate(). This exact decoupling of direction from
+! magnitude is what makes the 2x2 system of the old formulation
+! unnecessary.
+!
+! Dtau_j = K_j2 (dot) s2_all + K_j3 (dot) s3_all -- the stiffness applied
+! to SLIP (not slip rate, as in the derivative form; K is a constant linear
+! operator so both are equivalent, but using slip directly is what removes
+! the possibility of the integrated stress drifting away from K.s).
+! There is no Vpl term: BP8 has no far-field plate loading. K22/K23/K32/K33
+! are read in MPa/m (MPA_TO_PA in bp8_module) and scaled to Pa/m here.
+!
+! Outside Omega_f (Eq. 13) slip is identically zero for all time, so those
+! elements simply keep ds/dt = 0; their traction still evolves through
+! coupling to the slipping region and is reported normally.
 !===============================================================================
 subroutine derivs(myid, dydt, nv, Nt_all, Nt, t, yt, sendcounts, displs)
   use mpi
@@ -425,107 +493,67 @@ subroutine derivs(myid, dydt, nv, Nt_all, Nt, t, yt, sendcounts, displs)
   real(DP), intent(out) :: dydt(nv)
   integer, intent(in) :: sendcounts(0:*), displs(0:*)
 
-  real(DP) :: V2_local(Nt), V3_local(Nt)
-  real(DP), allocatable :: V2_all(:), V3_all(:)
-  real(DP) :: dtau2_el, dtau3_el
-  real(DP) :: V, e2, e3, theta, p_val, dpdt_val, sigma_bar
-  real(DP) :: X, f_coef, F_resist, dfdV, dfdtheta, deriv_V, deriv_theta
-  real(DP) :: dtheta_dt, A_c, B_c, D_c, R2, R3, det
-  real(DP), parameter :: Vfloor = 1.0d-20
-  integer :: i, k, ierr
+  real(DP) :: s2_local(Nt), s3_local(Nt)
+  real(DP), allocatable :: s2_all(:), s3_all(:)
+  real(DP) :: tau2_el, tau3_el, tau_mag
+  real(DP) :: V, theta, p_val, dpdt_val, sigma_bar, resid
+  integer :: i, k, ierr, nit
 
-  allocate(V2_all(Nt_all), V3_all(Nt_all))
+  allocate(s2_all(Nt_all), s3_all(Nt_all))
 
-  ! IMPORTANT: for a locked (inactive) element, yt(5i-2)/yt(5i-1) do NOT
-  ! hold velocity -- they're repurposed to hold accumulated stress change
-  ! (Dtau2, Dtau3; see set_initial_conditions). The gathered V2_all/V3_all
-  ! below feed every OTHER element's elastic-coupling sum, so they must
-  ! reflect the true (always-zero, Eq. 13) velocity there regardless of
-  ! what yt itself contains.
   do i = 1, Nt
-    if (is_active(i)) then
-      V2_local(i) = yt(5*i-2)
-      V3_local(i) = yt(5*i-1)
-    else
-      V2_local(i) = 0.0_DP
-      V3_local(i) = 0.0_DP
-    end if
+    s2_local(i) = yt(3*i-2)
+    s3_local(i) = yt(3*i-1)
   end do
 
-  call MPI_Allgatherv(V2_local, Nt, MPI_Real8, V2_all, sendcounts, displs, MPI_Real8, MPI_COMM_WORLD, ierr)
-  call MPI_Allgatherv(V3_local, Nt, MPI_Real8, V3_all, sendcounts, displs, MPI_Real8, MPI_COMM_WORLD, ierr)
+  call MPI_Allgatherv(s2_local, Nt, MPI_Real8, s2_all, sendcounts, displs, MPI_Real8, MPI_COMM_WORLD, ierr)
+  call MPI_Allgatherv(s3_local, Nt, MPI_Real8, s3_all, sendcounts, displs, MPI_Real8, MPI_COMM_WORLD, ierr)
 
   do i = 1, Nt
     k = displs(myid) + i   ! global index (1-based) of local element i
 
-    ! K22/K23/K32/K33 are in MPa/m (see MPA_TO_PA in bp8_module); every
-    ! other quantity here is in Pa, so convert before use.
-    dtau2_el = MPA_TO_PA * (dot_product(K22(i, :), V2_all) + dot_product(K23(i, :), V3_all))
-    dtau3_el = MPA_TO_PA * (dot_product(K32(i, :), V2_all) + dot_product(K33(i, :), V3_all))
+    ! Elastic traction from the current slip field (Pa).
+    tau2_el = tau0_2 + MPA_TO_PA * (dot_product(K22(i, :), s2_all) + dot_product(K23(i, :), s3_all))
+    tau3_el = tau0_3 + MPA_TO_PA * (dot_product(K32(i, :), s2_all) + dot_product(K33(i, :), s3_all))
 
-    ! Outside Omega_f (see is_active in the main program): V=0 identically
-    ! for all time (Eq. 13), a hard boundary condition, not something
-    ! solved for -- but its stress still evolves, tracked via the
-    ! repurposed yt(5i-2)/yt(5i-1) slots (see set_initial_conditions).
     if (.not. is_active(i)) then
-      dydt(5*i-4) = 0.0_DP
-      dydt(5*i-3) = 0.0_DP
-      dydt(5*i-2) = dtau2_el
-      dydt(5*i-1) = dtau3_el
-      dydt(5*i)   = 0.0_DP
+      ! Locked (Eq. 13): V = 0 for all time. tau = tau0 + Dtau with no
+      ! radiation-damping term.
+      dydt(3*i-2) = 0.0_DP
+      dydt(3*i-1) = 0.0_DP
+      dydt(3*i)   = 0.0_DP
+      Vsol2(i) = 0.0_DP
+      Vsol3(i) = 0.0_DP
+      tausol2(i) = tau2_el
+      tausol3(i) = tau3_el
       cycle
     end if
 
     call pf_lookup(t, k, p_val, dpdt_val)
     sigma_bar = seff0 - p_val
+    theta = max(yt(3*i), 1.0d-12)
 
-    V = sqrt(yt(5*i-2)**2 + yt(5*i-1)**2)
-    V = max(V, Vfloor)
-    e2 = yt(5*i-2) / V
-    e3 = yt(5*i-1) / V
-    theta = max(yt(5*i), 1.0d-12)
+    tau_mag = sqrt(tau2_el**2 + tau3_el**2)
 
-    X = (V / (2.0_DP * fric_Vstar)) * exp((fric_fstar + fric_b * log(fric_Vstar * theta / fric_Drs)) / fric_a)
-    f_coef = fric_a * log(X + sqrt(1.0_DP + X**2))
-    F_resist = sigma_bar * f_coef
+    call solve_slip_rate(tau_mag, sigma_bar, theta, Vguess(i), V, nit, resid)
+    Vguess(i) = V
+    newton_max_resid = max(newton_max_resid, resid)
+    newton_max_iter = max(newton_max_iter, nit)
 
-    dfdV = fric_a / sqrt(1.0_DP + X**2) * (X / V)
-    dfdtheta = fric_a / sqrt(1.0_DP + X**2) * (X * fric_b / theta)
-    deriv_V = sigma_bar * dfdV
-    deriv_theta = sigma_bar * dfdtheta
+    ! Slip direction = traction direction (see header).
+    Vsol2(i) = V * tau2_el / tau_mag
+    Vsol3(i) = V * tau3_el / tau_mag
 
-    dtheta_dt = 1.0_DP - V * theta / fric_Drs
+    ! Reported fault shear stress, Eq. 8: tau = tau0 + Dtau - eta*V.
+    tausol2(i) = tau2_el - eta * Vsol2(i)
+    tausol3(i) = tau3_el - eta * Vsol3(i)
 
-    A_c = eta + deriv_V * e2**2 + (F_resist / V) * (1.0_DP - e2**2)
-    D_c = eta + deriv_V * e3**2 + (F_resist / V) * (1.0_DP - e3**2)
-    B_c = e2 * e3 * (deriv_V - F_resist / V)
-
-    ! Sign check (verified both symbolically and against 3dtri_BP5.f90's
-    ! own scalar analog, which has "-deriv1*deriv3 + frc*dydt(3*i-2)",
-    ! i.e. theta-term negative, pressure-term positive): differentiating
-    ! F=sigma_bar*f(V,theta), sigma_bar=seff0-p gives
-    ! dF/dt = -dp/dt*f + deriv_V*dV/dt + deriv_theta*dtheta/dt, and
-    ! solving dDtau/dt - eta*dV/dt = dF/dt for dV/dt puts
-    ! (-deriv_theta*dtheta/dt + f*dp/dt) in the numerator alongside
-    ! dDtau/dt -- an earlier version of this file had both signs
-    ! backwards, which (combined with the MPA_TO_PA fix above) was
-    ! suppressing the pore-pressure-driven slip-rate transient: the
-    ! dominant term at low V was the (wrongly-signed) pressure term,
-    ! driving V the wrong direction instead of accelerating it.
-    R2 = dtau2_el - deriv_theta * dtheta_dt * e2 + f_coef * dpdt_val * e2
-    R3 = dtau3_el - deriv_theta * dtheta_dt * e3 + f_coef * dpdt_val * e3
-
-    det = A_c * D_c - B_c**2
-    if (abs(det) < 1.0d-300) det = sign(1.0d-300, det)
-
-    dydt(5*i-4) = yt(5*i-2)                    ! ds2/dt = V2
-    dydt(5*i-3) = yt(5*i-1)                    ! ds3/dt = V3
-    dydt(5*i-2) = (D_c * R2 - B_c * R3) / det  ! dV2/dt
-    dydt(5*i-1) = (A_c * R3 - B_c * R2) / det  ! dV3/dt
-    dydt(5*i)   = dtheta_dt                    ! dtheta/dt
+    dydt(3*i-2) = Vsol2(i)                          ! ds2/dt
+    dydt(3*i-1) = Vsol3(i)                          ! ds3/dt
+    dydt(3*i)   = 1.0_DP - V * theta / fric_Drs     ! aging law, Eq. 11
   end do
 
-  deallocate(V2_all, V3_all)
+  deallocate(s2_all, s3_all)
 end subroutine derivs
 
 
@@ -873,21 +901,20 @@ subroutine write_all_output(myid, t, yt, dydt, local_cells, Nt_all, sendcounts, 
   use bp8_module
   implicit none
   integer, intent(in) :: myid, local_cells, Nt_all
-  real(DP), intent(in) :: t, yt(5*local_cells), dydt(5*local_cells)
+  real(DP), intent(in) :: t, yt(3*local_cells), dydt(3*local_cells)
   integer, intent(in) :: sendcounts(0:*), displs(0:*)
 
-  real(DP), allocatable :: s2l(:), s3l(:), V2l(:), V3l(:), thl(:)
+  real(DP), allocatable :: s2l(:), s3l(:), thl(:)
   real(DP), allocatable :: s2a(:), s3a(:), V2a(:), V3a(:), tha(:)
   real(DP), allocatable :: tau2a(:), tau3a(:), pa(:), dpdta(:), q2a(:), q3a(:)
   integer :: i, k, ierr
-  real(DP) :: Vmax, moment_rate, Vmag, e2, e3, X, f_coef, sigma_bar
-  real(DP) :: half, dz
+  real(DP) :: Vmax, moment_rate, Vmag
+  real(DP) :: half, dz, gmax_resid
+  integer :: gmax_iter
 
-  allocate(s2l(local_cells), s3l(local_cells), V2l(local_cells), V3l(local_cells), thl(local_cells))
+  allocate(s2l(local_cells), s3l(local_cells), thl(local_cells))
   do i = 1, local_cells
-    s2l(i) = yt(5*i-4); s3l(i) = yt(5*i-3)
-    V2l(i) = yt(5*i-2); V3l(i) = yt(5*i-1)
-    thl(i) = yt(5*i)
+    s2l(i) = yt(3*i-2); s3l(i) = yt(3*i-1); thl(i) = yt(3*i)
   end do
 
   if (myid == 0) then
@@ -898,16 +925,35 @@ subroutine write_all_output(myid, t, yt, dydt, local_cells, Nt_all, sendcounts, 
     allocate(tau2a(1), tau3a(1), pa(1), dpdta(1), q2a(1), q3a(1))
   end if
 
+  ! Slip rate and traction come straight from derivs()'s force-balance
+  ! solve (module arrays Vsol*/tausol*), which the main loop has just
+  ! evaluated at this accepted state -- no need to reconstruct the
+  ! friction law here, and no possibility of the output disagreeing with
+  ! what the solver actually used.
   call MPI_Gatherv(s2l, local_cells, MPI_Real8, s2a, sendcounts, displs, MPI_Real8, 0, MPI_COMM_WORLD, ierr)
   call MPI_Gatherv(s3l, local_cells, MPI_Real8, s3a, sendcounts, displs, MPI_Real8, 0, MPI_COMM_WORLD, ierr)
-  call MPI_Gatherv(V2l, local_cells, MPI_Real8, V2a, sendcounts, displs, MPI_Real8, 0, MPI_COMM_WORLD, ierr)
-  call MPI_Gatherv(V3l, local_cells, MPI_Real8, V3a, sendcounts, displs, MPI_Real8, 0, MPI_COMM_WORLD, ierr)
   call MPI_Gatherv(thl, local_cells, MPI_Real8, tha, sendcounts, displs, MPI_Real8, 0, MPI_COMM_WORLD, ierr)
+  call MPI_Gatherv(Vsol2, local_cells, MPI_Real8, V2a, sendcounts, displs, MPI_Real8, 0, MPI_COMM_WORLD, ierr)
+  call MPI_Gatherv(Vsol3, local_cells, MPI_Real8, V3a, sendcounts, displs, MPI_Real8, 0, MPI_COMM_WORLD, ierr)
+  call MPI_Gatherv(tausol2, local_cells, MPI_Real8, tau2a, sendcounts, displs, MPI_Real8, 0, MPI_COMM_WORLD, ierr)
+  call MPI_Gatherv(tausol3, local_cells, MPI_Real8, tau3a, sendcounts, displs, MPI_Real8, 0, MPI_COMM_WORLD, ierr)
+
+  ! Monitor the force-balance solve: this replaces the drift check the
+  ! derivative formulation needed, and should stay at round-off.
+  call MPI_Reduce(newton_max_resid, gmax_resid, 1, MPI_Real8, MPI_MAX, 0, MPI_COMM_WORLD, ierr)
+  call MPI_Reduce(newton_max_iter, gmax_iter, 1, MPI_INTEGER, MPI_MAX, 0, MPI_COMM_WORLD, ierr)
+  newton_max_resid = 0.0_DP
+  newton_max_iter = 0
 
   if (myid /= 0) then
-    deallocate(s2l, s3l, V2l, V3l, thl)
+    deallocate(s2l, s3l, thl)
     deallocate(s2a, s3a, V2a, V3a, tha, tau2a, tau3a, pa, dpdta, q2a, q3a)
     return
+  end if
+
+  if (gmax_resid > 1.0d-8) then
+    write(*,'(A,E12.4,A,I4,A,E14.6)') ' WARNING: force-balance residual ', gmax_resid, &
+        ' (max Newton iters ', gmax_iter, ') at t=', t
   end if
 
   half = lf_half
@@ -915,29 +961,6 @@ subroutine write_all_output(myid, t, yt, dydt, local_cells, Nt_all, sendcounts, 
 
   do k = 1, Nt_all
     call pf_lookup(t, k, pa(k), dpdta(k))
-    sigma_bar = seff0 - pa(k)
-
-    if (abs(cx2_all(k)) < lf_fixed .and. abs(cx3_all(k)) < lf_fixed) then
-      ! Active: tau follows from the current friction law (self-
-      ! consistent with the force balance the ODE integrates).
-      Vmag = max(sqrt(V2a(k)**2 + V3a(k)**2), 1.0d-20)
-      e2 = V2a(k) / Vmag
-      e3 = V3a(k) / Vmag
-      X = (Vmag / (2.0_DP*fric_Vstar)) * exp((fric_fstar + fric_b*log(fric_Vstar*tha(k)/fric_Drs))/fric_a)
-      f_coef = fric_a * log(X + sqrt(1.0_DP + X**2))
-
-      tau2a(k) = sigma_bar * f_coef * e2
-      tau3a(k) = sigma_bar * f_coef * e3
-    else
-      ! Locked: V=0, so tau = tau0 + Dtau (Eq. 8 with no radiation-damping
-      ! term); V2a(k)/V3a(k) hold the accumulated Dtau2/Dtau3 here (see
-      ! set_initial_conditions/derivs), NOT velocity. Reporting a bare
-      ! zero here (an earlier version of this code) corrupted bilinear
-      ! interpolation of output fields near the Omega_f boundary whenever
-      ! the mesh was bigger than Omega_f.
-      tau2a(k) = tau0_2 + V2a(k)
-      tau3a(k) = tau0_3 + V3a(k)
-    end if
 
     ! Darcy velocity via central finite difference of the pressure history
     ! at neighboring elements (Eq. 16): q_j = -(k/eta)*dp/dx_j, and
@@ -946,9 +969,7 @@ subroutine write_all_output(myid, t, yt, dydt, local_cells, Nt_all, sendcounts, 
     call darcy_component(t, k, 3, q3a(k))
   end do
 
-  ! Vmax/moment_rate must use TRUE velocity: locked elements' V2a/V3a
-  ! hold Dtau, not velocity (see above), and are always physically V=0,
-  ! so they're simply excluded here rather than read as if they were speed.
+  ! Locked elements are physically V=0, so they contribute nothing here.
   Vmax = 0.0_DP
   moment_rate = 0.0_DP
   do k = 1, Nt_all
@@ -1003,7 +1024,7 @@ subroutine write_all_output(myid, t, yt, dydt, local_cells, Nt_all, sendcounts, 
     end do
   end block
 
-  deallocate(s2l, s3l, V2l, V3l, thl)
+  deallocate(s2l, s3l, thl)
   deallocate(s2a, s3a, V2a, V3a, tha, tau2a, tau3a, pa, dpdta, q2a, q3a)
 
 end subroutine write_all_output
