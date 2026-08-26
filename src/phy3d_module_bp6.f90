@@ -20,6 +20,10 @@ real (DP0) ::tsec, tm1,tm2,tmday,tmelse,tmmidn,tmmult,Vpl
 real (DP0) ::dipangle
 integer, DIMENSION(:), ALLOCATABLE :: sendcounts, displs
 real (DP0), DIMENSION(:), ALLOCATABLE :: dvel,pp1,tau1,tau2,tau0,cca,ccb,seff,xLf,phy1,phy2
+! Per-element plate loading rate (m/s), optional 6th column of the var file.
+! Falls back to the scalar Vpl from parameter1.txt for 5-column var files,
+! so existing inputs (example1/2/3) are unaffected. See resdep in 3dtri_BP5.f90.
+real (DP0), DIMENSION(:), ALLOCATABLE :: vplv
 !real (DP0), DIMENSION(:,:,:), ALLOCATABLE :: fr
 real (DP0), DIMENSION(:,:), ALLOCATABLE :: stiff,stiff2
 character(len=80) :: jobname,foldername,restartname,stiffname,profile

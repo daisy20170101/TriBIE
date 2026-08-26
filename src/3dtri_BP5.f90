@@ -81,7 +81,7 @@ program main
   real (DP), DIMENSION(:), ALLOCATABLE :: x_all,xi_all,z_all,&
        yt_all,yt0_all,dydt_all,yt_scale_all,tau1_all,tau2_all, &
        slip_all,slipinc_all,slipds_all,slipdsinc_all,cca_all,ccb_all,xLf_all,seff_all,&
-       vi_all,phy1_all,phy2_all,pore_fluid_all,dt_pf_all
+       vi_all,phy1_all,phy2_all,pore_fluid_all,dt_pf_all,vpl_all
   !output related parameters
   integer :: imv,ias,icos,isse,Ioutput,inul,i_nul,n_nul_int
   real (DP) :: vcos,vsse1,vsse2
@@ -276,7 +276,7 @@ program main
 
   if(myid == master) then
      ALLOCATE(x_all(Nt_all),xi_all(Nt_all),&
-          cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),vi_all(Nt_all),&
+          cca_all(Nt_all),ccb_all(Nt_all),seff_all(Nt_all),xLf_all(Nt_all),vi_all(Nt_all),vpl_all(Nt_all),&
           tau1_all(Nt_all),tau2_all(Nt_all),slip_all(Nt_all),slipinc_all(Nt_all),slipds_all(Nt_all),slipdsinc_all(Nt_all),&
          yt0_all(3*Nt_all),yt_all(3*Nt_all),dydt_all(3*Nt_all),yt_scale_all(3*Nt_all),pore_fluid_all(Nt_all),dt_pf_all(Nt_all))
 
@@ -285,7 +285,7 @@ program main
      ! Worker processes: Allocate minimal dummy arrays for MPI_Scatterv compatibility
      ! These arrays won't be used as source data, but must exist for the MPI call
      ALLOCATE(x_all(1),xi_all(1),&
-          cca_all(1),ccb_all(1),seff_all(1),xLf_all(1),vi_all(1),&
+          cca_all(1),ccb_all(1),seff_all(1),xLf_all(1),vi_all(1),vpl_all(1),&
           tau1_all(1),tau2_all(1),slip_all(1),slipinc_all(1),slipds_all(1),slipdsinc_all(1),&
          yt0_all(1),yt_all(1),dydt_all(1),yt_scale_all(1),pore_fluid_all(1),dt_pf_all(1))
 
@@ -340,7 +340,7 @@ program main
   ALLOCATE (phy1(local_cells),phy2(local_cells),&
   zzfric(local_cells),zzfric2(local_cells),&
        x(local_cells),z(local_cells),z_all(Nt_all),xi(local_cells),cca(local_cells),ccb(local_cells),&
-       seff(local_cells),&
+       seff(local_cells),vplv(local_cells),&
        xLf(local_cells),tau1(local_cells),tau2(local_cells),tau0(local_cells),slipds(local_cells),&
        slipdsinc(local_cells),slip(local_cells),slipinc(local_cells), &
        yt(3*local_cells),dydt(3*local_cells),yt_scale(3*local_cells),&
@@ -487,7 +487,7 @@ end if
 
   if(myid==master)then
      CALL resdep(Nt_all,hnucl, &
-          xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,vi_all)
+          xilock1,xilock2,cca_all,ccb_all,xLf_all,seff_all,vi_all,vpl_all)
   end if
 
 
@@ -513,6 +513,12 @@ end if
    call MPI_Scatterv(seff_all,sendcounts,displs,MPI_Real8,seff,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
    if (ierr /= 0) then
       write(*,*) 'ERROR: MPI_Scatterv failed for seff, ierr =', ierr, 'on process', myid
+      stop
+   end if
+
+   call MPI_Scatterv(vpl_all,sendcounts,displs,MPI_Real8,vplv,local_cells,MPI_Real8,master,MPI_COMM_WORLD,ierr)
+   if (ierr /= 0) then
+      write(*,*) 'ERROR: MPI_Scatterv failed for vplv, ierr =', ierr, 'on process', myid
       stop
    end if
    
@@ -1059,7 +1065,7 @@ end if
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
                 phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
           slip_all,slipinc_all,slipds_all,slipdsinc_all,&
-           cca_all,ccb_all,xLf_all,seff_all,pore_fluid_all,dt_pf_all)
+           cca_all,ccb_all,xLf_all,seff_all,vpl_all,pore_fluid_all,dt_pf_all)
      
      ! Deallocate master-only output arrays (only allocated on master)
      if (allocated(maxnum)) DEALLOCATE(maxnum,maxv,moment,outs1)
@@ -1084,14 +1090,14 @@ end if
      DEALLOCATE (x_all,xi_all,yt_all,dydt_all,yt_scale_all,yt0_all,&
                 phy1_all,phy2_all,vi_all,tau1_all,tau2_all, &
           slip_all,slipinc_all,slipds_all,slipdsinc_all,&
-           cca_all,ccb_all,xLf_all,seff_all,pore_fluid_all,dt_pf_all)
+           cca_all,ccb_all,xLf_all,seff_all,vpl_all,pore_fluid_all,dt_pf_all)
   end if
 
 
   DEALLOCATE (stiff,sr)
   DEALLOCATE (x,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
-  DEALLOCATE (cca,ccb,xLf,seff,pore_fluid,dt_pf)
+  DEALLOCATE (cca,ccb,xLf,seff,vplv,pore_fluid,dt_pf)
   
   ! Clean up MPI_Scatterv arrays
   if (use_trigreen_format .and. allocated(sendcounts)) then
@@ -1236,7 +1242,7 @@ end subroutine rkqs
 !------------------------------------------------------------------------------
      subroutine derivs(myid,dydt,nv,Nt_all,Nt,t,yt,z_all,z)
        USE mpi
-       USE phy3d_module_bp6, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,V0,Lratio,nprocs,&
+       USE phy3d_module_bp6, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,vplv,V0,Lratio,nprocs,&
             tm1,tm2,tmday,tmelse,tmmidn,tmmult,alpha,beta,phi,q0,toff,&
             compute_pf,compute_dpf_dt,compute_G,compute_dGdt,dirac_delta,heavi,sendcounts,displs
        ! MPI variables are passed as arguments or declared locally in main program
@@ -1269,8 +1275,11 @@ end subroutine rkqs
        small=1.d-6
 
        ! OPTIMIZATION: Advanced vectorization with loop unrolling and prefetching
+       ! Backslip loading. vplv is per element: it is the 6th var-file
+       ! column when present, and otherwise every entry equals the scalar
+       ! Vpl, so this is identical to the previous zz(i)=yt(3*i-1)-Vpl.
        do i=1,Nt
-          zz(i)=yt(3*i-1)-Vpl
+          zz(i)=yt(3*i-1)-vplv(i)
        end do
 
        ! OPTIMIZATION: Advanced MPI communication with non-blocking operations
@@ -1380,10 +1389,10 @@ end subroutine rkqs
 
     subroutine resdep(Nt_all,hnucl, &
          xilock1,xilock2,cca_all,ccb_all,xLf_all, &
-         seff_all,vi_all)
+         seff_all,vi_all,vpl_all)
       USE mpi
       USE phy3d_module_bp6, only: yrs,p18,Nl,Nd,Nab,xmu,xnu,gamma, &
-           Iprofile,foldername,jobname,profile
+           Iprofile,foldername,jobname,profile,Vpl
       implicit none
       integer, parameter :: DP = kind(1.0d0)
       integer, parameter :: DN=9
@@ -1393,7 +1402,9 @@ end subroutine rkqs
            ccabmin(Nt_all),xLfmin(Nt_all),xilock1,xilock2, & 
            hnucl
       real (DP) :: cca_all(Nt_all),ccb_all(Nt_all),ccab_all(Nt_all), &
-           xLf_all(Nt_all),seff_all(Nt_all),vi_all(Nt_all)
+           xLf_all(Nt_all),seff_all(Nt_all),vi_all(Nt_all),vpl_all(Nt_all)
+      character(len=512) :: vline
+      integer :: ios6, n5, n6
 
       real (DP) ::a(Nab),tpr(Nab),zp(Nab),b(nab),ab(nab)
 
@@ -1415,20 +1426,47 @@ end subroutine rkqs
 
  !need to address when j=1 and j=Nd_all!! same in the old openmp f90 file!
 
+      ! The var file may carry a SIXTH column: a per-element plate loading
+      ! rate (m/s), which replaces the uniform Vpl in the backslip term in
+      ! derivs. Files with the classic five columns keep working -- every
+      ! element then just gets the scalar Vpl from parameter1.txt, which is
+      ! exactly the old behaviour. Each line is read as text first so the
+      ! 6-column attempt can fail without consuming the record.
+      n5 = 0
+      n6 = 0
       open(444,file='var'//jobname,status='old')
        do i=1,Nt_all
-        read(444,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
+        read(444,'(a)') vline
+        read(vline,*,iostat=ios6) seff_all(i),xLf_all(i),cca_all(i), &
+                                  ccb_all(i),vi_all(i),vpl_all(i)
+        if (ios6 /= 0) then
+          read(vline,*) seff_all(i),xLf_all(i),cca_all(i),ccb_all(i),vi_all(i)
+          vpl_all(i) = Vpl
+          n5 = n5 + 1
+        else
+          n6 = n6 + 1
+        end if
         ccab_all(i) = cca_all(i) - ccb_all(i)
        end do
       close(444)
+
+      if (n6 == 0) then
+        write(*,*) 'var file: 5 columns, uniform Vpl =', Vpl, 'm/s for all elements'
+      else if (n5 == 0) then
+        write(*,*) 'var file: 6 columns, per-element loading rate; range =', &
+                   minval(vpl_all), maxval(vpl_all), 'm/s'
+      else
+        write(*,*) 'ERROR: var file mixes 5- and 6-column lines (', n5, 'and', n6, ')'
+        stop
+      end if
 
 
       !     To save info about some of the quantities
       open(2,file=trim(foldername)//'vardep'//jobname,status='unknown')
       !	write(2,300)'z','seff','Lf','ccab','cca'
       do i=1,Nt_all
-         write(2,'(5(1x,e20.13))')seff_all(i),xLf_all(i), &
-              ccab_all(i),cca_all(i),vi_all(i)
+         write(2,'(6(1x,e20.13))')seff_all(i),xLf_all(i), &
+              ccab_all(i),cca_all(i),vi_all(i),vpl_all(i)
       end do
       close(2)
 300   format(5(1x,A20))
