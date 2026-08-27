@@ -774,9 +774,8 @@ end if
 
       !zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
 
-      dvel(i) = compute_dpf_dt(max(1.0d-12,dabs(z(i))), t, alpha, beta, phi, q0, toff)
-           
-      pore_fluid(i) = compute_pf(max(1.0d-12,dabs(z(i))), t, alpha, beta, phi, q0, toff)
+      dvel(i) = 0.0d0
+      pore_fluid(i) = 0.0d0
      
       ! Time step inversely related to velocity change rate (dvel)
       ! This ensures smaller time steps when velocity changes rapidly
@@ -785,7 +784,7 @@ end if
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
-        tau1(i) = (seff(i)-pore_fluid(i))*cca(i)*dlog(help+dsqrt(1+help**2))
+        tau1(i) = seff(i)*cca(i)*dlog(help+dsqrt(1+help**2))
         tau2(i) = tau1(i)/phy1(i)*phy2(i)
 
         slipinc(i) = 0.5*(yt0(3*i-1)+yt(3*i-1))*dt
@@ -800,7 +799,6 @@ end if
      if(myid.eq.master) then 
          ! Combine Runge-Kutta suggested time step with pore fluid-based time step
          dref = 1.0d-1
-         dt_try = min(1000.2d0, dt_try)
                 
          !dt_pf1 = min(min(1.0,minval(dt_pf_all)), dt_try)
          write(*,*) 'step:',t,dt_try! at z=0.0 km 
@@ -1273,7 +1271,7 @@ end subroutine rkqs
        intrinsic real
        
        ! pore fulid variables
-       real(DP) :: frc,pressure
+       real(DP) :: frc
 
        ! Regularization parameter for rate-and-state friction
        real(DP), parameter :: theta_min = 1.0d-12  ! Minimum state variable (seconds) - increased for stability
@@ -1350,10 +1348,13 @@ end subroutine rkqs
        !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
        do i=1,Nt
 
-         !zh = dsign(max(1.0d-8,dabs(z(i))),z(i))
-         dydt(3*i-2) = compute_dpf_dt(max(1.0d-12,dabs(z(i))), t, alpha, beta, phi, q0, toff)
-
-         pressure = compute_pf(max(1.0d-12,dabs(z(i))), t, alpha, beta, phi, q0, toff)
+         ! Pore fluid removed: this is a purely elastic rate-and-state run.
+         ! compute_dpf_dt differenced compute_pf over a FIXED delta_t = 0.01 s,
+         ! so once dt reached interseismic size the difference was roundoff
+         ! amplified by 1/0.01; that noise entered the RK error estimate and
+         ! held dt down. yt(3*i-2) is kept in the state vector (initialised to
+         ! 0 and never driven) so the ODE size and all indexing are unchanged.
+         dydt(3*i-2) = 0.0d0
 
          psi = dlog(V0*yt(3*i)/xLf(i))
          help1 = yt(3*i-1)/(2*V0)
@@ -1361,19 +1362,19 @@ end subroutine rkqs
          help = dsqrt(1+(help1*dexp(help2))**2)
          !frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
          
-         help4 = help1 * dexp(help2)
-         frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
+         ! frc/help4 fed only the dropped frc*dpf/dt term -- dead now.
+         !help4 = help1 * dexp(help2)
+         !frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
 
-          deriv1 = ((seff(i)-pressure)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
-          deriv2 = ((seff(i)-pressure)*cca(i)/(2*V0))*dexp(help2)/help
+          deriv1 = (seff(i)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
+          deriv2 = (seff(i)*cca(i)/(2*V0))*dexp(help2)/help
           
           
 
 !aging             
           deriv3 = 1-yt(3*i-1)*yt(3*i)/xLf(i)
 !slip law         deriv3 = -yt(3*i-1)*yt(3*i)/xLf(i)*dlog(yt(3*i-1)*yt(3*i)/xLf(i))
-          ! add dpf/dt in the  term
-          dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3 + frc*dydt(3*i-2))/(eta+deriv2) ! total shear traction
+          dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3)/(eta+deriv2) ! total shear traction
           dydt(3*i)=deriv3     
        end do
        !$OMP END SIMD
