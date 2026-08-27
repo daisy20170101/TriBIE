@@ -24,6 +24,11 @@ real (DP0), DIMENSION(:), ALLOCATABLE :: dvel,pp1,tau1,tau2,tau0,cca,ccb,seff,xL
 ! Falls back to the scalar Vpl from parameter1.txt for 5-column var files,
 ! so existing inputs (example1/2/3) are unaffected. See resdep in 3dtri_BP5.f90.
 real (DP0), DIMENSION(:), ALLOCATABLE :: vplv
+! Per-element initial shear stress (Pa), optional 7th column of the var file.
+! Falls back to the scalar tauini above for <7-column files, so example1/2/3
+! are unaffected. Set to the steady-state stress at the local loading rate by
+! prepare_input.py, which removes the artificial initial loading transient.
+real (DP0), DIMENSION(:), ALLOCATABLE :: tauv
 !real (DP0), DIMENSION(:,:,:), ALLOCATABLE :: fr
 real (DP0), DIMENSION(:,:), ALLOCATABLE :: stiff,stiff2
 character(len=80) :: jobname,foldername,restartname,stiffname,profile
