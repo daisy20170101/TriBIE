@@ -1151,10 +1151,19 @@ subroutine rkqs(myid,y,dydx,n,Nt_all,Nt,x,htry,eps,yscal,hdid,hnext,z_all,p)
 1 call rkck(myid,dydx,h,n,Nt_all,Nt,y,yerr,ytemp,x,derivs,z_all,p)
   
   ! OPTIMIZATION: Vectorize error calculation for better performance
+  ! yscal(i) can be exactly 0: the pore-fluid components 3*i-2 have
+  ! yt = 0 and dydt = 0, so yscal = |0| + |dt*0| = 0 and yerr = 0 too.
+  ! Dividing gave 0/0 for a third of all components. Those components are
+  ! genuinely inert, so skipping them is exact, not an approximation --
+  ! but a zero scale carrying a NON-zero error would be a real error being
+  ! hidden, so force a rejection in that case instead of skipping.
   errmax=0.
   do i=1,nmax
-     j = int(ceiling(real(i)/2)) ! position within central part
-     errmax = max(errmax,dabs(yerr(i)/yscal(i)))
+     if (yscal(i) > 0.d0) then
+        errmax = max(errmax,dabs(yerr(i)/yscal(i)))
+     else if (yerr(i) /= 0.d0) then
+        errmax = huge(errmax)
+     end if
   end do
   errmax=errmax/eps
   
@@ -1258,7 +1267,8 @@ end subroutine rkqs
        integer, parameter :: DP = kind(1.0d0)
        integer :: nv,n,i,j,k,kk,l,ii,Nt,Nt_all
        real (DP) :: t,yt(nv),dydt(nv)   
-       real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc
+       real (DP) :: deriv3,deriv2,deriv1,small,tauinc2,dydtinc,th
+       integer :: nclamp
        real (DP) :: psi,help1,help2,help,help4,zh
        real (DP) :: SECNDS
        real (DP) :: z(Nt),sr(Nt),z_all(Nt_all),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
@@ -1329,23 +1339,34 @@ end subroutine rkqs
        ! Apply physics-based regularization for rate-and-state friction
        ! Small regularization parameter to prevent ln(0) while maintaining physics
        
+       ! Count cells whose state variable has gone non-physical. This used to
+       ! ASSIGN yt(3*i) = max(yt(3*i),theta_min). yt has no intent and derivs
+       ! runs both on the rkck stage temporaries and on the real yt, so that
+       ! silently rewrote the integrated state mid-step and left the stage
+       ! states inconsistent with the derivatives returned from them, which
+       ! invalidates the yerr estimate rkqs relies on. The clamp is now applied
+       ! to a LOCAL copy (th) in the loop below and yt is never written.
+       !
+       ! It also wrote one line per element per call -- derivs runs 6x per
+       ! accepted step, so a widespread event emitted ~134k lines per step.
+       ! Report a count once per call instead.
+       !
+       ! theta_min = 1e-12 s is far below anything physical: theta_ss = Dc/V
+       ! = 1e-12 implies V = 7e10 m/s. Reaching it means theta overshot to ~0
+       ! or negative. It is not a safe operating point -- once clamped,
+       ! help2 = (f0+b*ln(V0*theta/Dc))/a reaches about -141, dexp underflows,
+       ! and deriv1/deriv2 vanish so the friction law stops responding.
+       nclamp = 0
        do i=1,Nt
-          if (yt(3*i) < theta_min) then
-             ! Apply regularization: don't change original values, just prevent ln(0)
-             ! This preserves the physical state while making calculations numerically stable
-             if (yt(3*i) <= small ) then
-                write(*,*) 'INFO: Regularizing zero state variable at i=', i, ' from', yt(3*i), ' to', theta_min
-             end if
-             yt(3*i) = max(yt(3*i), theta_min)
-          end if
-          if (xLf(i) <= 0.0d0) then
-             write(*,*) 'ERROR: Non-positive xLf(i) at i=', i, ' value=', xLf(i), ' correcting to 1.0d-3'
-             xLf(i) = 1.0d-3
-          end if
+          if (yt(3*i) < theta_min) nclamp = nclamp + 1
        end do
+       if (nclamp > 0) then
+          write(*,*) 'WARNING: derivs clamped', nclamp, 'of', Nt, &
+                     'state variables to theta_min at t=', t
+       end if
 
        ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
-       !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3)
+       !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3,th)
        do i=1,Nt
 
          ! Pore fluid removed: this is a purely elastic rate-and-state run.
@@ -1356,7 +1377,8 @@ end subroutine rkqs
          ! 0 and never driven) so the ODE size and all indexing are unchanged.
          dydt(3*i-2) = 0.0d0
 
-         psi = dlog(V0*yt(3*i)/xLf(i))
+         th = max(yt(3*i), theta_min)   ! local clamp; yt is NOT modified
+         psi = dlog(V0*th/xLf(i))
          help1 = yt(3*i-1)/(2*V0)
          help2 = (f0+ccb(i)*psi)/cca(i)
          help = dsqrt(1+(help1*dexp(help2))**2)
@@ -1366,13 +1388,13 @@ end subroutine rkqs
          !help4 = help1 * dexp(help2)
          !frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
 
-          deriv1 = (seff(i)*ccb(i)/yt(3*i))*help1*dexp(help2)/help
+          deriv1 = (seff(i)*ccb(i)/th)*help1*dexp(help2)/help
           deriv2 = (seff(i)*cca(i)/(2*V0))*dexp(help2)/help
           
           
 
 !aging             
-          deriv3 = 1-yt(3*i-1)*yt(3*i)/xLf(i)
+          deriv3 = 1-yt(3*i-1)*th/xLf(i)
 !slip law         deriv3 = -yt(3*i-1)*yt(3*i)/xLf(i)*dlog(yt(3*i-1)*yt(3*i)/xLf(i))
           dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3)/(eta+deriv2) ! total shear traction
           dydt(3*i)=deriv3     

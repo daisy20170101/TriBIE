@@ -365,7 +365,15 @@ subroutine calc_nikkhoo_allcell(myid, size, Nt, arr_vertex, arr_cell, &
   l_miu = parm_l / parm_miu
 
   ! Unit strike-slip (ss=1, ds=0, ts=0)
-  ss = -1.d0
+  ! ss was -1.d0, contradicting this comment and negating the whole Green's
+  ! matrix. The local basis a1 here IS the plate-motion direction (built from
+  ! vpl1,vpl2 in calc_local_coordinate), so (-1,0) is exactly -1 x the
+  ! (vpl1,vpl2) source TriGreen/calc_trigreen.f90:605 uses for the same
+  ! geometry; with the same -.../100 prefactor on both, the trigreen_*.bin
+  ! written here came out negated. 3dtri_BP5.f90 has zz = V - vpl and
+  ! dtau/dt = -zzfric, so a locked cell (zz<0) needs a POSITIVE stiffness to
+  ! load; it was getting a negative one and the fault was being unloaded.
+  ss = 1.d0
   ds = 0.d0
   ts = 0.d0
 
