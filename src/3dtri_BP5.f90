@@ -855,8 +855,12 @@ end if
               maxnum(imv)=i
            end if
    
-          if(.not.rup(i).and.yt_all(3*i-1)/yrs.ge.vcos)then
-             Trup(i)=t*yrs
+          ! yt_all(3*i-1) is V in m/s and vcos is m/s, so the /yrs here was a
+          ! leftover from the old mm/yr state vector: it demanded
+          ! V >= vcos*yrs = 3.15e4 m/s, i.e. 9x the shear wave speed, so no
+          ! rupture was ever recorded. t is likewise already in seconds.
+          if(.not.rup(i).and.yt_all(3*i-1).ge.vcos)then
+             Trup(i)=t
              rup(i)=.true.
           end if
            moment(imv) = moment(imv)+0.5*(yt0_all(3*i-1)+yt_all(3*i-1))/yrs*1d-3*area(i)*xmu*1d6*1d5
@@ -925,7 +929,10 @@ end if
         end if
 
         ! Coseismic Slip
-        if((maxv(imv)/yrs).ge.vcos)then
+        ! Same legacy /yrs as above. With vcos = 1e-3 m/s this required
+        ! maxv >= 3.15e4 m/s, so icos never incremented, if(icos==ncos) was
+        ! never true, and the slipz1_cos / t-cos writers were unreachable.
+        if(maxv(imv).ge.vcos)then
            tslipcos = tslipcos+dt
            if(tslipcos.ge.tint_cos)then
               write(*,130) t,dlog10(maxv(imv)*1d-3/yrs),moment(imv)
@@ -946,7 +953,12 @@ end if
               do i=1,Nt_all
                  ! Use direct MPI gather order (no mapping)
                  slipz1_cos(i,icos) = slip_all(i)*1.d-3
-                 slipz1_v(i,icos) = dlog10(yt_all(3*i-2)*1.d-3/yrs) 
+                 ! was yt_all(3*i-2) -- the PORE FLUID slot, not velocity.
+                 ! With pore fluid removed that is identically 0, so this
+                 ! would have written log10(0) = -Infinity for every cell.
+                 ! Velocity is 3*i-1, in m/s, needing no conversion (maxvall
+                 ! writes dlog10(maxv) raw and is correct).
+                 slipz1_v(i,icos) = dlog10(yt_all(3*i-1))
                  slipz1_tau(i,icos) = tau1_all(i)
               end do
               
@@ -2189,7 +2201,8 @@ end if
           write(99,'(A)') '    </Geometry>'
           ! Use actual time value from tcos_all (with bounds check)
           if (i <= size(tcos_all)) then
-             write(99,'(A,E15.8,A)') '    <Time Value="', tcos_all(i)*yrs, '"/>'
+             ! tcos_all is seconds; the *yrs assumed the old years-valued t
+             write(99,'(A,E15.8,A)') '    <Time Value="', tcos_all(i), '"/>'
           else
              write(99,'(A,E15.8,A)') '    <Time Value="', real(i-1, DP), '"/>'  ! Fallback to step index
           end if
