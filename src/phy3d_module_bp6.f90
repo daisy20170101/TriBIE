@@ -15,6 +15,11 @@ real (DP0), parameter :: yrs=365.*24.*3600.d0, yrd=365.d0
 real (DP0), parameter :: toff =  100.0d0*24.0d0*3600.0d0, beta = 1.d-8, q0 = 1.25d-6,phi = 0.1d0, alpha= 0.1d0 ! unit converse
 real (DP0), parameter :: kappa=1.d-13, eta_diff= 1.d-3
 real (DP0), parameter :: tauini =29.20d6,tp=100.0,reb=1d-6
+! Floor on the evolving effective normal stress (Pa). Fault opening is not
+! modelled, so sigma must stay positive or the regularised friction law breaks
+! (log/sqrt of a non-positive argument). Applied to a LOCAL copy inside derivs
+! and in the tau1 diagnostic; the integrated state is never rewritten.
+real (DP0), parameter :: sigma_min = 1.0d5
 
 real (DP0) ::tsec, tm1,tm2,tmday,tmelse,tmmidn,tmmult,Vpl
 real (DP0) ::dipangle

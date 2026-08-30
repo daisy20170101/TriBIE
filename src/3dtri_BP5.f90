@@ -90,7 +90,7 @@ program main
   real (DP),dimension(:,:,:),allocatable :: outs1
   real (DP), DIMENSION(:,:), ALLOCATABLE :: slipz1_inter, &
        slipz1_cos,slipave_inter,slipave_cos, slipz1_v, &
-       v_cos,slip_cos,v_nul,slip_nul,slipz1_tau,slipz1_sse
+       v_cos,slip_cos,v_nul,slip_nul,slipz1_tau,slipz1_sig,slipz1_sse
 
   integer,DIMENSION(:),ALLOCATABLE :: intdepz1,intdepz2,intdepz3,ssetime
   integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
@@ -124,6 +124,13 @@ program main
   ! Dynamic load balancing variables (compatible with calc_trigreen.f90)
   integer :: base_cells, extra_cells, local_cells, start_idx
   logical :: use_trigreen_format = .true.  ! Set to .true. to use TriGreen files
+  ! Evolving normal stress. .true. reads trigreen_norm_<rank>.bin into stiff2 and
+  ! integrates sigma as yt(3*i-2); .false. leaves stiff2 = 0, so sigma stays at
+  ! seff for all time and the run reproduces the static-seff behaviour exactly.
+  logical :: norm_flag = .true.
+  logical :: trigreen_norm_exists
+  character(len=256) :: trigreen_norm_filename
+  real (DP) :: stiff2_absmax_local, stiff2_absmax_global
   
   ! MPI scatter arrays for different data types
   integer, dimension(:), allocatable :: sendcounts_yt, displs_yt
@@ -317,7 +324,8 @@ program main
 !!! modify output number
      ALLOCATE (slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos), &
           slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos), &
-          v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),slipz1_tau(Nt_all,ncos),slipz1_sse(Nt_all,nsse) )
+          v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),slipz1_tau(Nt_all,ncos), &
+          slipz1_sig(Nt_all,ncos),slipz1_sse(Nt_all,nsse) )
      ALLOCATE(intdepz1(Nt_all),intdepz2(Nt_all),intdepz3(Nt_all),slipz1_v(Nt_all,ncos),ssetime(nsse)  )
 
      allocate(moment(nmv),Trup(Nt_all),rup(Nt_all),area(Nt_all))
@@ -347,6 +355,8 @@ program main
        yt0(3*local_cells),sr(local_cells),vi(local_cells),pore_fluid(local_cells),dvel(local_cells),dt_pf(local_cells))
 
   ALLOCATE (stiff(local_cells,Nt_all))   !!! stiffness of Stuart green calculation
+  ALLOCATE (stiff2(local_cells,Nt_all))  !!! normal-stress stiffness (trigreen_norm)
+  stiff2 = 0.d0
 
   ! Initialize dt_pf array
   dt_pf = 1.d12  ! Initial pore fluid time step
@@ -373,10 +383,34 @@ program main
      
      open(5, file=trigreen_filename, form='unformatted', access='stream', status='old')
      write(*,*) 'Process', myid, ': Successfully loaded TriGreen file: ', trim(trigreen_filename)
+
+     ! Normal-stress Green's functions, written alongside trigreen_ by
+     ! NikkhooWalter2015/calc_nikkhoo.f90. Absent for example1/2/3, so a missing
+     ! file disables the coupling rather than aborting.
+     if (norm_flag) then
+        trigreen_norm_filename = trim(stiffname)//'trigreen_norm_'//trim(adjustl(cTemp))//'.bin'
+        inquire(file=trigreen_norm_filename, exist=trigreen_norm_exists)
+        if (trigreen_norm_exists) then
+           open(7, file=trigreen_norm_filename, form='unformatted', access='stream', status='old')
+           write(*,*) 'Process', myid, ': Successfully loaded TriGreen normal-stress file: ', &
+                      trim(trigreen_norm_filename)
+        else
+           norm_flag = .false.
+           write(*,*) 'Process', myid, ': ', trim(trigreen_norm_filename), &
+                      ' not found -- normal-stress coupling DISABLED (stiff2 = 0)'
+        end if
+     else
+        write(*,*) 'Process', myid, ': norm_flag = .false. -- normal-stress coupling disabled'
+     end if
   else
      ! Load original ssGreen format files
      open(5, file=trim(stiffname)//'ssGreen_'//trim(adjustl(cTemp))//'.bin',form='unformatted',access='stream')
      write(*,*) 'Loading ssGreen file: ssGreen_', trim(adjustl(cTemp)), '.bin'
+     if (norm_flag) then
+        norm_flag = .false.
+        write(*,*) 'Process', myid, ': ssGreen format has no normal-stress companion', &
+                   ' -- normal-stress coupling disabled'
+     end if
   end if
 
 if(myid==master)then
@@ -462,6 +496,44 @@ end if
       
   200 continue
   close(5)
+
+  ! Normal-stress stiffness. The 1.0d5*1.0d3 factor is the SAME conversion
+  ! applied to stiff above: the generator divides by 100 with parm_miu in MPa,
+  ! so one file unit is 100 MPa = 1e8 Pa. The reference implementation in
+  ! /Users/DuoL/Documents/GitHub/TriBIE works in legacy bar and applies no
+  ! scaling at all -- copying it verbatim would leave stiff2 1e8x too small
+  ! and the coupling silently inert.
+  if (norm_flag) then
+     do i=1,local_cells
+        do j=1,Nt_all
+           read(7, err=998) stiff2(i,j)
+           if (stiff2(i,j) /= stiff2(i,j)) stiff2(i,j) = 0.d0   ! NaN guard
+           stiff2(i,j) = 1.0d5*1.0d3*stiff2(i,j)
+        end do
+     end do
+     goto 201
+     998 write(*,*) 'Process', myid, ': ERROR reading normal-stress stiffness matrix'
+         write(*,*) 'Process', myid, ': ', trim(trigreen_norm_filename), &
+                    ' may be corrupted or the wrong size for Nt_all =', Nt_all
+         call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+     201 continue
+     close(7)
+  end if
+
+  ! Strike slip on a PLANAR fault produces no normal-stress change on that same
+  ! plane, so stiff2 is identically zero for single-plane geometries and small
+  ! for parallel planes. Report it: a zero matrix means the coupling is present
+  ! but cannot do anything, which is easy to mistake for a bug elsewhere.
+  stiff2_absmax_local = maxval(dabs(stiff2))
+  call MPI_Allreduce(stiff2_absmax_local, stiff2_absmax_global, 1, MPI_Real8, &
+                     MPI_MAX, MPI_COMM_WORLD, ierr)
+  if (myid == master) then
+     write(*,*) 'normal-stress coupling: norm_flag =', norm_flag, &
+                '  global max|stiff2| =', stiff2_absmax_global, 'Pa/m'
+     if (norm_flag .and. stiff2_absmax_global <= 0.d0) &
+        write(*,*) '  WARNING: stiff2 is identically zero -- sigma cannot evolve.', &
+                   ' Expected for a single planar fault.'
+  end if
   
   ! SECOND: Process data in parallel (OpenMP for computation only, NO file I/O)
   
@@ -671,7 +743,10 @@ end if
         phy1(j) = tau1(j)/dsqrt(tau1(j)**2+tau2(j)**2)
         phy2(j) = tau2(j)/dsqrt(tau1(j)**2+tau2(j)**2)
 
-        yt(3*j-2) = 0.0d0  ! Initialize pore fluid pressure
+        ! yt(3*j-2) now carries the EVOLVING effective normal stress. It starts
+        ! at the static seff from the var file; with norm_flag off, dydt is 0 and
+        ! it stays there for all time, reproducing the static-seff behaviour.
+        yt(3*j-2) = seff(j)
         yt(3*j) = xLf(j)/V0*dexp((cca(j)/ccb(j))*help - f0/ccb(j))  ! Initialize theta (state variable)
         slip(j)=0.d0
         slipds(j)=0.d0
@@ -784,7 +859,7 @@ end if
 
         help=(yt(3*i-1)/(2*V0))*dexp((f0+ccb(i)*dlog(V0*yt(3*i)/xLf(i)))/cca(i))
         
-        tau1(i) = seff(i)*cca(i)*dlog(help+dsqrt(1+help**2))
+        tau1(i) = max(yt(3*i-2),sigma_min)*cca(i)*dlog(help+dsqrt(1+help**2))
         tau2(i) = tau1(i)/phy1(i)*phy2(i)
 
         slipinc(i) = 0.5*(yt0(3*i-1)+yt(3*i-1))*dt
@@ -960,6 +1035,9 @@ end if
                  ! writes dlog10(maxv) raw and is correct).
                  slipz1_v(i,icos) = dlog10(yt_all(3*i-1))
                  slipz1_tau(i,icos) = tau1_all(i)
+                 ! evolving effective normal stress (Pa); equals seff when
+                 ! norm_flag is off
+                 slipz1_sig(i,icos) = yt_all(3*i-2)
               end do
               
 
@@ -994,7 +1072,7 @@ end if
         !$OMP MASTER
         call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
              tmv,tas,tcos,tnul,tsse,maxv,moment,outs1,maxnum,msse1,msse2, areasse1,areasse2,&
-             slipz1_inter,slipz1_tau,slipz1_sse, &
+             slipz1_inter,slipz1_tau,slipz1_sig,slipz1_sse, &
              slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
              xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
              n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map)         
@@ -1043,7 +1121,7 @@ if(myid==master)then
      call output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
           tmv,tas,tcos,tnul,tsse,maxv,moment,outs1, &
           maxnum,msse1,msse2, areasse1,areasse2, &
-          slipz1_inter,slipz1_tau,slipz1_sse, &
+          slipz1_inter,slipz1_tau,slipz1_sig,slipz1_sse, &
           slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
           xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
           n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
@@ -1094,7 +1172,7 @@ end if
 
      ! Deallocate master-only simulation arrays (only allocated on master)
      if (allocated(slipz1_inter)) then
-        DEALLOCATE (slipz1_inter,slipz1_tau,slipz1_sse, &
+        DEALLOCATE (slipz1_inter,slipz1_tau,slipz1_sig,slipz1_sse, &
              slipz1_cos,slipave_inter,slipave_cos, &
              v_cos,slip_cos,v_nul,slip_nul)
      end if
@@ -1114,7 +1192,7 @@ end if
   end if
 
 
-  DEALLOCATE (stiff,sr)
+  DEALLOCATE (stiff,stiff2,sr)
   DEALLOCATE (x,xi,yt,dydt,yt_scale)
   deallocate (phy1,phy2,tau1,tau2,tau0,slip,slipinc,slipds,slipdsinc,yt0,zzfric,zzfric2)
   DEALLOCATE (cca,ccb,xLf,seff,vplv,pore_fluid,dt_pf)
@@ -1273,7 +1351,7 @@ end subroutine rkqs
        USE mpi
        USE phy3d_module_bp6, only: phy1,phy2,tau1,tau2, stiff,cca,ccb,seff,xLf,eta,f0,Vpl,vplv,V0,Lratio,nprocs,&
             tm1,tm2,tmday,tmelse,tmmidn,tmmult,alpha,beta,phi,q0,toff,&
-            compute_pf,compute_dpf_dt,compute_G,compute_dGdt,dirac_delta,heavi,sendcounts,displs
+            compute_pf,compute_dpf_dt,compute_G,compute_dGdt,dirac_delta,heavi,sendcounts,displs,stiff2,sigma_min
        ! MPI variables are passed as arguments or declared locally in main program
        implicit none
        integer, parameter :: DP = kind(1.0d0)
@@ -1284,6 +1362,9 @@ end subroutine rkqs
        real (DP) :: psi,help1,help2,help,help4,zh
        real (DP) :: SECNDS
        real (DP) :: z(Nt),sr(Nt),z_all(Nt_all),zz(Nt),zz_ds(Nt),zzfric(Nt),zz_all(Nt_all),zzfric2(Nt)
+       real (DP) :: zzfric_norm(Nt)   ! normal-stress rate from stiff2
+       real (DP) :: sg               ! floored local copy of the evolving sigma
+       integer :: nfloor
        real (DP) :: pore_fluid(Nt)
 
        ! Local variables for blocking optimization
@@ -1330,11 +1411,13 @@ end subroutine rkqs
        ! CORRECT: Simple nested loop for matrix-vector multiplication
        do i=1, Nt
           zzfric(i) = 0d0  ! Initialize to zero
+          zzfric_norm(i) = 0d0
           
           !$OMP SIMD PRIVATE(temp_sum)
           do j=1, Nt_all   ! Sum over all source cells
              temp_sum = stiff(i,j) * zz_all(j)
              zzfric(i) = zzfric(i) + temp_sum
+             zzfric_norm(i) = zzfric_norm(i) + stiff2(i,j) * zz_all(j)
           end do
           !$OMP END SIMD
        end do
@@ -1369,26 +1452,37 @@ end subroutine rkqs
        ! help2 = (f0+b*ln(V0*theta/Dc))/a reaches about -141, dexp underflows,
        ! and deriv1/deriv2 vanish so the friction law stops responding.
        nclamp = 0
+       nfloor = 0
        do i=1,Nt
           if (yt(3*i) < theta_min) nclamp = nclamp + 1
+          if (yt(3*i-2) < sigma_min) nfloor = nfloor + 1
        end do
+       if (nfloor > 0) then
+          write(*,*) 'WARNING: derivs floored', nfloor, 'of', Nt, &
+                     'normal stresses to sigma_min at t=', t
+       end if
        if (nclamp > 0) then
           write(*,*) 'WARNING: derivs clamped', nclamp, 'of', Nt, &
                      'state variables to theta_min at t=', t
        end if
 
        ! OPTIMIZATION: Advanced vectorization with SIMD-friendly structure
-       !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3,th)
+       !$OMP SIMD PRIVATE(psi,help1,help2,help,deriv1,deriv2,deriv3,th,sg,frc,help4)
        do i=1,Nt
 
-         ! Pore fluid removed: this is a purely elastic rate-and-state run.
-         ! compute_dpf_dt differenced compute_pf over a FIXED delta_t = 0.01 s,
-         ! so once dt reached interseismic size the difference was roundoff
-         ! amplified by 1/0.01; that noise entered the RK error estimate and
-         ! held dt down. yt(3*i-2) is kept in the state vector (initialised to
-         ! 0 and never driven) so the ODE size and all indexing are unchanged.
-         dydt(3*i-2) = 0.0d0
-
+         ! Normal stress evolves as yt(3*i-2), driven by the elastic normal-stress
+         ! transfer from stiff2. sg is a floored LOCAL copy: like th, it never
+         ! writes back to yt, so the integrated state stays consistent with the
+         ! derivatives returned from it.
+         sg = max(yt(3*i-2), sigma_min)
+         dydt(3*i-2) = -zzfric_norm(i)
+         ! This slot previously held pore fluid pressure, which was removed
+         ! (compute_dpf_dt differenced compute_pf over a fixed delta_t = 0.01 s,
+         ! so at interseismic dt the difference was roundoff amplified by 100,
+         ! and that noise entered the RK error estimate). It now carries the
+         ! evolving normal stress instead, so the ODE size and every 3*i index
+         ! are unchanged. With norm_flag off, stiff2 = 0 and sigma stays at
+         ! seff for all time.
          th = max(yt(3*i), theta_min)   ! local clamp; yt is NOT modified
          psi = dlog(V0*th/xLf(i))
          help1 = yt(3*i-1)/(2*V0)
@@ -1396,19 +1490,21 @@ end subroutine rkqs
          help = dsqrt(1+(help1*dexp(help2))**2)
          !frc = f0+cca(i)*dlog(yt(3*i-1)/V0) + ccb(i)*dlog(V0*yt(3*i)/xLf(i))
          
-         ! frc/help4 fed only the dropped frc*dpf/dt term -- dead now.
-         !help4 = help1 * dexp(help2)
-         !frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
+         ! frc is the regularised friction coefficient tau/sigma, matching the
+         ! tau1 expression used everywhere else here. The reference uses the
+         ! unregularised f0 + a*ln(V/V0) + b*ln(V0*theta/Dc) instead.
+         help4 = help1 * dexp(help2)
+         frc = cca(i)*dlog(help4+dsqrt(1+help4**2))
 
-          deriv1 = (seff(i)*ccb(i)/th)*help1*dexp(help2)/help
-          deriv2 = (seff(i)*cca(i)/(2*V0))*dexp(help2)/help
+          deriv1 = (sg*ccb(i)/th)*help1*dexp(help2)/help
+          deriv2 = (sg*cca(i)/(2*V0))*dexp(help2)/help
           
           
 
 !aging             
           deriv3 = 1-yt(3*i-1)*th/xLf(i)
 !slip law         deriv3 = -yt(3*i-1)*yt(3*i)/xLf(i)*dlog(yt(3*i-1)*yt(3*i)/xLf(i))
-          dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3)/(eta+deriv2) ! total shear traction
+          dydt(3*i-1) = (-zzfric(i)-deriv1*deriv3 + frc*dydt(3*i-2))/(eta+deriv2)
           dydt(3*i)=deriv3     
        end do
        !$OMP END SIMD
@@ -1710,7 +1806,7 @@ USE phy3d_module_bp6, ONLY : jobname,foldername,restartname, &
 subroutine output(Ioutput,Isnapshot,Nt_all,Nt,inul,imv,ias,icos,isse,x,&
     tmv,tas,tcos,tnul,tsse,maxv,moment,outs1,&
     maxnum,msse1,msse2,areasse1,areasse2, &
-     slipz1_inter,slipz1_tau,slipz1_sse,&
+     slipz1_inter,slipz1_tau,slipz1_sig,slipz1_sse,&
      slipz1_cos,slipave_inter,slipave_cos,slip_cos,v_cos,slip_nul,v_nul,&
      xi_all,x_all,intdepz1,intdepz2,intdepz3,n_cosz1,n_cosz2,n_cosz3,&
     n_intz1,n_intz2,n_intz3,slipz1_v,obvs,n_obv,obvstrk,obvdp,np1,np2,mpi_to_mesh_map) 
@@ -1732,7 +1828,8 @@ real (DP) :: x(Nt),maxnum(nmv),moment(nmv),maxv(nmv),outs1(nmv,7,10),&
 real (DP), allocatable, SAVE :: tcos_all(:)
 
 real (DP) :: slipz1_inter(Nt_all,nas),slipz1_cos(Nt_all,ncos),slipave_inter(Nt_all,nas),slipave_cos(Nt_all,ncos),&
-        v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,ncos),slipz1_sse(Nt_all,nsse), &
+        v_cos(Nt_all,ncos),slip_cos(Nt_all,ncos),slipz1_tau(Nt_all,ncos), &
+        slipz1_sig(Nt_all,ncos),slipz1_sse(Nt_all,nsse), &
      v_nul(Nt_all,nnul),slip_nul(Nt_all,nnul),xi_all(Nt_all),x_all(Nt_all),&
       slipz1_v(Nt_all,ncos)
 integer :: n_intz1,n_intz2,n_intz3,n_cosz1,n_cosz2,n_cosz3
@@ -1946,6 +2043,18 @@ end if
           call h5dcreate_f(group_id, 'slipz1_cos', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
           call h5dclose_f(dset_id, hdferr)
           call h5sclose_f(dspace_id, hdferr)
+
+          ! shear stress tau1 (Pa)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
+          call h5dcreate_f(group_id, 'slipz1_tau', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
+
+          ! effective normal stress (Pa)
+          call h5screate_simple_f(2, dims_2d, dspace_id, hdferr, maxdims_2d)
+          call h5dcreate_f(group_id, 'slipz1_sig', H5T_NATIVE_DOUBLE, dspace_id, dset_id, hdferr, dcpl_id)
+          call h5dclose_f(dset_id, hdferr)
+          call h5sclose_f(dspace_id, hdferr)
           
           call h5pclose_f(dcpl_id, hdferr)
           
@@ -1981,6 +2090,14 @@ end if
           call h5dclose_f(dset_id, hdferr)
           
           call h5dopen_f(group_id, 'slipz1_cos', dset_id, hdferr)
+          call h5dset_extent_f(dset_id, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+
+          call h5dopen_f(group_id, 'slipz1_tau', dset_id, hdferr)
+          call h5dset_extent_f(dset_id, dims_2d, hdferr)
+          call h5dclose_f(dset_id, hdferr)
+
+          call h5dopen_f(group_id, 'slipz1_sig', dset_id, hdferr)
           call h5dset_extent_f(dset_id, dims_2d, hdferr)
           call h5dclose_f(dset_id, hdferr)
           
@@ -2025,6 +2142,26 @@ end if
        
        call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_cos(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
        
+       call h5sclose_f(memspace_id, hdferr)
+       call h5sclose_f(filespace_id, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+
+       ! Write shear stress
+       call h5dopen_f(group_id, 'slipz1_tau', dset_id, hdferr)
+       call h5dget_space_f(dset_id, filespace_id, hdferr)
+       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
+       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_tau(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
+       call h5sclose_f(memspace_id, hdferr)
+       call h5sclose_f(filespace_id, hdferr)
+       call h5dclose_f(dset_id, hdferr)
+
+       ! Write effective normal stress
+       call h5dopen_f(group_id, 'slipz1_sig', dset_id, hdferr)
+       call h5dget_space_f(dset_id, filespace_id, hdferr)
+       call h5sselect_hyperslab_f(filespace_id, H5S_SELECT_SET_F, offset_2d, count_2d, hdferr)
+       call h5screate_simple_f(2, dims_2d, memspace_id, hdferr)
+       call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, slipz1_sig(:,1:icos), dims_2d, hdferr, memspace_id, filespace_id)
        call h5sclose_f(memspace_id, hdferr)
        call h5sclose_f(filespace_id, hdferr)
        call h5dclose_f(dset_id, hdferr)
@@ -2216,6 +2353,18 @@ end if
           write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
           write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
           write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_cos</DataItem>'
+          write(99,'(A)') '     </DataItem>'
+          write(99,'(A)') '    </Attribute>'
+          write(99,'(A)') '    <Attribute Name="shear_stress" Center="Cell">'
+          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
+          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_tau</DataItem>'
+          write(99,'(A)') '     </DataItem>'
+          write(99,'(A)') '    </Attribute>'
+          write(99,'(A)') '    <Attribute Name="normal_stress" Center="Cell">'
+          write(99,'(A,I0,A)') '     <DataItem ItemType="HyperSlab" Dimensions="',n_cells,'">'
+          write(99,'(A,I0,A,I0,A)') '      <DataItem NumberType="UInt" Precision="4" Format="XML" Dimensions="3 2">', i-1, ' 0 1 1 1 ',Nt_all,'</DataItem>'
+          write(99,'(A,I0,3A)') '      <DataItem NumberType="Float" Precision="8" Format="HDF" Dimensions="1 ',Nt_all,'">timeseries_data_', trim(jobname), '.h5:/time_series/slipz1_sig</DataItem>'
           write(99,'(A)') '     </DataItem>'
           write(99,'(A)') '    </Attribute>'
           write(99,'(A)') '   </Grid>'
